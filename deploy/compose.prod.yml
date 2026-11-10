@@ -1,0 +1,63 @@
+# Production overlay for deploy/docker-compose.yml (the base holds the one-tenant
+# shape: harness server on loopback + Caddy in its network namespace).
+#
+#   cp .env.prod.example .env.prod
+#   DOMAIN=app.<MAXIMUS_DOMAIN> docker compose -f docker-compose.yml -f compose.prod.yml --env-file .env.prod up -d
+#
+# The base file's healthcheck already probes /api/health; this overlay pins the
+# production image, caps resources, rotates logs, serves the hardened
+# Caddyfile.prod, and adds the scheduled backup sidecar (deploy/backup/).
+name: ${COMPOSE_PROJECT_NAME:-maximus-prod}
+services:
+  maximus:
+    image: ghcr.io/${RELEASE_OWNER:?set RELEASE_OWNER}/maximus:${MAXIMUS_VERSION:?set MAXIMUS_VERSION}
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 8G
+        reservations:
+          memory: 2G
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    environment:
+      MAXIMUS_PUBLIC_URL: https://${DOMAIN:?set DOMAIN}
+      MAXIMUS_WEBHOOK_PUBLIC_URL: https://${DOMAIN:?set DOMAIN}
+
+  caddy:
+    volumes:
+      - ./Caddyfile.prod:/etc/caddy/Caddyfile:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Nightly encrypted-at-rest volume snapshots (see deploy/backup/backup.sh).
+  # Mounts the data volume read-only; snapshots land on the `backups` volume,
+  # which the operator mirrors off-host (docs/prod-infra.md, "Backups").
+  backup:
+    image: alpine:3.21
+    restart: unless-stopped
+    depends_on:
+      maximus:
+        condition: service_healthy
+    environment:
+      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-0 3 * * *}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - data:/data:ro
+      - backups:/backups
+      - ./backup/backup.sh:/scripts/backup.sh:ro
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        echo "$$BACKUP_SCHEDULE /scripts/backup.sh >>/var/log/backup.log 2>&1" | crontab -
+        exec crond -f -l 8
+
+volumes:
+  backups:

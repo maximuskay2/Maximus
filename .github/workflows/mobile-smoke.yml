@@ -1,0 +1,31 @@
+# Pull-request smoke for the phone app. Signing and store upload stay on
+# maximus-mobile-release.yml, which runs only from a maximus-mobile-v* tag.
+name: Mobile smoke
+
+on:
+  pull_request:
+    paths:
+      - "mobile/**"
+      - ".github/workflows/mobile-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: analyze and test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e # v2.21.0
+        with:
+          channel: stable
+      - name: analyze
+        run: flutter analyze
+        working-directory: mobile
+      - name: tests
+        run: flutter test test/
+        working-directory: mobile

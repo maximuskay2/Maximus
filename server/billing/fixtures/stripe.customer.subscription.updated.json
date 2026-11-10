@@ -1,0 +1,22 @@
+{
+  "id": "evt_fixture_subscription_updated",
+  "object": "event",
+  "api_version": "2025-12-15",
+  "created": 1795142400,
+  "livemode": false,
+  "type": "customer.subscription.updated",
+  "data": {
+    "object": {
+      "id": "sub_fixture_acme",
+      "object": "subscription",
+      "customer": "cus_fixture_acme",
+      "status": "active",
+      "metadata": {
+        "workspace_id": "acme",
+        "plan": "maximus-pro",
+        "entitlements": "[\"admin\", \"billing\", \"budgets\", \"gateway\"]",
+        "allowance": "20000"
+      }
+    }
+  }
+}

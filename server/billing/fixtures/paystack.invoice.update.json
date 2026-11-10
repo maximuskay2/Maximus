@@ -1,0 +1,26 @@
+{
+  "event": "invoice.update",
+  "data": {
+    "id": 320002,
+    "domain": "test",
+    "status": "success",
+    "amount": 20000,
+    "currency": "NGN",
+    "paidAt": "2026-11-07T13:00:00.000Z",
+    "createdAt": "2026-11-07T13:00:00.000Z",
+    "customer": {
+      "id": 410001,
+      "customer_code": "CUS_fixture_acme",
+      "email": "billing@acme.example"
+    },
+    "subscription": {
+      "subscription_code": "SUB_fixture_acme"
+    },
+    "metadata": {
+      "workspace_id": "acme",
+      "plan": "maximus-pro",
+      "entitlements": "[\"admin\", \"billing\", \"budgets\", \"gateway\"]",
+      "allowance": "20000"
+    }
+  }
+}

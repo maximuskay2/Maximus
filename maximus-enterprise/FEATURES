@@ -1,0 +1,13 @@
+# Maximus enterprise entitlement ids
+
+The ids a license key may grant. Core gates ask `entitled(id)`; unknown ids
+grant nothing. Keys may carry unshipped ids; they are ignored, never an error.
+
+- `whitelabel` — brand.json overrides (name, tagline, accent, logo, supportUrl, favicon)
+- `sso` — OIDC sign-in with scope mapping
+- `admin` — Settings -> Installations + hosted sign-in adapter
+- `budgets` — workspace monthly spend cap, refusing turns at the cap
+- `billing` — sell prices per model; billable column in Usage + CSV
+- `gateway` — LLM-included (bundled) routing through the managed gateway
+
+Frozen by `docs/plans/2026-11-06-maximus-contracts.md` section 2.

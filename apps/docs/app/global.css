@@ -1,0 +1,200 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+:root {
+  --maximus-bg: #ffffff;
+  --maximus-raised: #f7f8f8;
+  --maximus-ink: #0a0a0b;
+  --maximus-muted: #5f6570;
+  --maximus-line: #e5e7ea;
+  --maximus-accent: #009957;
+  --maximus-accent-soft: #eaf8f1;
+
+  --color-fd-background: var(--maximus-bg);
+  --color-fd-foreground: var(--maximus-ink);
+  --color-fd-muted: var(--maximus-raised);
+  --color-fd-muted-foreground: var(--maximus-muted);
+  --color-fd-border: var(--maximus-line);
+  --color-fd-primary: var(--maximus-accent);
+  --color-fd-primary-foreground: #ffffff;
+  --color-fd-card: var(--maximus-bg);
+  --color-fd-card-foreground: var(--maximus-ink);
+  --color-fd-secondary: var(--maximus-raised);
+  --color-fd-secondary-foreground: var(--maximus-ink);
+  --color-fd-accent: var(--maximus-accent-soft);
+  --color-fd-accent-foreground: #006b3d;
+}
+
+.dark {
+  --maximus-bg: #070708;
+  --maximus-raised: #131315;
+  --maximus-ink: #f4f4f5;
+  --maximus-muted: #9a9aa4;
+  --maximus-line: #232327;
+  --maximus-accent: #3fae6e;
+  --maximus-accent-soft: #10271a;
+
+  --color-fd-primary-foreground: #07130c;
+  --color-fd-accent-foreground: #7bd69e;
+}
+
+html {
+  scrollbar-gutter: stable;
+  background: var(--maximus-bg);
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0 !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+body {
+  background:
+    radial-gradient(circle at 75% -20%, color-mix(in srgb, var(--maximus-accent) 8%, transparent), transparent 32rem),
+    var(--maximus-bg);
+  color: var(--maximus-ink);
+  letter-spacing: -0.012em;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--maximus-accent) 24%, transparent);
+}
+
+.maximus-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.9rem;
+  font-weight: 660;
+  letter-spacing: -0.02em;
+}
+
+.maximus-brand img {
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 0.5rem;
+}
+
+.maximus-brand-docs {
+  border-left: 1px solid var(--maximus-line);
+  color: var(--maximus-muted);
+  font-size: 0.78rem;
+  font-weight: 520;
+  letter-spacing: 0;
+  margin-left: 0.1rem;
+  padding-left: 0.7rem;
+}
+
+.maximus-product-shot {
+  margin: 2rem 0;
+}
+
+.maximus-product-shot-frame {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--maximus-line) 88%, transparent);
+  border-radius: 1.25rem;
+  background: #0a0a0b;
+  box-shadow:
+    0 1px 1px color-mix(in srgb, var(--maximus-ink) 5%, transparent),
+    0 22px 60px color-mix(in srgb, var(--maximus-ink) 10%, transparent);
+}
+
+.maximus-product-shot img {
+  display: block;
+  width: 100%;
+  max-height: 38rem;
+  object-fit: cover;
+}
+
+.maximus-product-shot figcaption {
+  color: var(--maximus-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  margin-top: 0.65rem;
+  text-align: center;
+}
+
+.maximus-kicker {
+  color: var(--maximus-accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.maximus-lede {
+  color: var(--maximus-muted);
+  font-size: 1.08rem;
+  line-height: 1.75;
+  max-width: 44rem;
+}
+
+.maximus-stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1.75rem 0;
+}
+
+.maximus-stat {
+  border: 1px solid var(--maximus-line);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--maximus-raised) 78%, transparent);
+  padding: 1rem;
+}
+
+.maximus-stat strong,
+.maximus-stat span {
+  display: block;
+}
+
+.maximus-stat strong {
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.maximus-stat span {
+  color: var(--maximus-muted);
+  font-size: 0.78rem;
+  margin-top: 0.2rem;
+}
+
+#nd-sidebar,
+#nd-subnav {
+  background: color-mix(in srgb, var(--maximus-bg) 92%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+#nd-sidebar {
+  border-right-color: var(--maximus-line);
+}
+
+#nd-subnav {
+  border-bottom-color: var(--maximus-line);
+}
+
+.prose :where(h2, h3, h4) {
+  letter-spacing: -0.035em;
+}
+
+.prose :where(a:not([data-card])) {
+  text-decoration-color: color-mix(in srgb, var(--maximus-accent) 45%, transparent);
+  text-underline-offset: 0.2em;
+}
+
+.prose :where(table) {
+  overflow: hidden;
+  border: 1px solid var(--maximus-line);
+  border-radius: 0.9rem;
+}
+
+@media (max-width: 640px) {
+  .maximus-stat-row {
+    grid-template-columns: 1fr;
+  }
+
+  .maximus-product-shot-frame {
+    border-radius: 0.9rem;
+  }
+}

@@ -1,0 +1,25 @@
+Maximus Enterprise License
+
+Copyright (c) 2026 Maximus. All rights reserved.
+
+This license covers the files under the `maximus-enterprise/` directory of
+the Maximus distribution ("the Enterprise Layer"). It does not cover the
+rest of the distribution, which remains under its own license (see LICENSE).
+
+1. You may read, build, and evaluate the Enterprise Layer, and run its
+   features freely in development and test.
+
+2. Running its features in production requires a license key issued for
+   your organisation. The key carries the entitlements your plan grants;
+   the server enforces them and degrades to the open-source edition when
+   the key is missing, invalid, or past its grace period.
+
+3. Hosting the Enterprise Layer for third parties, or white-labelling the
+   product, requires a partner agreement.
+
+4. The Enterprise Layer is provided "as is", without warranties of any
+   kind. In no event shall the licensor be liable for any claim, damages,
+   or other liability arising from its use.
+
+Delete the `maximus-enterprise/` folder and what remains is the
+open-source edition.

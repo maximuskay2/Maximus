@@ -1,0 +1,24 @@
+{
+  "prompts": [
+    {
+      "file": "open-ended-v1.md",
+      "version": "open-ended-v1",
+      "sha256": "31bfc837c8c7ffcc15c9d24d8d2041674340e3284384ca95e5475dc66d5f1120"
+    },
+    {
+      "file": "reply-habits-v1.md",
+      "version": "reply-habits-v1",
+      "sha256": "b4bf93d8d5f0b8244d28423a6214a818314c872e62c30907fd6c74b4fec2e65f"
+    },
+    {
+      "file": "open-ended-v2.md",
+      "version": "open-ended-v2",
+      "sha256": "5bdaa45582ec56c15487cef22862b15909cc2193701fa3cd48e3b3c5dcc7e20f"
+    },
+    {
+      "file": "reply-habits-v2.md",
+      "version": "reply-habits-v2",
+      "sha256": "75e510bfc80927bbd29e9f3477fa3dcdb5899034bade4c8cadc08fb7ce3c91ec"
+    }
+  ]
+}

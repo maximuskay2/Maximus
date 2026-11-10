@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>app-store-connect</string>
+	<key>teamID</key>
+	<string>$(MAXIMUS_APPLE_TEAM_ID)</string>
+	<key>uploadSymbols</key>
+	<true/>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>com.maximus.app</key>
+		<string>$(MAXIMUS_IOS_PROFILE_NAME)</string>
+		<key>com.maximus.app.LiveActivities</key>
+		<string>$(MAXIMUS_IOS_ACTIVITY_PROFILE_NAME)</string>
+	</dict>
+</dict>
+</plist>

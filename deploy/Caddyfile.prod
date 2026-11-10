@@ -1,0 +1,49 @@
+# Production edge for one Maximus tenant: automatic HTTPS in front of a server
+# that only listens on loopback. Used by compose.prod.yml and
+# compose.staging.yml (both set {$DOMAIN}); the dev Caddyfile stays untouched.
+#
+# Security posture: TLS 1.2+ only, HSTS preload, no server banner, no directory
+# listings. Login is pairing (docs/self-hosting.md): a remote browser without a
+# session sees the pair page, everything else is refused by the server itself.
+{$DOMAIN} {
+	encode zstd gzip
+
+	tls {
+		protocols tls1.2 tls1.3
+	}
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		-Server
+	}
+
+	# Liveness probe for orchestrators and load balancers. Unauthenticated by
+	# design; it answers only { app, pid, static, capabilities }.
+	handle /api/health {
+		reverse_proxy 127.0.0.1:8799
+	}
+
+	# Webhook ingress is designed to be reachable by third parties (it has its
+	# own per-hook secrets), so it sits outside any login. The path is passed
+	# through unchanged: the receiver routes on /hooks/<id>.
+	handle /hooks/* {
+		reverse_proxy 127.0.0.1:8800
+	}
+
+	handle {
+		# Optional second wall in front of pairing (a shared password):
+		#   basic_auth {
+		#     {$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+		#   }
+		# and set both variables in .env (hash with `caddy hash-password`,
+		# every `$` doubled for Compose).
+		reverse_proxy 127.0.0.1:8799 {
+			# SSE: stream events as they arrive
+			flush_interval -1
+		}
+	}
+}

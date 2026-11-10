@@ -1,0 +1,27 @@
+{
+  "event": "subscription.disable",
+  "data": {
+    "id": 310001,
+    "domain": "test",
+    "status": "cancelled",
+    "subscription_code": "SUB_fixture_acme",
+    "amount": 20000,
+    "createdAt": "2026-11-07T14:00:00.000Z",
+    "customer": {
+      "id": 410001,
+      "customer_code": "CUS_fixture_acme",
+      "email": "billing@acme.example"
+    },
+    "plan": {
+      "id": 510002,
+      "plan_code": "PLN_fixture_pro",
+      "name": "Maximus Pro"
+    },
+    "metadata": {
+      "workspace_id": "acme",
+      "plan": "maximus-pro",
+      "entitlements": "[\"admin\", \"billing\", \"budgets\", \"gateway\"]",
+      "allowance": "20000"
+    }
+  }
+}

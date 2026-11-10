@@ -1,0 +1,15 @@
+{
+  "id": "evt_fixture_customer_created",
+  "object": "event",
+  "api_version": "2025-12-15",
+  "created": 1795056000,
+  "livemode": false,
+  "type": "customer.created",
+  "data": {
+    "object": {
+      "id": "cus_fixture_acme",
+      "object": "customer",
+      "email": "billing@acme.example"
+    }
+  }
+}

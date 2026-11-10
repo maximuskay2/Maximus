@@ -1,0 +1,23 @@
+{
+  "id": "evt_fixture_invoice_payment_succeeded",
+  "object": "event",
+  "api_version": "2025-12-15",
+  "created": 1795401600,
+  "livemode": false,
+  "type": "invoice.payment_succeeded",
+  "data": {
+    "object": {
+      "id": "in_fixture_recovered",
+      "object": "invoice",
+      "customer": "cus_fixture_acme",
+      "subscription": "sub_fixture_acme",
+      "attempt_count": 3,
+      "metadata": {
+        "workspace_id": "acme",
+        "plan": "maximus-pro",
+        "entitlements": "[\"admin\", \"billing\", \"budgets\", \"gateway\"]",
+        "allowance": "20000"
+      }
+    }
+  }
+}

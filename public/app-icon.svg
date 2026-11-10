@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Maximus</title>
+  <desc id="desc">The Maximus mark: a two-tone letter M, paper on the left and ember on the right, on a dark rounded tile.</desc>
+
+  <rect width="1024" height="1024" rx="224" fill="#14110B" />
+  <path d="M240 712 V312 L512 616 L784 312 V712" fill="none" stroke="#F5F1E8" stroke-width="96" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M512 616 L784 312 V712" fill="none" stroke="#C2410C" stroke-width="96" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

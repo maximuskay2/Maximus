@@ -1,0 +1,22 @@
+{
+  "id": "evt_fixture_subscription_deleted",
+  "object": "event",
+  "api_version": "2025-12-15",
+  "created": 1795228800,
+  "livemode": false,
+  "type": "customer.subscription.deleted",
+  "data": {
+    "object": {
+      "id": "sub_fixture_acme",
+      "object": "subscription",
+      "customer": "cus_fixture_acme",
+      "status": "canceled",
+      "metadata": {
+        "workspace_id": "acme",
+        "plan": "maximus-pro",
+        "entitlements": "[\"admin\", \"billing\", \"budgets\", \"gateway\"]",
+        "allowance": "20000"
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+# Copy to key.properties (gitignored) with the real Play upload-key values,
+# or let CI write it from secrets. Never commit the real file.
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=upload
+storeFile=/path/to/maximus-upload-keystore.jks

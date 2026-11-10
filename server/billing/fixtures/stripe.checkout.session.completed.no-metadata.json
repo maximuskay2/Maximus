@@ -1,0 +1,18 @@
+{
+  "id": "evt_fixture_checkout_no_metadata",
+  "object": "event",
+  "api_version": "2025-12-15",
+  "created": 1795056000,
+  "livemode": false,
+  "type": "checkout.session.completed",
+  "data": {
+    "object": {
+      "id": "cs_fixture_bare",
+      "object": "checkout.session",
+      "customer": "cus_fixture_acme",
+      "mode": "subscription",
+      "subscription": "sub_fixture_acme",
+      "metadata": {}
+    }
+  }
+}

@@ -1,0 +1,12 @@
+# Maintainer review is required on the open-core boundary, the cloud seam and
+# the licensing files. Enforced when the ruleset requires code-owner review.
+/maximus-enterprise/           @RELEASE_OWNER
+/server/enterprise.ts           @RELEASE_OWNER
+/server/enterprise.test.ts      @RELEASE_OWNER
+/server/brand.ts                @RELEASE_OWNER
+/server/tunnel.ts               @RELEASE_OWNER
+/cloudflare/control-plane/      @RELEASE_OWNER
+/LICENSE                        @RELEASE_OWNER
+/LICENSING.md                   @RELEASE_OWNER
+/CLA.md                         @RELEASE_OWNER
+/.github/                       @RELEASE_OWNER
