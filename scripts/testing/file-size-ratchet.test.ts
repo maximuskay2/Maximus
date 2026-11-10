@@ -16,8 +16,8 @@ const HARD_CAP = 2000;
 const LISTED_FROM = 1000;
 
 const LINES: Record<string, number> = {
-  "server/index.ts": 15651,
-  "src/state/store.tsx": 3349,
+  "server/index.ts": 15881,
+  "src/state/store.tsx": 3350,
   "electron/main.mjs": 3233,
   "server/store.ts": 2307,
   "src/components/Sidebar.tsx": 1689,
@@ -27,7 +27,7 @@ const LINES: Record<string, number> = {
   "server/routines.ts": 1567,
   "src/components/ComputerPanel.tsx": 1817,
   "src/components/RoutineCalendarPage.tsx": 1622,
-  "server/config.ts": 1265,
+  "server/config.ts": 1331,
   "src/components/ChatView.tsx": 1306,
   "server/routine-requests.ts": 1474,
   "src/components/GroupView.tsx": 1220,
@@ -40,7 +40,9 @@ const LINES: Record<string, number> = {
   "server/boat.ts": 1258,
   "server/drivers/pi.ts": 1033,
   "server/plan-usage.ts": 1046,
-  "server/container-computer.ts": 1225,
+  "server/container-computer.ts": 1281,
+  "server/message-db.ts": 1068,
+  "electron/companion-account-service.mjs": 1006,
   "src/components/ModelPicker.tsx": 1039,
   "src/components/PhoneSetupFlow.tsx": 1104,
   "server/cli.ts": 1070,

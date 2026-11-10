@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { t } from "../lib/i18n";
+import { Select } from "../components/Select";
 import { formatUsd } from "../lib/usage";
 import { CopyLink } from "../components/PeopleSection";
 import {
@@ -239,9 +240,9 @@ export function AdminView(props: AdminViewProps) {
   return (
     <AdminFrame title={t("console.admin.title")} subtitle={dashboard.email}>
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <select
+        <Select
           aria-label={t("console.admin.workspace")}
-          className="min-w-[220px] rounded-md border border-hairline/40 bg-inset px-3 py-2 text-[14px]"
+          className="min-w-[220px]"
           value={dashboard.workspaceId}
           disabled={props.busy}
           onChange={(event) => props.onWorkspace(event.target.value)}
@@ -253,7 +254,7 @@ export function AdminView(props: AdminViewProps) {
               {membership.role === "admin" ? t("console.account.roleAdmin") : t("console.account.roleMember")}
             </option>
           ))}
-        </select>
+        </Select>
         <span className={muted}>
           {dashboard.workspace?.displayName || dashboard.workspaceId}
           {dashboard.workspace ? ` · ${dashboard.workspace.role === "admin" ? t("console.account.roleAdmin") : t("console.account.roleMember")}` : ""}
@@ -328,16 +329,16 @@ export function AdminView(props: AdminViewProps) {
               </div>
               <div>
                 <label className="block text-[12px] font-medium text-ink-secondary" htmlFor="console-admin-invite-role">{t("console.account.inviteRole")}</label>
-                <select
+                <Select
                   id="console-admin-invite-role"
-                  className="mt-1 rounded-md border border-hairline/40 bg-inset px-2 py-2 text-[14px]"
+                  className="mt-1"
                   value={props.inviteRole}
                   disabled={props.busy}
                   onChange={(event) => props.onInviteRole(event.target.value as "admin" | "member")}
                 >
                   <option value="member">{t("console.account.roleMember")}</option>
                   <option value="admin">{t("console.account.roleAdmin")}</option>
-                </select>
+                </Select>
               </div>
               <button type="submit" className="rounded-md bg-accent px-4 py-2 text-[14px] font-medium text-accent-ink disabled:opacity-50" disabled={props.busy || !validConsoleEmail(props.inviteEmail)}>
                 {t("console.account.inviteSend")}

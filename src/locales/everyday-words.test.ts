@@ -90,6 +90,7 @@ const ALLOWED: Record<string, string> = {
   "cloudPhone.step1": "points at the app menu's Server menu, entry by entry",
   "botAccess.tools.syntax": "the tool names people type, such as mcp:SERVER:NAME",
   "chat.notice.modelServerStoppedAnswering": "the person's model server at a named host, not the app's internal server",
+  "settings.section.workspaceAccount": "the hosted account page names the workspace the contracts use for that object",
 };
 
 const prefixes = Object.values(EVERYDAY_PREFIXES).flat();
