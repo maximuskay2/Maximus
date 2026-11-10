@@ -74,7 +74,11 @@ jobs:
         run: |
           deb=(release/*.deb)
           test "${#deb[@]}" -eq 1
-          pnpm smoke:deb-command "${deb[0]}"
+          # The container apt install flakes the runner's docker with a silent
+          # dpkg death at a varying unpack point; the same install passes on
+          # the runner host and in a local container. One retry: a real
+          # breakage fails twice and stays red.
+          pnpm smoke:deb-command "${deb[0]}" || pnpm smoke:deb-command "${deb[0]}"
       - name: Prove an AppImage update lands on the launched path
         # Installs the current published release over a copy named after a
         # version, which is the shape that used to orphan the launcher. Runs
