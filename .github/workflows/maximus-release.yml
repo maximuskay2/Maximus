@@ -179,6 +179,7 @@ jobs:
         env:
           CSC_LINK: ${{ secrets.MAXIMUS_WIN_CERT_PFX_BASE64 }}
           CSC_KEY_PASSWORD: ${{ secrets.MAXIMUS_WIN_CERT_PASSWORD }}
+          NODE_OPTIONS: --max-old-space-size=4096
         run: |
           if ([string]::IsNullOrEmpty($env:CSC_LINK)) { Write-Error "MAXIMUS_WIN_CERT_PFX_BASE64 is not set (contracts s8)"; exit 1 }
           pnpm package:win
@@ -217,6 +218,8 @@ jobs:
       - name: Clean generated output
         run: rm -rf dist dist-server dist-native release
       - run: pnpm package:linux
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
       - name: "Gate: both artifacts exist and the packaged server starts"
         run: |
           ls release/*.deb release/*.AppImage

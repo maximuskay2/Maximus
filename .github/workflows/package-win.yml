@@ -42,6 +42,9 @@ jobs:
         shell: bash
         run: rm -rf dist dist-server release
       - run: pnpm package:win
+        env:
+          # tsc -b OOMs at the runner's default ~2GB heap; the runner has 7GB
+          NODE_OPTIONS: --max-old-space-size=4096
       - name: Verify the bundled browser with an empty home
         run: node scripts/smoke-browser-bundle.mjs --resources "${{ github.workspace }}/release/win-unpacked/resources"
       - name: Verify the packaged server discovers its browser
