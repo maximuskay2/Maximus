@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { t } from "../lib/i18n";
+import { Select } from "../components/Select";
 import type { ConfigStatus } from "../state/config-status";
 import { KEY_CATALOG, KEY_SECTIONS, type KeyEntry, type SavedState } from "../components/keys/key-catalog";
 import { formatWhen } from "./AdminPage";
@@ -214,21 +215,21 @@ export function MessagesManager({ bots, busy, onRead, onSend }: {
   return (
     <div className="mt-3">
       <div className="flex flex-wrap gap-2">
-        <select aria-label={t("console.harness.bot")} className="rounded-md border border-hairline/40 bg-inset px-3 py-2 text-[14px]" value={botId} disabled={busy}
+        <Select aria-label={t("console.harness.bot")} value={botId} disabled={busy}
           onChange={(event) => {
             setBotId(event.target.value);
             setThreadId("");
             setMessages([]);
           }}>
           {bots.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-        </select>
-        <select aria-label={t("console.harness.thread")} className="min-w-[200px] rounded-md border border-hairline/40 bg-inset px-3 py-2 text-[14px]" value={activeThread} disabled={busy || threads.length === 0}
+        </Select>
+        <Select aria-label={t("console.harness.thread")} className="min-w-[200px]" value={activeThread} disabled={busy || threads.length === 0}
           onChange={(event) => {
             setThreadId(event.target.value);
             refresh(botId, event.target.value);
           }}>
           {threads.map((thread) => <option key={thread.threadId} value={thread.threadId}>{thread.title}</option>)}
-        </select>
+        </Select>
         <button type="button" className="rounded-md border border-hairline/40 px-3 py-2 text-[13px] text-ink-secondary disabled:opacity-50"
           disabled={busy || !activeThread} onClick={() => refresh(botId, activeThread)}>
           {t("console.harness.read")}

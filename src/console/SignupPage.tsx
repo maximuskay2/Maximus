@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { productName } from "../lib/brand";
+import { Select } from "../components/Select";
 import { t } from "../lib/i18n";
 import {
   consoleAccount,
@@ -136,9 +137,9 @@ export function SignupView(props: SignupViewProps) {
             onChange={(event) => props.onDisplayName(event.target.value)}
           />
           <label className={fieldLabel} htmlFor="console-signup-plan">{t("console.signup.plan")}</label>
-          <select
+          <Select
             id="console-signup-plan"
-            className={fieldInput}
+            className="mt-1 w-full"
             value={props.plan}
             disabled={props.busy}
             onChange={(event) => props.onPlan(event.target.value)}
@@ -149,7 +150,7 @@ export function SignupView(props: SignupViewProps) {
                 {plan.baseUsd > 0 ? ` — $${plan.baseUsd}/mo` : ` — ${t("console.free")}`}
               </option>
             ))}
-          </select>
+          </Select>
           <button type="submit" className={primaryButton} disabled={props.busy || !validWorkspaceId(props.workspaceId)}>
             {props.busy ? t("console.signup.creating") : t("console.signup.create")}
           </button>
