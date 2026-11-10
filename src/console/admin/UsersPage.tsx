@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 
 import { t } from "../../lib/i18n";
+import { Select } from "../../components/Select";
 import type { LocaleKey } from "../../locales";
 import { toSeatViews } from "../../components/WorkspaceAccountSection";
 import { validConsoleEmail } from "../account";
@@ -143,16 +144,16 @@ export function UserModal({ original, lists, busy, serverError, onClose, onSubmi
         <label className="mt-4 block text-[12px] font-medium text-ink-secondary" htmlFor="dashboard-user-role">
           {t("console.harness.role")}
         </label>
-        <select
+        <Select
           id="dashboard-user-role"
-          className="mt-1 w-full rounded-md border border-hairline/40 bg-inset px-3 py-2 text-[14px]"
+          className="mt-1 w-full"
           value={role}
           disabled={busy}
           onChange={(event) => setRole(event.target.value as "admin" | "member")}
         >
           <option value="member">{t("console.account.roleMember")}</option>
           <option value="admin">{t("console.account.roleAdmin")}</option>
-        </select>
+        </Select>
         {touched && problem && (
           <p role="alert" className="mt-3 text-[13px] text-danger">{t(problem)}</p>
         )}
