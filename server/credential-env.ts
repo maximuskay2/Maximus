@@ -42,7 +42,16 @@ export const WORKSPACE_CREDENTIAL_ENV = [
 ] as const;
 
 /** Operator secrets only this process reads, plus every `MAXIMUS_CLOUD_` var (the underscore leaves out MAXIMUS_CLOUDFLARED_PATH). */
-export const CONTROL_PLANE_ENV = ["MAXIMUS_LICENSE_KEY", "MAXIMUS_INSTALLATION_CREDENTIAL"] as const;
+export const CONTROL_PLANE_ENV = [
+  "MAXIMUS_LICENSE_KEY",
+  "MAXIMUS_INSTALLATION_CREDENTIAL",
+  "MAXIMUS_GATEWAY_ANTHROPIC_KEY",
+  "MAXIMUS_GATEWAY_OPENAI_KEY",
+  "MAXIMUS_GATEWAY_XAI_KEY",
+  "MAXIMUS_GATEWAY_MOONSHOT_KEY",
+  "MAXIMUS_GATEWAY_META_KEY",
+  "MAXIMUS_GATEWAY_TOKENS",
+] as const;
 export const CONTROL_PLANE_ENV_PREFIX = "MAXIMUS_CLOUD_";
 
 /** Names compare case-insensitively because Windows environments do. */

@@ -1,3 +1,5 @@
+import { CONTROL_PLANE_ENV } from "../credential-env.ts";
+
 // The environment a boxed process gets: an allow-list, never the server's whole environment. The drivers already strip
 // the workspace credentials and every MAXIMUS_CLOUD_ setting before a spawn (server/config.ts stripWorkspaceCredentialEnv);
 // this is the second gate, applied at the box boundary, so a name a driver forgot never reaches a bot's shell.
@@ -23,7 +25,8 @@ export const BOX_ENV_PREFIXES: readonly string[] = [
 
 /** Never, whatever the allow-list says: the control plane's settings and secrets, and the server's own placement. */
 export const BOX_ENV_NEVER: ReadonlySet<string> = new Set([
-  "MAXIMUS_LICENSE_KEY", "MAXIMUS_INSTALLATION_CREDENTIAL", "MAXIMUS_LOOPBACK_TRUST", "MAXIMUS_CLOUD_SECRETS_FD",
+  ...CONTROL_PLANE_ENV,
+  "MAXIMUS_LOOPBACK_TRUST", "MAXIMUS_CLOUD_SECRETS_FD",
   "MAXIMUS_DATA_DIR", "MAXIMUS_STATIC_DIR", "MAXIMUS_DUCKDB_DIR", "MAXIMUS_PORT", "MAXIMUS_WEBHOOK_PORT",
 ]);
 export const BOX_ENV_NEVER_PREFIXES: readonly string[] = ["MAXIMUS_CLOUD_"];
