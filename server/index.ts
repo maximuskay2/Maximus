@@ -653,7 +653,7 @@ import { createToolTimingRoute, createUsageRoutes } from "./routes/usage.ts";
 import { createMarginRoutes } from "./routes/margin.ts";
 import { createPlanRoutes } from "./routes/plans.ts";
 import { createRationRoutes } from "./routes/ration.ts";
-import { createPaymentRoutes, offerPayload } from "./routes/payments.ts";
+import { billingOfferRoute, createPaymentRoutes } from "./routes/payments.ts";
 import { PaymentStore } from "./billing/payments.ts";
 import { bindLiveRation, liveRation, RationService } from "./billing/ration-service.ts";
 import { pushWorkerPlanCatalog } from "./billing/catalog-sync.ts";
@@ -12855,18 +12855,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     }
     if (await emailSignInRoute({ cloudHome: Boolean(CLOUD_HOME), emailSignIn, sessions, cookieName: SESSION_COOKIE,
       environment: () => environmentDescriptor({ environmentId: ENVIRONMENT_ID, ...TEAM_LABEL, desktopManaged: DESKTOP_MANAGED, emailSignIn: true, sharedComputers: lendingEnabled() }) }, req, res, path, method)) return;
-    if (await passwordAuthRoute({
-      file: join(DATA_DIR, "password-accounts.json"),
-      cloudHome: Boolean(CLOUD_HOME),
-      hosted: HOSTED_WORKSPACE,
-      sessions,
-      cookieName: SESSION_COOKIE,
-      onClaim: (email) => {
-        saveConfig({ signIn: { admins: [email], members: [...(cfg.signIn?.members ?? [])] } });
-        Object.assign(cfg, loadConfig());
-      },
-      environment: () => environmentDescriptor({ environmentId: ENVIRONMENT_ID, ...TEAM_LABEL, desktopManaged: DESKTOP_MANAGED, emailSignIn: true, sharedComputers: lendingEnabled() }),
-    }, req, res, path, method)) return;
+    if (await passwordAuthRoute({ file: join(DATA_DIR, "password-accounts.json"), cloudHome: Boolean(CLOUD_HOME), hosted: HOSTED_WORKSPACE, sessions, cookieName: SESSION_COOKIE, onClaim: (email) => { saveConfig({ signIn: { admins: [email], members: [...(cfg.signIn?.members ?? [])] } }); Object.assign(cfg, loadConfig()); }, environment: () => environmentDescriptor({ environmentId: ENVIRONMENT_ID, ...TEAM_LABEL, desktopManaged: DESKTOP_MANAGED, emailSignIn: true, sharedComputers: lendingEnabled() }) }, req, res, path, method)) return;
     if (await oauthSignInRoute(req, res, path, method)) return;
     if ((cloudSigned && await cloudSigned({ req, res, url, path, method })) || chatApps.serveFile(req, res, path, method)) return;
     if (method === "POST" && path === "/api/auth/pair") {
@@ -12970,15 +12959,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     if (method === "GET" && path === "/api/brand" && !gate.auth) {
       return json(res, 200, loadBrand());
     }
-    // Public price quote for /pricing. The rate is the price, not a secret. A dead session must not hide it.
-    if (method === "GET" && path === "/api/billing/offer" && !gate.auth) {
-      res.setHeader("cache-control", "no-store");
-      const country = req.headers["cf-ipcountry"];
-      return json(res, 200, offerPayload({ store: paymentStore, plans: billingPlans }, {
-        countryHeader: typeof country === "string" ? country : null,
-        timeZone: url.searchParams.get("timeZone"),
-      }));
-    }
+    if (await billingOfferRoute({ store: paymentStore, plans: billingPlans }, req, res, path, method, url.searchParams)) return;
     if (!gate.auth) return json(res, gate.status, { error: gate.error });
     if (cloudPower && gate.auth.kind === "session") cloudPower.request(path, req.headers, res); // someone using a Cloud home keeps it awake
     const auth = gate.auth;

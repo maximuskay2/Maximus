@@ -2,10 +2,11 @@
 // Naira-per-dollar rate. GET /api/billing/offer is the public price quote for
 // /pricing. The country header from Cloudflare wins; otherwise
 // the device timezone is the pilot signal.
-import type { IncomingMessage } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 
 import type { BundledPlan } from "../billing/plans.ts";
 import { nairaFromUsd, nigeriaFromSignals, PaymentStore, type PaymentSettings } from "../billing/payments.ts";
+import { json } from "../harness/http.ts";
 import { ownerOrAdmin } from "../request-auth.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
@@ -26,6 +27,24 @@ export function offerPayload(
   signals: { countryHeader?: string | null; timeZone?: string | null },
 ): { offer: ReturnType<typeof offerFor> } {
   return { offer: offerFor(deps.store.read(), nigeriaFromSignals(signals), deps.plans) };
+}
+
+/** Public price quote — called before the auth gate so a dead session still sees /pricing. */
+export async function billingOfferRoute(
+  deps: PaymentRouteDeps,
+  req: IncomingMessage,
+  res: ServerResponse,
+  path: string,
+  method: string,
+  searchParams: URLSearchParams,
+): Promise<boolean> {
+  if (method !== "GET" || path !== "/api/billing/offer") return false;
+  res.setHeader("cache-control", "no-store");
+  json(res, 200, offerPayload(deps, {
+    countryHeader: headerText(req, "cf-ipcountry"),
+    timeZone: searchParams.get("timeZone"),
+  }));
+  return true;
 }
 
 function offerFor(settings: PaymentSettings, nigeria: boolean, plans: ReadonlyMap<string, BundledPlan>) {
