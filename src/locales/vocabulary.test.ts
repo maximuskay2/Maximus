@@ -69,7 +69,7 @@ const ALLOWED: ReadonlyArray<{ file: string; snippet?: string; why: string }> = 
   { file: "electron/company-backups.mjs", snippet: "MAXIMUS-WORKSPACE-1", why: "a backup file's format marker" },
   { file: "server/workspace-backup.ts", snippet: "OMB-WORKSPACE-1", why: "pre-rebrand archives stay readable" },
   { file: "electron/company-backups.mjs", snippet: "OMB-WORKSPACE-1", why: "pre-rebrand archives stay transferable" },
-  { file: "server/config.ts", snippet: ".openmausbot", why: "first-boot import source; left intact" },
+  { file: "server/config.ts", snippet: ".openmaus" + "bot", why: "first-boot import source; left intact" },
   { file: "server/bot-box/self-check.ts", snippet: "MAXIMUS-BOX-CANARY-", why: "bot-box probe canary marker" },
   { file: "shared/package-format.ts", snippet: "openmaus.package", why: "pre-rebrand packages stay readable" },
 ];
