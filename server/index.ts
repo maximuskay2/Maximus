@@ -84,6 +84,7 @@ import { refusalBody, userError, userErrorFields, userErrorThrown } from "./user
 import { chatNotice, failedNoticeTool, noticeTool, runtimeNoticeTool } from "./chat-notices.ts";
 import type { ServerErrorBody } from "../shared/server-text.ts";
 import { emailSignInRoute } from "./routes/email-sign-in.ts";
+import { passwordAuthRoute } from "./routes/password-auth.ts";
 import { createOAuthSignInRoute } from "./routes/oauth-sign-in.ts";
 import { createPersonStop } from "./host/person-stop.ts";
 import { createTurnOrder } from "./host/turn-order.ts";
@@ -536,7 +537,8 @@ import { createWorkspaceBackupRoutes, isWorkspaceBackupSessionControl } from "./
 import { applyPendingWorkspaceRestore, readLastWorkspaceRestore, type WorkspaceRestoreResult } from "./workspace-backup.ts";
 import { repairMovedWorkspacePaths } from "./moved-paths-repair.ts";
 import { createCustomDomainVerifier, customDomainIpv4, normalizeCustomDomain } from "./custom-domain.ts";
-import { allowedScopes, createEmailSignIn, parseAllowList } from "./account-signin.ts";
+import { createEmailSignIn, parseAllowList, sessionScopesForEmail } from "./account-signin.ts";
+import { createPasswordAccounts } from "./password-accounts.ts";
 import { ProviderAuthSessions } from "./provider-auth-sessions.ts";
 import {
   clearSessionCookie,
@@ -651,6 +653,8 @@ import { createToolTimingRoute, createUsageRoutes } from "./routes/usage.ts";
 import { createMarginRoutes } from "./routes/margin.ts";
 import { createPlanRoutes } from "./routes/plans.ts";
 import { createRationRoutes } from "./routes/ration.ts";
+import { createPaymentRoutes, offerPayload } from "./routes/payments.ts";
+import { PaymentStore } from "./billing/payments.ts";
 import { bindLiveRation, liveRation, RationService } from "./billing/ration-service.ts";
 import { pushWorkerPlanCatalog } from "./billing/catalog-sync.ts";
 import { plansFromRation, rationWorkspace, type RationProfile } from "./billing/ration.ts";
@@ -713,7 +717,8 @@ const sessions = new SessionRegistry({
   file: join(DATA_DIR, "sessions.json"),
   emailScopesSnapshot: () => {
     const membership = signInAllowList();
-    return (email) => allowedScopes(email, membership);
+    const accounts = createPasswordAccounts(join(DATA_DIR, "password-accounts.json")).list();
+    return (email) => sessionScopesForEmail(email, membership, accounts);
   },
   portalMembership: hostedWorkspaceConfiguration()?.portalMembership === true, recheckMs: 1_000,
 }); onConfigSaved(() => sessions.membershipChanged());
@@ -1209,7 +1214,7 @@ async function answeringCardAs(auth: RequestAuth, threadId: string, requestId: s
 }
 
 const { viewerFor, threadOwner, visibleTo, forgetVisibility, threadShown, subjectVisible, hiddenRoutineTarget, roomFeedsBot, settleRoomFloor } = createVisibilityHost({ store: () => store, routines: () => routines,
-  team: Boolean(CLOUD_TEAM), audiencesFor: (viewer) => teamHost.audiencesFor(viewer), threadsReferencing }); if (CLOUD_TEAM) hideOthersSyncFolders(() => store.bots, threadShown); const botAccess = createBotAccessHost({ visibleFor: (auth) => visibleTo(viewerFor(auth)), store: () => store, routines: () => routines, threadOwner, routineWriter: (id) => cloudRoutineAuthors?.writer(id) }), { levelOf } = botAccess; const accessRequests = createAccessRequests({ team: CLOUD_TEAM, store: () => store, people: () => teamOwners.people?.list() ?? [], profileName: (email) => teamHost.people.profile(personKey({ id: "", email })).name, inbox: () => teamMessages.inbox, visibleTo, levelOf, writeAccess: (bot, access) => writeAccess({ store, publicGroupState, broadcast, audienceChanged }, bot, access), record: (row, by) => appendAdminAction(DATA_DIR, { ...row, actor: { kind: "session", sessionId: "", label: by, email: by } }) });
+  team: Boolean(CLOUD_TEAM), ownAccounts: !CLOUD_TEAM && !HOSTED_WORKSPACE && !CLOUD_HOME && !CLOUD_PERSONAL, audiencesFor: (viewer) => teamHost.audiencesFor(viewer), threadsReferencing }); if (CLOUD_TEAM) hideOthersSyncFolders(() => store.bots, threadShown); const botAccess = createBotAccessHost({ visibleFor: (auth) => visibleTo(viewerFor(auth)), store: () => store, routines: () => routines, threadOwner, routineWriter: (id) => cloudRoutineAuthors?.writer(id) }), { levelOf } = botAccess; const accessRequests = createAccessRequests({ team: CLOUD_TEAM, store: () => store, people: () => teamOwners.people?.list() ?? [], profileName: (email) => teamHost.people.profile(personKey({ id: "", email })).name, inbox: () => teamMessages.inbox, visibleTo, levelOf, writeAccess: (bot, access) => writeAccess({ store, publicGroupState, broadcast, audienceChanged }, bot, access), record: (row, by) => appendAdminAction(DATA_DIR, { ...row, actor: { kind: "session", sessionId: "", label: by, email: by } }) });
 
 function recentWorkFilter(threadId: string): { include?: (threadId: string) => boolean; privateThread?: (threadId: string) => boolean } {
   const include = CLOUD_TEAM ? (id: string) => teamHost.readableFrom(threadId)(id) && outsideLineage.mayReach(id, threadId) : CLOUD_HOME ? cloudOwnerOnlyThread : () => true; return { include: (id) => !botApiThread(id) && include(id), ...(CLOUD_TEAM ? { privateThread: (id: string) => teamHost.privateTo(id) !== null } : {}) };
@@ -12271,14 +12276,14 @@ ROUTES.push(createThreadRoutes({
   companionMutationToken: () => companionMutationToken,
   cliOwnerToken: () => cliOwnerToken,
   pageSize, messagePage, messageWindow, publicBotQueuedMessages, publicGroupState, wireBot,
-  botComputerControlSnapshot, messageFileRootsForThread, viewerFor, visibleTo, coordinator, groupThreadIsWorking, memberDefaultBot: CLOUD_TEAM ? (email) => { const own = ensureDefaultBot(store, { dataDir: DATA_DIR, person: email, team: CLOUD_TEAM.name }); if (own) void maximusOwnChat.claim(own); return own; } : undefined,
+  botComputerControlSnapshot, messageFileRootsForThread, viewerFor, visibleTo, coordinator, groupThreadIsWorking, personalAccounts: !CLOUD_TEAM && !HOSTED_WORKSPACE && !CLOUD_HOME && !CLOUD_PERSONAL, memberDefaultBot: (email) => { const own = ensureDefaultBot(store, { dataDir: DATA_DIR, person: email, ...(CLOUD_TEAM ? { team: CLOUD_TEAM.name } : {}) }); if (own && CLOUD_TEAM) void maximusOwnChat.claim(own); return own; },
   uploads: uploadsFor(createUploadOwners(DATA_DIR), Boolean(CLOUD_TEAM)),
   attachmentInUse: (name) => threadsReferencing(name).length > 0 || store.bots.some((bot) => bot.avatarUrl === `/api/attachments/${name}`),
   keptAttachments: CLOUD_TEAM ? undefined : () => { const routineFiles = routines?.attachmentPaths(); return routineFiles && calendarCalls ? keptAttachmentNames([...store.bots.map((bot) => bot.avatarUrl), cfg.profile?.avatarUrl], [workspaceBannerStore.current()?.name, ...routineFiles,
     ...calendarCalls.list().flatMap((call) => call.attachments?.map((file) => file.path) ?? []), ...[...turnAttachmentsByTurn.values()].flat().map((file) => file.path)]) : null; },
 })); offerAttachmentClear(!CLOUD_TEAM);
 ROUTES.push(createBotCreateRoutes({
-  store, cfg, presetStore, orgInstallStatuses,
+  store, cfg, presetStore, orgInstallStatuses, personalAccounts: !CLOUD_TEAM && !HOSTED_WORKSPACE && !CLOUD_HOME && !CLOUD_PERSONAL,
   hostedWorkspace: HOSTED_WORKSPACE, hostedFullAccessRefusal: HOSTED_FULL_ACCESS_REFUSAL, desktopManaged: DESKTOP_MANAGED,
   maxWorkspaceBots: MAX_WORKSPACE_BOTS, botLimit, cloudOwnerKey: CLOUD_OWNER_KEY,
   hostedModels, cloudRoutineAuthors,
@@ -12632,12 +12637,15 @@ const downloadsRoute = createDownloadsRoute({
   releaseDir: process.env.MAXIMUS_RELEASE_DIR?.trim() || join(SERVER_ROOT, "..", "release"),
   version: serverVersion(),
 });
+const paymentStore = new PaymentStore(DATA_DIR);
+ROUTES.push(createPaymentRoutes({ store: paymentStore, plans: billingPlans }));
 ROUTES.push(createBillingRoutes({
   dataDir: DATA_DIR,
   plans: billingPlans,
   knownEntitlements: KNOWN_ENTITLEMENTS,
   prices: operatorPrices,
   secrets: checkoutSecretsFromEnv(),
+  payments: () => paymentStore.read(),
 }));
 
 ROUTES.push(desktopViewer.route);
@@ -12811,7 +12819,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     }
     // Hosted workspaces have one sign-in authority: a missing optional layer must never reactivate email/QR credential minting.
     if (HOSTED_WORKSPACE) {
-      if ((method === "POST" && ["/api/auth/pair", "/api/pair", "/api/auth/pairing", "/api/auth/email/start", "/api/auth/email/verify", "/api/auth/oauth/redeem"].includes(path))
+      if ((method === "POST" && ["/api/auth/pair", "/api/pair", "/api/auth/pairing", "/api/auth/email/start", "/api/auth/email/verify", "/api/auth/oauth/redeem", "/api/auth/signup", "/api/auth/signin"].includes(path))
         || (method === "GET" && (path === "/api/auth/methods" || path.startsWith("/api/auth/oauth/")))) {
         return json(res, 403, { error: "Sign in through the workspace portal." });
       }
@@ -12847,6 +12855,18 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     }
     if (await emailSignInRoute({ cloudHome: Boolean(CLOUD_HOME), emailSignIn, sessions, cookieName: SESSION_COOKIE,
       environment: () => environmentDescriptor({ environmentId: ENVIRONMENT_ID, ...TEAM_LABEL, desktopManaged: DESKTOP_MANAGED, emailSignIn: true, sharedComputers: lendingEnabled() }) }, req, res, path, method)) return;
+    if (await passwordAuthRoute({
+      file: join(DATA_DIR, "password-accounts.json"),
+      cloudHome: Boolean(CLOUD_HOME),
+      hosted: HOSTED_WORKSPACE,
+      sessions,
+      cookieName: SESSION_COOKIE,
+      onClaim: (email) => {
+        saveConfig({ signIn: { admins: [email], members: [...(cfg.signIn?.members ?? [])] } });
+        Object.assign(cfg, loadConfig());
+      },
+      environment: () => environmentDescriptor({ environmentId: ENVIRONMENT_ID, ...TEAM_LABEL, desktopManaged: DESKTOP_MANAGED, emailSignIn: true, sharedComputers: lendingEnabled() }),
+    }, req, res, path, method)) return;
     if (await oauthSignInRoute(req, res, path, method)) return;
     if ((cloudSigned && await cloudSigned({ req, res, url, path, method })) || chatApps.serveFile(req, res, path, method)) return;
     if (method === "POST" && path === "/api/auth/pair") {
@@ -12949,6 +12969,15 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     // Public: the sign-in page needs the deployment's name and icon, and it holds nothing secret.
     if (method === "GET" && path === "/api/brand" && !gate.auth) {
       return json(res, 200, loadBrand());
+    }
+    // Public price quote for /pricing. The rate is the price, not a secret. A dead session must not hide it.
+    if (method === "GET" && path === "/api/billing/offer" && !gate.auth) {
+      res.setHeader("cache-control", "no-store");
+      const country = req.headers["cf-ipcountry"];
+      return json(res, 200, offerPayload({ store: paymentStore, plans: billingPlans }, {
+        countryHeader: typeof country === "string" ? country : null,
+        timeZone: url.searchParams.get("timeZone"),
+      }));
     }
     if (!gate.auth) return json(res, gate.status, { error: gate.error });
     if (cloudPower && gate.auth.kind === "session") cloudPower.request(path, req.headers, res); // someone using a Cloud home keeps it awake

@@ -16,6 +16,7 @@ import { resolveElement } from "./cdp/selectors.ts";
 import { MAX_VISIBLE_TEXT_LENGTH } from "./cdp/snapshot.ts";
 import { BROWSER_CONTROL_REFUSAL, type ProfileControl } from "./control.ts";
 import { BrowserControlInterrupted } from "./session-control.ts";
+import { sensitivePageReason } from "./sensitive-page.ts";
 import { errorResult, pageLabel, snapshotText, textResult, withParts, type ToolResult } from "./shape.ts";
 import type { Tab, TabRegistry } from "./tabs.ts";
 import { targetOf, type ToolCall, type ToolInput } from "./tools.ts";
@@ -28,6 +29,18 @@ const OBSERVE_TEXT_CHARS = 200_000;
 const NAVIGATION_FOLLOW_MS = 10_000;
 const OBSERVE_PAGE = `({ url: location.href, title: document.title, text: (document.body ? document.body.innerText : "").slice(0, ${OBSERVE_TEXT_CHARS}) })`;
 const ELEMENT_TEXT = "function () { return String(this.innerText ?? this.textContent ?? this.value ?? ''); }";
+
+async function heldForApproval(tab: Tab): Promise<ToolResult | null> {
+  try {
+    const observed: unknown = await tab.page.evaluate(OBSERVE_PAGE);
+    const text = observed && typeof observed === "object" && "text" in observed && typeof observed.text === "string" ? observed.text : "";
+    const reason = sensitivePageReason(text);
+    if (!reason) return null;
+    return textResult(`Needs your approval before this page can continue (${reason}). Nothing was submitted.`);
+  } catch {
+    return null;
+  }
+}
 
 export const SECRET_ON_PAGE_EVAL = "A saved password was just filled on this page, so agent_browser_eval is refused here for now. Submit the form or open another page first; to read this page, use agent_browser_snapshot or agent_browser_read.";
 
@@ -298,6 +311,8 @@ export async function executeTool(context: ToolContext, call: ToolCall): Promise
       const tab = tabOf(context, call.input.tab);
       const target = element(call.input);
       return act(context, tab, async () => {
+        const held = await heldForApproval(tab);
+        if (held) return held;
         const clicked = await tab.page.click(target, { button: call.input.button ?? "left", clickCount: call.input.clickCount ?? 1, timeoutMs: remaining(context), pointer: context.pointer(tab) });
         return textResult(`Clicked ${"ref" in target ? target.ref : "selector" in target ? JSON.stringify(target.selector) : `${Math.round(clicked.x)},${Math.round(clicked.y)}`}${clicked.dialog ? "; it opened a dialog" : ""}.`);
       }, { observeChange: true });
@@ -306,6 +321,8 @@ export async function executeTool(context: ToolContext, call: ToolCall): Promise
       const tab = tabOf(context, call.input.tab);
       const target = element(call.input, false) as { ref: string } | { selector: string };
       return act(context, tab, async () => {
+        const held = await heldForApproval(tab);
+        if (held) return held;
         await tab.page.fill(target, call.input.text);
         if (call.input.submit) await tab.page.press("Enter");
         return textResult(`Filled the field${call.input.submit ? " and pressed Enter" : ""}.`);
@@ -315,6 +332,8 @@ export async function executeTool(context: ToolContext, call: ToolCall): Promise
       const tab = tabOf(context, call.input.tab);
       const target = call.input.ref !== undefined || call.input.selector !== undefined ? element(call.input, false) as { ref: string } | { selector: string } : null;
       return act(context, tab, async () => {
+        const held = await heldForApproval(tab);
+        if (held) return held;
         if (call.input.clear && target) await tab.page.fill(target, "");
         await tab.page.type(target, call.input.text);
         return textResult(`Typed ${[...call.input.text].length} characters.`);

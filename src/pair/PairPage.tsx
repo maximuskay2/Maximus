@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { DesktopWorkspaceSwitcher } from "../components/DesktopWorkspaceSwitcher";
 import { productName } from "../lib/brand";
+import { AccountForm } from "./AccountForm";
 
 import {
   defaultDeviceLabel,
@@ -9,6 +10,7 @@ import {
   pairWithCode,
   readSessionState,
   reasonWorthShowing,
+  signOutOfThisWindow,
   startEmailSignIn,
   verifyEmailSignIn,
   type EnvironmentDescriptor,
@@ -16,7 +18,6 @@ import {
 } from "../lib/session";
 import { pairedDestination } from "../lib/phone-pairing";
 import { t } from "../lib/i18n";
-import { ServiceEndpointPicker } from "../console/ServiceEndpoint";
 
 const input = "mt-1 w-full rounded-md border border-hairline/40 bg-inset px-3 py-2 text-[14px] text-ink outline-none focus:border-accent-border";
 const button = "mt-5 w-full rounded-md bg-accent px-4 py-2 text-[14px] font-medium text-accent-ink disabled:opacity-50";
@@ -55,6 +56,9 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
   const [sent, setSent] = useState(false);
   const [opening, setOpening] = useState(() => pairsAutomatically(initialCode));
   const [providers, setProviders] = useState<{ id: string; label: string }[]>([]);
+  const [accountMode, setAccountMode] = useState<"signin" | "signup">(() => (
+    typeof location !== "undefined" && new URLSearchParams(location.search).get("mode") === "signup" ? "signup" : "signin"
+  ));
 
   useEffect(() => {
     if (!opening || !initialCode) return;
@@ -93,6 +97,7 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
   }, []);
 
   const connected = isConnected(session);
+  const signedIn = session?.kind === "session";
   const emailOffered = environment?.capabilities.emailSignIn === true;
   const cloudHome = environment?.capabilities.cloudHome === true;
 
@@ -138,15 +143,25 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
         {opening ? (
           <p role="status" className="text-[20px] font-semibold">{cloudHome ? t("pair.openingCloud") : t("pair.connectingTo", { name: environment?.label ?? t("pair.thisMaximus") })}</p>
         ) : <>
-        <h1 className="text-[20px] font-semibold">{pairTitle(environment, mode)}</h1>
-        <p className="mt-1.5 text-[14px] leading-relaxed text-ink-secondary">
+        <h1 className="text-[20px] font-semibold">{initialCode ? pairTitle(environment, mode) : t(accountMode === "signup" ? "account.create" : "accounts.signIn")}</h1>
+        {initialCode ? <p className="mt-1.5 text-[14px] leading-relaxed text-ink-secondary">
           {environment && !cloudHome ? `${t("pair.version", { version: environment.version, platform: environment.platform })} ` : ""}
           {pairIntro({ mode, sent, email, cloudHome })}
-        </p>
+        </p> : null}
         {reasonWorthShowing(reason) && !connected ? <p className="mt-3 text-[13px] text-ink-secondary">{reasonWorthShowing(reason)}</p> : null}
+        <div className="mt-4 flex gap-2">
+          {signedIn ? (
+            <button type="button" className="flex-1 rounded-md border border-hairline/40 px-4 py-2 text-[14px] font-medium text-ink" onClick={() => signOutOfThisWindow()}>{t("accounts.signOut")}</button>
+          ) : (
+            <>
+              <button type="button" className="flex-1 rounded-md bg-accent px-4 py-2 text-[14px] font-medium text-accent-ink" onClick={() => setAccountMode("signin")}>{t("accounts.signIn")}</button>
+              <button type="button" className="flex-1 rounded-md border border-hairline/40 px-4 py-2 text-[14px] font-medium text-ink" onClick={() => setAccountMode("signup")}>{t("account.create")}</button>
+            </>
+          )}
+        </div>
         {error && cloudHome && initialCode ? <p className="mt-3 text-[13px] text-ink-secondary">{t("pair.expired", { app: productName(), open: t("cloudHome.connect"), section: t("settings.section.cloudAccount") })}</p> : null}
         </>}
-        {!opening && !connected && providers.length > 0 ? (
+        {!opening && !connected && initialCode && providers.length > 0 ? (
           <div className="mt-4">
             {providers.map((method) => (
               <a key={method.id} href={`/api/auth/oauth/${method.id}/start`} className={providerButton}>
@@ -155,7 +170,15 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
             ))}
           </div>
         ) : null}
-        {opening ? null : connected ? (
+        {opening ? null : !initialCode ? (
+          <AccountForm
+            mode={accountMode}
+            inputClass={input}
+            buttonClass={button}
+            quietClass={providerButton}
+            onSignedIn={() => location.replace("/")}
+          />
+        ) : signedIn || connected ? (
           <p className="mt-4 text-[14px]">
             {t("pair.alreadyConnected")}{" "}
             <a href="/" className="text-accent underline">
@@ -214,10 +237,6 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
             <button type="button" onClick={() => switchMode("code")} className="mt-3 w-full text-[13px] text-ink-secondary underline">
               {t("pair.useCode")}
             </button>
-            <details className="mt-4 text-[13px] text-ink-secondary">
-              <summary className="cursor-pointer underline">{t("console.endpoint.title")}</summary>
-              <div className="mt-2"><ServiceEndpointPicker /></div>
-            </details>
           </form>
         ) : (
           <form onSubmit={submitCode}>

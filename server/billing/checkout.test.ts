@@ -49,6 +49,24 @@ describe("provider-agnostic checkout", () => {
     expect(body.metadata?.allowance).toBe("20000");
   });
 
+  it("charges Paystack in kobo when no plan code is configured", async () => {
+    const seenBody: { body?: string }[] = [];
+    const fetchImpl = (async (_url: string, init: { body?: string }): Promise<Response> => {
+      seenBody.push({ body: init.body });
+      return new Response(JSON.stringify({ status: true, data: { authorization_url: "https://checkout.paystack.com/ref", reference: "ref_amount" } }), { status: 200 });
+    }) as typeof fetch;
+    const { providerPriceRef: _ref, ...amountRequest } = base;
+    const session = await createCheckoutSession(
+      { ...amountRequest, provider: "paystack", amountMinor: 3_040_000 },
+      { fetchImpl, secrets: { paystackSecretKey: "sk_live_fixture" } },
+    );
+    expect(session.sessionId).toBe("ref_amount");
+    expect(session.livemode).toBe(true);
+    const body = JSON.parse(seenBody[0]?.body ?? "{}") as { amount?: number; plan?: string };
+    expect(body.amount).toBe(3_040_000);
+    expect(body.plan).toBeUndefined();
+  });
+
   it("refuses misconfiguration without leaking secrets", async () => {
     const fetchImpl = (async (): Promise<Response> => new Response(JSON.stringify({ error: { message: "bad key" } }), { status: 401 })) as typeof fetch;
     await expect(createCheckoutSession(base, { fetchImpl, secrets: {} })).rejects.toThrow("stripe is not configured");

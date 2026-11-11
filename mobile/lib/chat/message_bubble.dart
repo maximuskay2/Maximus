@@ -31,7 +31,8 @@ Widget defaultAttachmentImageLoader(
 }
 
 /// One chat message: bubble, markdown body, attachment previews.
-class MessageBubble extends StatelessWidget {
+/// Slide the bubble to reply. Long-press it to show reply and react.
+class MessageBubble extends StatefulWidget {
   const MessageBubble({
     super.key,
     required this.message,
@@ -61,10 +62,98 @@ class MessageBubble extends StatelessWidget {
   /// Answer a live approval/question card on this message.
   final CardAnswerer? onAnswerCard;
 
-  bool get _mine => message.role == 'user';
+  @override
+  State<MessageBubble> createState() => _MessageBubbleState();
+}
+
+class _MessageBubbleState extends State<MessageBubble> {
+  static const _replyDistance = 56.0;
+
+  final _bubbleKey = GlobalKey();
+  double _drag = 0;
+  OverlayEntry? _actions;
+
+  bool get _mine => widget.message.role == 'user';
+
+  bool get _actionable =>
+      !widget.message.blank &&
+      (widget.onReply != null || widget.onReact != null);
+
+  void _showActions() {
+    _hideActions();
+    final box = _bubbleKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return;
+    final origin = box.localToGlobal(Offset.zero);
+    final overlay = Overlay.of(context);
+    _actions = OverlayEntry(
+      builder: (context) {
+        final media = MediaQuery.sizeOf(context);
+        final below = origin.dy + box.size.height + 4;
+        final top = below + 48 > media.height ? origin.dy - 48 : below;
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: _hideActions,
+                behavior: HitTestBehavior.translucent,
+              ),
+            ),
+            Positioned(
+              left: _mine ? null : origin.dx,
+              right: _mine
+                  ? media.width - origin.dx - box.size.width
+                  : null,
+              top: top,
+              child: Material(
+                color: const Color(0xFFF2F2F7),
+                elevation: 2,
+                borderRadius: BorderRadius.circular(22),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.onReply != null)
+                      IconButton(
+                        icon: const Icon(Icons.reply, size: 18),
+                        tooltip: 'Reply',
+                        onPressed: () {
+                          _hideActions();
+                          widget.onReply!(widget.message);
+                        },
+                      ),
+                    if (widget.onReact != null)
+                      IconButton(
+                        icon: const Icon(Icons.add_reaction_outlined, size: 18),
+                        tooltip: 'React',
+                        onPressed: () {
+                          _hideActions();
+                          widget.onReact!(widget.message);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    overlay.insert(_actions!);
+  }
+
+  void _hideActions() {
+    _actions?.remove();
+    _actions = null;
+  }
+
+  @override
+  void dispose() {
+    _hideActions();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final message = widget.message;
     final scheme = Theme.of(context).colorScheme;
     final images = [
       for (final a in message.attachments)
@@ -79,6 +168,7 @@ class MessageBubble extends StatelessWidget {
         if (a.kind != 'image' && a.kind != 'audio') a,
     ];
     final bubble = Container(
+      key: _bubbleKey,
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       constraints: BoxConstraints(
@@ -92,11 +182,11 @@ class MessageBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (replyToText != null)
+          if (widget.replyToText != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Text(
-                '↩ $replyToText',
+                '↩ ${widget.replyToText}',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -109,14 +199,18 @@ class MessageBubble extends StatelessWidget {
           for (final image in images)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: imageLoader(context, '$baseUrl${image.path}', headers),
+              child: widget.imageLoader(
+                context,
+                '${widget.baseUrl}${image.path}',
+                widget.headers,
+              ),
             ),
           for (final clip in audio)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: VoiceNote(
-                url: '$baseUrl${clip.path}',
-                headers: headers,
+                url: '${widget.baseUrl}${clip.path}',
+                headers: widget.headers,
                 durationMs: clip.durationMs,
               ),
             ),
@@ -179,7 +273,7 @@ class MessageBubble extends StatelessWidget {
           if (message.card != null)
             ApprovalCard(
               card: message.card!,
-              onAnswer: _mine ? null : onAnswerCard,
+              onAnswer: _mine ? null : widget.onAnswerCard,
             )
           else if (message.hasCard)
             Padding(
@@ -196,34 +290,40 @@ class MessageBubble extends StatelessWidget {
         ],
       ),
     );
-    final row = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (onReply != null)
-          IconButton(
-            icon: const Icon(Icons.reply, size: 18),
-            tooltip: 'Reply',
-            onPressed: () => onReply!(message),
-          ),
-        if (onReact != null)
-          IconButton(
-            icon: const Icon(Icons.add_reaction_outlined, size: 18),
-            tooltip: 'React',
-            onPressed: () => onReact!(message),
-          ),
-      ],
-    );
+    final slide = widget.onReply != null && !message.blank;
     return Align(
       alignment: _mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Column(
-        crossAxisAlignment: _mine
-            ? CrossAxisAlignment.end
-            : CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          bubble,
-          if (!message.blank && (onReply != null || onReact != null)) row,
-        ],
+      child: GestureDetector(
+        onLongPress: _actionable ? _showActions : null,
+        onHorizontalDragUpdate: slide
+            ? (details) {
+                setState(() {
+                  _drag = (_drag + details.delta.dx).clamp(0, 72);
+                });
+              }
+            : null,
+        onHorizontalDragEnd: slide
+            ? (_) {
+                final reply = _drag >= _replyDistance;
+                setState(() => _drag = 0);
+                if (reply) widget.onReply!(message);
+              }
+            : null,
+        onHorizontalDragCancel: slide ? () => setState(() => _drag = 0) : null,
+        child: Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            if (_drag > 0)
+              Opacity(
+                opacity: (_drag / _replyDistance).clamp(0, 1),
+                child: const Padding(
+                  padding: EdgeInsets.only(left: 4),
+                  child: Icon(Icons.reply, size: 18),
+                ),
+              ),
+            Transform.translate(offset: Offset(_drag, 0), child: bubble),
+          ],
+        ),
       ),
     );
   }

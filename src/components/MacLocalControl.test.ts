@@ -29,6 +29,8 @@ describe("Mac local computer status", () => {
     fixture.localComputer = { available: false, status: "unavailable" } as DesktopCapabilities["localComputer"];
     const markup = renderToStaticMarkup(createElement(MacLocalControl));
     expect(markup).toContain("Local computer control is not ready");
+    expect(markup).toContain("Open Accessibility Settings");
+    expect(markup).toContain("Open Screen Recording Settings");
     expect(markup).not.toContain("Accessibility is required");
     expect(markup).not.toContain("Relaunch Max</button>");
   });

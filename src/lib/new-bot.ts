@@ -76,6 +76,19 @@ export async function makeNewBot(action: Extract<Action, { type: "newBot" }>, bo
     made = await createNewBot(action.section, bots, currentTeamPeople(), request);
   } catch (cause) {
     if (isBotLimitRefusal(cause)) return;
+    const denied = cause instanceof Error && /forbidden|admin scope/i.test(cause.message);
+    if (currentTeamPeople() == null && denied) {
+      try {
+        const name = freeName("Agent", bots);
+        const { bot } = await request<{ bot: Bot }>("/api/bots", { method: "POST", body: JSON.stringify({ name }) });
+        announceNewBot(dispatch, bot, [], { preserveSelection: action.preserveSelection, showThreads, source: "blank" });
+        action.onCreated?.(bot);
+        return;
+      } catch (again) {
+        if (isBotLimitRefusal(again)) return;
+        cause = again;
+      }
+    }
     const message = t("newBot.failed", { error: cause instanceof Error ? cause.message : String(cause) });
     if (action.onError) action.onError(message);
     else dispatch({ type: "error", message });

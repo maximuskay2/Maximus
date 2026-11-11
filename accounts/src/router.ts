@@ -47,6 +47,7 @@ import {
   updateWorkspace,
   updateWorkspaceProviders,
 } from "./workspaces.ts";
+import { getOperatorMail, putOperatorMail } from "./operator-mail.ts";
 import { updatePlanCatalog } from "./plan-catalog.ts";
 
 const SIGN_IN_OTP_PATH = "/api/auth/sign-in/email-otp";
@@ -230,6 +231,10 @@ async function route(request: Request, deps: RouterDeps): Promise<Response> {
     return request.method === "GET"
       ? getWorkspace(request, workspace[1], env, auth)
       : updateWorkspace(request, workspace[1], env, auth);
+  }
+  if (url.pathname === "/api/operator/mail" && (request.method === "GET" || request.method === "PUT")) {
+    assertContract(request);
+    return request.method === "GET" ? getOperatorMail(request, env) : putOperatorMail(request, env);
   }
   if (request.method === "GET" && OPERATOR_PROVIDERS_ROUTE.test(url.pathname)) {
     assertContract(request);

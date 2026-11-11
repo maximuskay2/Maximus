@@ -64,9 +64,10 @@ class FakeSecureStoragePlatform extends FlutterSecureStoragePlatform {
 }
 
 class FakeApi implements MaximusApi {
-  FakeApi({this.failBots = false});
+  FakeApi({this.failBots = false, this.unauthorizedBots = false});
 
   final bool failBots;
+  final bool unauthorizedBots;
   final List<Map<String, Object?>> patches = [];
 
   static final botsPayload = [
@@ -97,10 +98,19 @@ class FakeApi implements MaximusApi {
   void setCompanionToken(String? token) {}
 
   @override
+  void endSession() {}
+
+  @override
+  String? get sessionToken => null;
+
+  @override
   Future<bool> probe(String baseUrl) async => true;
 
   @override
   Future<List<BotSummary>> bots(String baseUrl, {int messages = 0}) async {
+    if (unauthorizedBots) {
+      throw const ApiError(401, 'unauthorized: this session has expired or was revoked; pair this device again');
+    }
     if (failBots) throw const ApiError(500, 'down');
     return botsPayload;
   }
@@ -295,6 +305,20 @@ class FakeApi implements MaximusApi {
 
   @override
   Future<void> emailStart(String baseUrl, String email) async {}
+
+  @override
+  Future<List<String>> passwordSignIn(
+    String baseUrl, {
+    required String email,
+    required String password,
+  }) async => const ['admin', 'client'];
+
+  @override
+  Future<List<String>> passwordSignUp(
+    String baseUrl, {
+    required String email,
+    required String password,
+  }) async => const ['admin', 'client'];
 
   @override
   Future<List<String>> emailVerify(
@@ -812,6 +836,31 @@ class FakeApi implements MaximusApi {
   @override
   Future<List<ConsolePlan>> consolePlans(String baseUrl) async =>
       plansPayload;
+
+  BillingOffer offerPayload = BillingOffer.usd;
+  final List<Map<String, String>> checkoutWrites = [];
+  String checkoutUrl = 'https://checkout.paystack.com/ref';
+
+  @override
+  Future<BillingOffer> billingOffer(String baseUrl, {required String timeZone}) async =>
+      offerPayload;
+
+  @override
+  Future<BillingCheckout> billingCheckout(
+    String baseUrl, {
+    required String plan,
+    required String customerEmail,
+    required String successUrl,
+    required String cancelUrl,
+    required String timeZone,
+  }) async {
+    checkoutWrites.add({
+      'plan': plan,
+      'customerEmail': customerEmail,
+      'timeZone': timeZone,
+    });
+    return BillingCheckout(url: checkoutUrl);
+  }
 
   StoreSubscription storeSubscriptionPayload = const StoreSubscription(
     workspace: 'acme',

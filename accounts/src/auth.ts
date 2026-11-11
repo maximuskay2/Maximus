@@ -4,6 +4,7 @@ import { bearer, emailOTP } from "better-auth/plugins";
 import type { Pool } from "pg";
 
 import { resolveOTPTransport, sendOTPEmail } from "./email.ts";
+import { readOperatorMail } from "./operator-mail.ts";
 
 const SOCIAL_SIGN_IN = [
   ["github", "GitHub", "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"],
@@ -112,13 +113,14 @@ export function createAuth(
         disableSignUp: false,
         rateLimit: { window: 60, max: 5 },
         async sendVerificationOTP(input) {
+          const saved = await readOperatorMail(env);
           await sendOTPEmail(
             resolveOTPTransport(env, {
               async send(message) {
                 await env.EMAIL.send(message);
               },
             }),
-            config.emailFrom,
+            saved?.from ?? config.emailFrom,
             input,
             requestId,
           );

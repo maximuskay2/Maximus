@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api/models.dart';
 import '../auth/auth_state.dart';
+import '../auth/session_actions.dart';
 
 /// Phase 7: who this phone is to the server, plus sign-out.
 class AccountPage extends StatefulWidget {
@@ -48,37 +49,9 @@ class _AccountPageState extends State<AccountPage> {
   }
 
   Future<void> _signOut() async {
-    final active = widget.auth.active;
-    if (active == null) return;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sign out?'),
-        content: Text(
-          'This phone forgets ${widget.serverName} and its session ends.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Stay'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Sign out'),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true || !mounted) return;
     setState(() => _busy = true);
-    try {
-      await widget.auth.client.logout(widget.baseUrl);
-    } on ApiError {
-      // The local forget below is what matters; a dead server
-      // must never trap the phone.
-    }
-    await widget.auth.removeServer(active.id);
-    if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+    await signOutOfActiveServer(context, widget.auth);
+    if (mounted) setState(() => _busy = false);
   }
 
   @override
@@ -93,12 +66,17 @@ class _AccountPageState extends State<AccountPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(_error!),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: _load,
-                    child: const Text('Retry'),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Text(_error!, textAlign: TextAlign.center),
                   ),
+                  const SizedBox(height: 16),
+                  SessionActions(
+                    auth: widget.auth,
+                    baseUrl: widget.baseUrl,
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(onPressed: _load, child: const Text('Retry')),
                 ],
               ),
             )

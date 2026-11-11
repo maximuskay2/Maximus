@@ -93,6 +93,25 @@ export function saveHarnessConfig(patch: Record<string, unknown>, options?: Harn
   return call<Record<string, unknown>>("/api/config", { ...options, method: "PUT", body: patch });
 }
 
+export interface DeliveryView {
+  host: string;
+  port: number;
+  username: string;
+  from: string;
+  passwordSet: boolean;
+  formatModel: string;
+  ceilings: Record<string, number>;
+  synced: boolean | null;
+}
+
+export function harnessDelivery(options?: HarnessCallOptions): Promise<DeliveryView> {
+  return call<DeliveryView>("/api/admin/delivery", options ?? {});
+}
+
+export function saveHarnessDelivery(patch: Record<string, unknown>, options?: HarnessCallOptions): Promise<DeliveryView> {
+  return call<DeliveryView>("/api/admin/delivery", { ...options, method: "PUT", body: patch });
+}
+
 export interface HarnessSessionRow {
   id: string;
   label: string;
@@ -432,6 +451,19 @@ export function saveRation(profile: RationProfileView, options?: HarnessCallOpti
 
 export function saveRationPoolKey(key: string, options?: HarnessCallOptions): Promise<{ pool: { configured: boolean; last4: string } }> {
   return call<{ pool: { configured: boolean; last4: string } }>("/api/admin/ration/pool-key", { ...options, method: "PUT", body: { key } });
+}
+
+export interface PaymentSettingsView {
+  paystackEnabled: boolean;
+  ngnPerUsd: number;
+}
+
+export function adminPayments(options?: HarnessCallOptions): Promise<{ payments: PaymentSettingsView }> {
+  return call<{ payments: PaymentSettingsView }>("/api/admin/payments", options ?? {});
+}
+
+export function savePayments(payments: PaymentSettingsView, options?: HarnessCallOptions): Promise<{ payments: PaymentSettingsView }> {
+  return call<{ payments: PaymentSettingsView }>("/api/admin/payments", { ...options, method: "PUT", body: payments });
 }
 
 export interface HarnessEditionView {

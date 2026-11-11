@@ -214,7 +214,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(ThinkingBubble), findsOneWidget);
-    expect(find.byTooltip('Reply'), findsNWidgets(2));
+    expect(find.byTooltip('Reply'), findsNothing);
 
     events.add(
       LiveEvent(
@@ -233,7 +233,7 @@ void main() {
     await tester.pump();
     expect(find.textContaining('Here is the answer'), findsOneWidget);
     expect(find.byType(ThinkingBubble), findsNothing);
-    expect(find.byTooltip('Reply'), findsNWidgets(3));
+    expect(find.byTooltip('Reply'), findsNothing);
 
     events.add(
       LiveEvent(
@@ -253,7 +253,7 @@ void main() {
     await tester.pump();
     expect(find.textContaining('list_dir'), findsNothing);
     expect(find.textContaining('Here is the answer'), findsOneWidget);
-    expect(find.byTooltip('Reply'), findsNWidgets(3));
+    expect(find.byTooltip('Reply'), findsNothing);
   });
 
   testWidgets('thread send + stop', (tester) async {
@@ -307,7 +307,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('New bot'));
+    await tester.tap(find.text('New agent'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).last, 'Helper 2');
     await tester.tap(find.text('Create'));

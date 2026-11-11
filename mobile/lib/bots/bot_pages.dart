@@ -788,26 +788,26 @@ class _BotsTabState extends State<BotsTab> {
             ),
         ],
       ),
-      floatingActionButton: widget.auth.isAdmin
-          ? Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FloatingActionButton.extended(
-                  heroTag: 'new-bot',
-                  onPressed: _createBot,
-                  icon: const Icon(Icons.smart_toy_outlined),
-                  label: const Text('New bot'),
-                ),
-                const SizedBox(height: 8),
-                FloatingActionButton.extended(
-                  heroTag: 'new-group',
-                  onPressed: _createGroup,
-                  icon: const Icon(Icons.group_add_outlined),
-                  label: const Text('New group'),
-                ),
-              ],
-            )
-          : null,
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'new-bot',
+            onPressed: _createBot,
+            icon: const Icon(Icons.smart_toy_outlined),
+            label: const Text('New agent'),
+          ),
+          if (widget.auth.isAdmin) ...[
+            const SizedBox(height: 8),
+            FloatingActionButton.extended(
+              heroTag: 'new-group',
+              onPressed: _createGroup,
+              icon: const Icon(Icons.group_add_outlined),
+              label: const Text('New group'),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

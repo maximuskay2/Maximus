@@ -20,9 +20,12 @@ import {
   SessionRegistry,
   STREAM_TICKET_TTL_MS,
   SESSION_MAX_AGE_MS,
+  SESSION_UNTIL_LOGOUT_MS,
   cookieMaxAgeSeconds,
   daysMs,
 } from "./sessions.ts";
+import { sessionScopesForEmail } from "./account-signin.ts";
+import { createPasswordAccounts } from "./password-accounts.ts";
 import { userError } from "./user-errors.ts";
 
 let dir: string;
@@ -311,6 +314,18 @@ describe("sessions", () => {
     expect(() => registry.issuePortal({ email: "person@example.test", grant: "bad", scopes: ["client"] })).toThrow("verified portal identity");
   });
 
+  it("keeps a password member after sign-in when the OTP allow-list does not name them", () => {
+    const accounts = createPasswordAccounts(join(dir, "password-accounts.json"), () => clock);
+    accounts.signup("owner@example.test", "password1");
+    accounts.signup("member@example.test", "password1");
+    const scopesFor = (email: string) => sessionScopesForEmail(email, { admins: [], members: [] }, accounts.list());
+    registry = new SessionRegistry({ file: file(), now: () => clock, emailScopes: scopesFor });
+    const owner = registry.issue({ label: "phone", email: "owner@example.test", userId: "account:owner@example.test", scopes: ["admin", "client"] });
+    const member = registry.issue({ label: "phone", email: "member@example.test", userId: "account:member@example.test", scopes: ["client"] });
+    expect(registry.authenticate(owner.token)?.scopes).toEqual(["admin", "client"]);
+    expect(registry.authenticate(member.token)?.email).toBe("member@example.test");
+  });
+
   it("revokes every over-scoped email device and its tickets on demotion, but not paired devices", () => {
     let scopes: Array<"admin" | "client"> | null = ["admin", "client"];
     registry = new SessionRegistry({ file: file(), now: () => clock, emailScopes: () => scopes });
@@ -499,7 +514,7 @@ describe("sessions", () => {
 
   it("still reduces the in-memory set when persisting a prune fails", () => {
     pair();
-    clock += SESSION_TTL_MS + 1;
+    clock += SESSION_UNTIL_LOGOUT_MS + 1;
     const logger = vi.spyOn(console, "error").mockImplementation(() => {});
     const writes = vi.spyOn(atomic, "writeFileAtomic").mockImplementation(() => { throw new Error("EIO: the session file is unwritable"); });
     expect(() => registry.list(), "the heartbeat prunes through isLive(), where a throw would exit the process").not.toThrow();
@@ -519,17 +534,19 @@ describe("sessions", () => {
     expect(reloaded.authenticate("maximus_sess_nope")).toBeNull();
   });
 
-  it("expires after 30 days and can be revoked", () => {
+  it("stays signed in past 30 days and ends only when revoked", () => {
     const { token, session } = pair();
-    clock += SESSION_TTL_MS - 1;
+    clock += SESSION_TTL_MS + 1;
     expect(registry.authenticate(token)?.id).toBe(session.id);
-    clock += 2;
-    expect(registry.authenticate(token)).toBeNull();
+    clock += SESSION_MAX_AGE_MS;
+    expect(registry.authenticate(token)?.id).toBe(session.id);
     const other = pair("iPad");
-    expect(registry.list().map((s) => s.label)).toEqual(["iPad"]);
+    expect(registry.list().map((s) => s.label).sort()).toEqual(["MacBook", "iPad"].sort());
     expect(registry.revoke(other.session.id)).toBe(true);
     expect(registry.revoke(other.session.id)).toBe(false);
     expect(registry.authenticate(other.token)).toBeNull();
+    expect(registry.revoke(session.id)).toBe(true);
+    expect(registry.authenticate(token)).toBeNull();
   });
 
   it("updates last-seen at most once a minute so reads stay cheap", () => {
@@ -567,59 +584,57 @@ describe("sessions", () => {
     expect(long.ok && long.session.expiresAt).toBe(clock + SESSION_MAX_AGE_MS);
   });
 
-  it("renews a session with half its term or less left, and never revives an expired one", () => {
+  it("renews a signed-in device when half its until-logout term is left", () => {
     const { token, session } = pair();
-    clock += SESSION_TTL_MS / 2 - 60_000;
+    expect(session.expiresAt).toBe(clock + SESSION_UNTIL_LOGOUT_MS);
+    clock += SESSION_UNTIL_LOGOUT_MS / 2 - 60_000;
     expect(registry.renew(session.id)).toBe(false);
     expect(registry.list()[0]?.expiresAt).toBe(session.expiresAt);
     clock += 120_000;
     expect(registry.renew(session.id)).toBe(true);
-    expect(registry.list()[0]?.expiresAt).toBe(clock + SESSION_TTL_MS);
+    expect(registry.list()[0]?.expiresAt).toBe(clock + SESSION_UNTIL_LOGOUT_MS);
     expect(registry.renew(session.id)).toBe(false);
-    clock += SESSION_TTL_MS - 1;
+    clock += SESSION_TTL_MS;
     expect(registry.authenticate(token)?.id).toBe(session.id);
-    expect(registry.renew(session.id)).toBe(true);
-    const reloaded = new SessionRegistry({ file: file(), now: () => clock });
-    expect(reloaded.list()[0]?.expiresAt).toBe(clock + SESSION_TTL_MS);
-    const quiet = pair("iPad");
+    registry = new SessionRegistry({
+      file: file(),
+      now: () => clock,
+      emailScopes: () => ["client"],
+    });
+    const account = registry.issue({ label: "phone", email: "person@example.test", scopes: ["client"] });
     clock += SESSION_TTL_MS + 1;
-    expect(registry.renew(quiet.session.id)).toBe(false);
-    expect(registry.authenticate(quiet.token)).toBeNull();
+    expect(registry.authenticate(account.token)?.email).toBe("person@example.test");
+    expect(registry.revoke(account.session.id)).toBe(true);
+    expect(registry.authenticate(account.token)).toBeNull();
   });
 
-  it("stops renewing at the absolute cap counted from pairing", () => {
+  it("keeps renewing a signed-in device past the old 180-day cap until Sign out", () => {
     const { token, session } = pair();
-    const cap = session.createdAt + SESSION_MAX_AGE_MS;
     let last = session.expiresAt;
-    for (let i = 0; i < 20; i += 1) {
-      clock = last - SESSION_TTL_MS / 2;
-      registry.renew(session.id);
-      const now = registry.list()[0]?.expiresAt ?? 0;
-      expect(now).toBeLessThanOrEqual(cap);
-      expect(now).toBeGreaterThanOrEqual(last);
-      last = now;
+    for (let i = 0; i < 5; i += 1) {
+      clock = last - SESSION_UNTIL_LOGOUT_MS / 2;
+      expect(registry.renew(session.id)).toBe(true);
+      const next = registry.list()[0]?.expiresAt ?? 0;
+      expect(next).toBe(clock + SESSION_UNTIL_LOGOUT_MS);
+      expect(next).toBeGreaterThan(last);
+      last = next;
     }
-    expect(last).toBe(cap);
-    clock = cap - 1;
+    clock = session.createdAt + SESSION_MAX_AGE_MS + SESSION_TTL_MS;
     expect(registry.authenticate(token)?.id).toBe(session.id);
-    expect(registry.renew(session.id)).toBe(false);
-    clock = cap + 1;
+    expect(registry.revoke(session.id)).toBe(true);
     expect(registry.authenticate(token)).toBeNull();
   });
 
-  it("applies the cap to a session paired long before this version", () => {
+  it("lifts an old short device session to until-logout on the next renew", () => {
     const day = 24 * 60 * 60_000;
     const old = {
       id: "old-device", tokenHash: "0".repeat(64), label: "old laptop", scopes: ["admin"],
       createdAt: clock - 160 * day, lastSeenAt: clock - day, expiresAt: clock + 15 * day,
     };
-    const older = { ...old, id: "older-device", tokenHash: "1".repeat(64), createdAt: clock - 175 * day };
-    writeFileSync(file(), JSON.stringify({ version: 1, sessions: [old, older] }));
+    writeFileSync(file(), JSON.stringify({ version: 1, sessions: [old] }));
     const loaded = new SessionRegistry({ file: file(), now: () => clock });
     expect(loaded.renew("old-device")).toBe(true);
-    expect(loaded.list()[0]?.expiresAt).toBe(old.createdAt + SESSION_MAX_AGE_MS);
-    expect(loaded.renew("older-device")).toBe(false);
-    expect(loaded.list()[1]?.expiresAt).toBe(older.expiresAt);
+    expect(loaded.list()[0]?.expiresAt).toBe(clock + SESSION_UNTIL_LOGOUT_MS);
   });
 
   it("reads whole days from the environment and falls back on anything else", () => {
@@ -630,10 +645,11 @@ describe("sessions", () => {
     expect(daysMs("3650", 30)).toBe(3650 * day);
   });
 
-  it("gives a cookie whole seconds, never less than one", () => {
+  it("gives a cookie whole seconds, never less than one, and never past the browser cap", () => {
     expect(cookieMaxAgeSeconds({ expiresAt: 10_500 }, 0)).toBe(10);
     expect(cookieMaxAgeSeconds({ expiresAt: 100 }, 0)).toBe(1);
     expect(cookieMaxAgeSeconds({ expiresAt: 0 }, 5_000)).toBe(1);
+    expect(cookieMaxAgeSeconds({ expiresAt: 0 + SESSION_UNTIL_LOGOUT_MS }, 0)).toBe(400 * 24 * 60 * 60);
   });
 });
 

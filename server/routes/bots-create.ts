@@ -46,6 +46,8 @@ export interface BotCreateRouteDeps {
   wireBot(bot: BotRecord): WireBot;
   /** A Team Cloud: a new bot records who created it, and may name who it reports to. */
   team?: { name: string; people: Pick<TeamPeople, "has"> } | null;
+  /** One machine with accounts: a new bot belongs to the signed-in address and nobody else. */
+  personalAccounts?: boolean;
   /** Starts writing personal answers for a new bot's setup card; never awaited. */
   personaliseSetupCard?(bot: BotRecord): void;
 }
@@ -162,7 +164,9 @@ export function createBotCreateRoutes(deps: BotCreateRouteDeps): RouteHandler {
           return json(res, 400, { error: "section must be at most 60 characters" });
         }
       }
-      const creator = auth.kind === "session" && auth.session.membershipAuthority === "team" ? auth.session.email : undefined;
+      const sessionEmail = auth.kind === "session" ? auth.session.email?.trim().toLowerCase() : undefined;
+      const creator = auth.kind === "session" && deps.team && auth.session.membershipAuthority === "team" ? sessionEmail : undefined;
+      const accountOwner = deps.personalAccounts ? sessionEmail : undefined;
       let reportsTo: string | undefined;
       if (body.reportsTo !== undefined && body.reportsTo !== null) {
         if (!deps.team) return json(res, 400, userError("serverError.owner.teamOnly"));
@@ -194,9 +198,11 @@ export function createBotCreateRoutes(deps: BotCreateRouteDeps): RouteHandler {
       if (kept.id && "error" in keptBotIds(kept, store)) return json(res, 409, { error: "a bot with this id already exists here" });
       // A bot moved in from another computer keeps its own look; a new one named no look starts in a fresh one.
       const look = kept.id || settings.color || settings.mascotBody ? undefined : freshLook(store.bots);
+      const owner = creator ?? accountOwner;
       const bot = store.createBot({ ...profile.patch, soul: settings.soul, section, modelSelection: selection,
         toolScope: settings.toolScope ?? undefined, color: settings.color ?? look?.color, mascotBody: settings.mascotBody ?? look?.mascotBody,
-        ...(deps.team && creator ? { createdBy: creator } : {}), ...(reportsTo ? { reportsTo } : {}),
+        ...(owner && !kept.id ? { createdBy: owner } : {}), ...(reportsTo ? { reportsTo } : {}),
+        ...(!created && accountOwner && !kept.id ? { visibility: { people: [accountOwner] } } : {}),
         ...(created?.ok ? { visibility: created.visibility } : {}) }, kept.id ? { ...kept, seedMessages: false } : {});
       const createdRoutines: Array<{ id: string; enabled: boolean }> = [];
       try {

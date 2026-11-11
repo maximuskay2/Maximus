@@ -2,13 +2,21 @@ import 'package:flutter/material.dart';
 
 import '../api/client.dart';
 import '../api/models.dart';
+import '../auth/auth_state.dart';
+import '../auth/session_actions.dart';
 
 /// Phase 7: month token/cost usage grouped by bot.
 class UsagePage extends StatefulWidget {
-  const UsagePage({super.key, required this.client, required this.baseUrl});
+  const UsagePage({
+    super.key,
+    required this.client,
+    required this.baseUrl,
+    required this.auth,
+  });
 
   final MaximusApi client;
   final String baseUrl;
+  final AuthState auth;
 
   @override
   State<UsagePage> createState() => _UsagePageState();
@@ -72,16 +80,18 @@ class _UsagePageState extends State<UsagePage> {
           ? const Center(child: CircularProgressIndicator())
           : _error != null
           ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(_error!),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: _load,
-                    child: const Text('Retry'),
-                  ),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_error!, textAlign: TextAlign.center),
+                    const SizedBox(height: 16),
+                    SessionActions(auth: widget.auth, baseUrl: widget.baseUrl),
+                    const SizedBox(height: 8),
+                    TextButton(onPressed: _load, child: const Text('Retry')),
+                  ],
+                ),
               ),
             )
           : RefreshIndicator(

@@ -3,7 +3,6 @@ import { Loader2, RefreshCw } from "lucide-react";
 
 import { t } from "@/lib/i18n";
 import { Select } from "@/components/Select";
-import { ServiceEndpointPicker } from "@/console/ServiceEndpoint";
 import type { LocaleKey } from "@/locales";
 import { formatUsd } from "@/lib/usage";
 import {
@@ -183,10 +182,6 @@ export function ConnectView({ busy, error, sent, email, code, onEmail, onCode, o
         </form>
       )}
       {error && <p role="alert" className="mt-3 text-[13px] text-danger">{error}</p>}
-      <details className="mt-3 text-[13px] text-ink-secondary">
-        <summary className="cursor-pointer underline">{t("console.endpoint.title")}</summary>
-        <div className="mt-2"><ServiceEndpointPicker /></div>
-      </details>
     </Card>
   );
 }

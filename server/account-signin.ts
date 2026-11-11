@@ -3,6 +3,7 @@
 // does not expose the routes. The result is an ordinary local session.
 import { resolveCompanionControlPlaneURL } from "../electron/companion-account-service.mjs";
 import { ControlPlaneError, createControlPlaneClient, normalizeAccountEmail, type ControlPlaneClient } from "../electron/control-plane-client.mjs";
+import { passwordAccountScopes, type PasswordAccount } from "./password-accounts.ts";
 import type { Scope } from "./sessions.ts";
 import { createSignInMail, SignInMailError, type MailTransport, type SignInMail } from "./sign-in-mail.ts";
 import { userError, type UserError } from "./user-errors.ts";
@@ -32,6 +33,14 @@ export function allowedScopes(rawEmail: string, list: SignInAllowList): Scope[] 
 
 export function signInEnabled(list: SignInAllowList): boolean {
   return list.admins.length + list.members.length > 0;
+}
+
+/** Scopes a signed-in email may keep. A password account keeps its own: the earliest is the owner, and an allow-list admin stays an admin. */
+export function sessionScopesForEmail(rawEmail: string, list: SignInAllowList, accounts: readonly PasswordAccount[]): Scope[] | null {
+  const listed = allowedScopes(rawEmail, list);
+  const password = passwordAccountScopes(accounts, rawEmail);
+  if (listed && password) return listed.includes("admin") || password.includes("admin") ? ["admin", "client"] : ["client"];
+  return listed ?? password;
 }
 
 export type SignInFailure = { ok: false; status: number } & UserError;

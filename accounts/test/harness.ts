@@ -195,6 +195,7 @@ const TRUNCATE_TABLES = [
   "workspace_invites",
   "workspace_provider_policies",
   "operator_provider_policies",
+  "operator_mail",
   "workspace_oidc_configs",
   "workspace_audit_log",
   "workspace_spend",

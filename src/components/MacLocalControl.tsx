@@ -25,12 +25,11 @@ export function MacLocalControl() {
     }
   };
 
-  const openSettings = async () => {
+  const openPane = async (pane: "accessibility" | "screen") => {
     setError(null);
     setAwaitingGrant(true);
     try {
-      await window.ogb?.permOpenSettings?.("accessibility");
-      await window.ogb?.permOpenSettings?.("screen");
+      await window.ogb?.permOpenSettings?.(pane);
     } catch (reason) {
       setAwaitingGrant(false);
       setError(reason instanceof Error ? reason.message : String(reason));
@@ -77,14 +76,24 @@ export function MacLocalControl() {
           <div className="mt-3 flex flex-wrap gap-2">
             {permissionMessage && reason && <MacCuaRecoveryActions reason={reason} />}
             {!permissionMessage && (
-              <button
-                type="button"
-                onClick={() => void openSettings()}
-                disabled={pending}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-medium text-white hover:brightness-110 disabled:opacity-50"
-              >
-                {t("computer.mac.openSystemSettings")}
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => void openPane("accessibility")}
+                  disabled={pending}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-medium text-white hover:brightness-110 disabled:opacity-50"
+                >
+                  {t("computer.mac.permission.accessibilitySettings")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void openPane("screen")}
+                  disabled={pending}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-hairline/50 px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-raised disabled:opacity-50"
+                >
+                  {t("computer.mac.permission.screenSettings")}
+                </button>
+              </>
             )}
             <button
               type="button"

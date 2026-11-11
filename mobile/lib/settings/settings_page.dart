@@ -67,7 +67,7 @@ class SettingsPage extends StatelessWidget {
               icon: Icons.receipt_long_outlined,
               title: 'Usage',
               subtitle: 'Tokens and cost by bot',
-              page: UsagePage(client: _client, baseUrl: baseUrl),
+              page: UsagePage(client: _client, baseUrl: baseUrl, auth: auth),
             ),
             _row(
               context,

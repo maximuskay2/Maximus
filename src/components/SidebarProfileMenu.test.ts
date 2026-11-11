@@ -406,6 +406,23 @@ describe("profileMenuItems", () => {
     expect(onUsage).toHaveBeenCalledOnce();
     expect(onAccount).toHaveBeenCalledOnce();
   });
+
+  it("offers Sign in or Sign out, never both", () => {
+    const onSignIn = vi.fn();
+    const onSignOut = vi.fn();
+    const signedOut = build({ onSignIn });
+    expect(signedOut.map((item) => item.key)).toEqual(["usage", "phone-app", "support", "settings", "account", "session-sign-in"]);
+    expect(signedOut.find((item) => item.key === "session-sign-in")!.label).toBe("Sign in");
+    signedOut.find((item) => item.key === "session-sign-in")!.onSelect();
+    expect(onSignIn).toHaveBeenCalledOnce();
+
+    const signedIn = build({ onSignIn, onSignOut });
+    expect(signedIn.map((item) => item.key)).toContain("session-sign-out");
+    expect(signedIn.map((item) => item.key)).not.toContain("session-sign-in");
+    expect(signedIn.find((item) => item.key === "session-sign-out")!.label).toBe("Sign out");
+    signedIn.find((item) => item.key === "session-sign-out")!.onSelect();
+    expect(onSignOut).toHaveBeenCalledOnce();
+  });
 });
 
 describe("Simple mode's account menu", () => {

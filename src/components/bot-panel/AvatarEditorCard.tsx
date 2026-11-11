@@ -7,7 +7,6 @@ import { bodyName, colorName } from "@/lib/mascot-names";
 import type { LocaleKey } from "@/locales";
 import { colorSwatch, MAUS_COLOR_LABEL, MAUS_COLOR_NAMES, PICKABLE_STATES, type MausState } from "@/lib/mascot";
 import type { Bot } from "@/state/store";
-import { MASCOT_BODY_IDS } from "../../../shared/mascot-bodies";
 import { HALLOWEEN_BODY_IDS } from "../../../shared/halloween-bodies";
 import { isHalloweenBody, type BotBodyId } from "../../../shared/bot-body";
 import { useHalloweenDressed, wornBody } from "@/lib/halloween-dress";
@@ -135,10 +134,7 @@ export function AvatarEditorCard({ bot, activeState, onPatch, onClose }: {
       <div className="p-3">
         {tab === "bot" && (
           <>
-            <div className="grid grid-cols-5 gap-1.5">
-              {MASCOT_BODY_IDS.map((id) => bodyButton(id, bodyName(id)))}
-            </div>
-            <div className="flex flex-wrap justify-center gap-2 px-1 pb-1 pt-3.5">
+            <div className="flex flex-wrap justify-center gap-2 px-1 pb-1">
               {MAUS_COLOR_NAMES.map((color) => (
                 <button
                   key={color}

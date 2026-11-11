@@ -4,6 +4,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../api/models.dart';
 import 'auth_state.dart';
 import 'pairing_link.dart';
+import 'signin_page.dart';
 
 /// Pair by QR scan or manual server URL + code.
 class PairPage extends StatefulWidget {
@@ -16,7 +17,6 @@ class PairPage extends StatefulWidget {
 }
 
 class _PairPageState extends State<PairPage> {
-  final _urlController = TextEditingController(text: 'http://127.0.0.1:8799');
   final _codeController = TextEditingController();
   MobileScannerController? _scanner;
   bool _scanning = false;
@@ -33,7 +33,6 @@ class _PairPageState extends State<PairPage> {
 
   @override
   void dispose() {
-    _urlController.dispose();
     _codeController.dispose();
     _scanner?.dispose();
     super.dispose();
@@ -68,8 +67,7 @@ class _PairPageState extends State<PairPage> {
       return;
     }
     _handledScan = true;
-    final baseUrl = parsed.serverUrl ?? _urlController.text;
-    _urlController.text = baseUrl;
+    final baseUrl = parsed.serverUrl ?? accountServerUrl();
     _codeController.text = parsed.code!;
     _pair(baseUrl: baseUrl, code: parsed.code!);
   }
@@ -108,16 +106,6 @@ class _PairPageState extends State<PairPage> {
           ),
           const SizedBox(height: 16),
           TextField(
-            controller: _urlController,
-            keyboardType: TextInputType.url,
-            autocorrect: false,
-            decoration: const InputDecoration(
-              labelText: 'Server address',
-              hintText: 'https://maus.example.com',
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
             controller: _codeController,
             autocorrect: false,
             textCapitalization: TextCapitalization.characters,
@@ -139,7 +127,7 @@ class _PairPageState extends State<PairPage> {
             onPressed: _busy
                 ? null
                 : () => _pair(
-                      baseUrl: _urlController.text,
+                      baseUrl: accountServerUrl(),
                       code: _codeController.text,
                     ),
             style: FilledButton.styleFrom(

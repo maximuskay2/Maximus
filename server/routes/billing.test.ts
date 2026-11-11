@@ -29,15 +29,22 @@ function setup() {
 const authFor = (admin: boolean): RequestAuth =>
   ({ kind: "session", scopes: admin ? ["admin", "client"] : ["client"] }) as unknown as RequestAuth;
 
-function ctxFor(path: string, method: string, body: unknown, admin = true): { ctx: RouteContext; sent: Array<{ status: number; body: unknown }> } {
+function ctxFor(
+  path: string,
+  method: string,
+  body: unknown,
+  admin = true,
+  auth?: RequestAuth,
+  headers: Record<string, string> = {},
+): { ctx: RouteContext; sent: Array<{ status: number; body: unknown }> } {
   const sent: Array<{ status: number; body: unknown }> = [];
   const ctx = {
-    req: { headers: {} } as IncomingMessage,
+    req: { headers } as IncomingMessage,
     res: { setHeader: () => {} } as unknown as ServerResponse,
     url: new URL(path, "http://localhost"),
     path,
     method,
-    auth: authFor(admin),
+    auth: auth ?? authFor(admin),
     json: ((_res: ServerResponse, status: number, b: unknown) => {
       sent.push({ status, body: b });
     }) as RouteContext["json"],
@@ -76,11 +83,45 @@ describe("billing routes", () => {
     expect(new URLSearchParams(seen[0]?.init.body ?? "").get("subscription_data[metadata][entitlements]")).toBe("[\"billing\",\"budgets\",\"gateway\"]");
   });
 
-  it("refuses checkout for non-admins, unknown plans and unpriced providers", async () => {
+  it("charges Paystack in kobo for a signed-in person in Nigeria", async () => {
+    const { dataDir, store } = setup();
+    const seen: { body?: string }[] = [];
+    const fetchImpl = (async (_url: string, init: { body?: string }): Promise<Response> => {
+      seen.push({ body: init.body });
+      return new Response(JSON.stringify({ status: true, data: { authorization_url: "https://checkout.paystack.com/ref", reference: "ref_ng" } }), { status: 200 });
+    }) as typeof fetch;
+    const handler = createBillingRoutes({
+      dataDir,
+      store,
+      plans: PLANS,
+      secrets: { paystackSecretKey: "sk_test_fixture" },
+      payments: () => ({ paystackEnabled: true, ngnPerUsd: 1600 }),
+      fetchImpl,
+      env: { MAXIMUS_ADMIN_WORKSPACE: "acme" },
+      now: () => NOW,
+    });
+    const { ctx, sent } = ctxFor("/api/billing/checkout", "POST", {
+      provider: "paystack",
+      plan: "maximus-pro",
+      workspace: "acme",
+      customerEmail: "ada@example.test",
+      successUrl: "https://acme.example/done",
+      cancelUrl: "https://acme.example/cancel",
+      timeZone: "Africa/Lagos",
+    }, false, undefined, { "cf-ipcountry": "NG" });
+    await handler(ctx);
+    expect(sent[0]?.status).toBe(200);
+    const body = JSON.parse(seen[0]?.body ?? "{}") as { amount?: number; plan?: string };
+    expect(body.amount).toBe(49 * 1600 * 100);
+    expect(body.plan).toBeUndefined();
+  });
+
+  it("refuses checkout for a service shell, unknown plans and unpriced providers", async () => {
     const { dataDir, store } = setup();
     const handler = createBillingRoutes({ dataDir, store, plans: PLANS, env: { MAXIMUS_ADMIN_WORKSPACE: "acme" }, now: () => NOW });
     const body = { provider: "stripe", plan: "maximus-pro", workspace: "acme", successUrl: "https://a.example/d", cancelUrl: "https://a.example/c" };
-    const guest = ctxFor("/api/billing/checkout", "POST", body, false);
+    const shell = { kind: "loopback", scopes: ["client"], trust: "service" } as unknown as RequestAuth;
+    const guest = ctxFor("/api/billing/checkout", "POST", body, false, shell);
     await handler(guest.ctx);
     expect(guest.sent[0]?.status).toBe(403);
     const unknown = ctxFor("/api/billing/checkout", "POST", { ...body, plan: "nope" });

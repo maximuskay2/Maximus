@@ -210,6 +210,12 @@ describe("console plan display", () => {
     expect(planPriceLine(FREE_PLAN)).toBe("Free");
     expect(planPriceLine({ ...FREE_PLAN, baseUsd: 20 })).toBe("$20/mo");
     expect(pricingPriceLine(FREE_PLAN)).toBe("Free");
+    const plus = { ...FREE_PLAN, id: "plus", name: "Plus", baseUsd: 19 };
+    const nigeria = { currency: "NGN" as const, provider: "paystack" as const, paystackEnabled: true, ngnPerUsd: 1600 };
+    expect(pricingPriceLine(plus, nigeria)).toBe("₦30,400/mo");
+    const naira = renderToStaticMarkup(createElement(PricingView, { plans: [FREE_PLAN, plus], error: null, offer: nigeria }));
+    expect(naira).toContain("₦30,400/mo");
+    expect(naira).toContain("Prices in Naira, billed monthly with Paystack.");
   });
 });
 

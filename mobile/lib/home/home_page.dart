@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import '../api/models.dart';
 import '../api/thread_cache.dart';
 import '../auth/auth_state.dart';
+import '../billing/subscribe_ask.dart';
 import '../auth/pair_page.dart';
+import '../auth/session_actions.dart';
 import '../automations/computer_page.dart';
 import '../automations/routines_page.dart';
 import '../bots/bot_pages.dart';
@@ -61,23 +63,39 @@ class _HomePageState extends State<HomePage> {
   bool _loading = true;
   String? _error;
   final _search = TextEditingController();
+  late String _sessionKey;
+
+  String get _currentSessionKey =>
+      '${widget.auth.active?.id ?? ''}:${widget.auth.client.sessionToken ?? ''}:${widget.auth.scopes.join(',')}';
 
   @override
   void initState() {
     super.initState();
+    _sessionKey = _currentSessionKey;
+    widget.auth.addListener(_onAuth);
     _search.addListener(() {
       if (mounted) setState(() {});
     });
     _load();
   }
 
+  void _onAuth() {
+    if (widget.auth.needsSignIn) return;
+    final next = _currentSessionKey;
+    if (next == _sessionKey) return;
+    _sessionKey = next;
+    _load();
+  }
+
   @override
   void dispose() {
+    widget.auth.removeListener(_onAuth);
     _search.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
+    if (widget.auth.needsSignIn) return;
     final server = widget.auth.active;
     final baseUrl = server?.baseUrl;
     if (server == null || baseUrl == null) {
@@ -118,11 +136,19 @@ class _HomePageState extends State<HomePage> {
         unawaited(_prefetch(cache, server.id, baseUrl, bots));
       }
     } on ApiError catch (error) {
+      if (error.unauthorized) {
+        await widget.auth.sessionEnded();
+        return;
+      }
       if (_bots.isEmpty && mounted) {
         setState(() => _error = error.message);
       }
     } finally {
       if (mounted) setState(() => _loading = false);
+      // A saved server is not an account. The plan list waits until this visit has signed in.
+      if (mounted && widget.auth.scopes.isNotEmpty) {
+        unawaited(askToSubscribe(context, widget.auth.client, baseUrl: baseUrl, timeZone: widget.prefs.timeZone));
+      }
     }
   }
 
@@ -198,9 +224,24 @@ class _HomePageState extends State<HomePage> {
     ];
     if (rows.isEmpty) {
       return Center(
-        child: Text(
-          query.isEmpty ? 'No conversations yet.' : 'Nothing matches.',
-          style: const TextStyle(color: Color(0xFF8E8E93)),
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                query.isEmpty ? 'No agents yet.' : 'Nothing matches.',
+                style: const TextStyle(color: Color(0xFF8E8E93)),
+              ),
+              if (query.isEmpty) ...[
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: _createBot,
+                  child: const Text('Add an agent'),
+                ),
+              ],
+            ],
+          ),
         ),
       );
     }
@@ -299,12 +340,6 @@ class _HomePageState extends State<HomePage> {
   Future<void> _createBot() async {
     final baseUrl = widget.auth.active?.baseUrl;
     if (baseUrl == null) return;
-    if (!widget.auth.isAdmin) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Only the owner can add a bot.')),
-      );
-      return;
-    }
     final created = await showCreateBotSheet(
       context: context,
       client: widget.auth.client,
@@ -459,14 +494,6 @@ class _HomePageState extends State<HomePage> {
                   );
                 },
               ),
-            ListTile(
-              leading: const Icon(Icons.swap_horiz_outlined),
-              title: const Text('Switch server'),
-              onTap: () {
-                Navigator.of(sheet).pop();
-                showServerSheet(context, widget.auth);
-              },
-            ),
                 ],
               ),
             ),
@@ -496,9 +523,13 @@ class _InboxHeader extends StatelessWidget {
         children: [
           _HeaderButton(onPressed: onAccount, child: _AccountMark(initial: initial)),
           const Spacer(),
-          _HeaderButton(
-            onPressed: onCreate,
-            child: const Icon(Icons.add, size: 22),
+          Semantics(
+            button: true,
+            label: 'Add an agent',
+            child: _HeaderButton(
+              onPressed: onCreate,
+              child: const Icon(Icons.add, size: 22),
+            ),
           ),
         ],
       ),
@@ -878,7 +909,7 @@ class _YouTabState extends State<_YouTab> {
                       _sheetRow(
                         title: active?.name ?? 'No server',
                         subtitle: active == null
-                            ? 'Pair a server to begin.'
+                            ? 'Sign in to begin.'
                             : active.baseUrl,
                         leading: _AccountMark(initial: _initial(active?.name)),
                         onTap: active == null
@@ -891,10 +922,33 @@ class _YouTabState extends State<_YouTab> {
                       ),
                       if (active != null)
                         _sheetRow(
+                          title: auth.scopes.isEmpty ? 'Sign in' : 'Sign out',
+                          onTap: auth.scopes.isEmpty
+                              ? () => openSignIn(
+                                  context,
+                                  auth,
+                                  baseUrl: active.baseUrl,
+                                )
+                              : () => signOutOfActiveServer(context, auth),
+                        ),
+                      if (active != null)
+                        _sheetRow(
+                          title: 'Subscribe',
+                          onTap: () => askToSubscribe(
+                            context,
+                            auth.client,
+                            force: true,
+                            baseUrl: active.baseUrl,
+                            timeZone: widget.prefs.timeZone,
+                          ),
+                        ),
+                      if (active != null)
+                        _sheetRow(
                           title: 'Usage',
                           onTap: () => _push(UsagePage(
                             client: auth.client,
                             baseUrl: active.baseUrl,
+                            auth: auth,
                           )),
                         ),
                       _sheetRow(
@@ -949,6 +1003,20 @@ class _YouTabState extends State<_YouTab> {
                       ),
                     ),
                     _sheetCard(children: [
+                      _sheetRow(
+                        title: 'Add an agent',
+                        subtitle: 'Name one and it shows up in your chats',
+                        onTap: active == null
+                            ? null
+                            : () async {
+                                final created = await showCreateBotSheet(
+                                  context: context,
+                                  client: auth.client,
+                                  baseUrl: active.baseUrl,
+                                );
+                                if (created) await widget.onBotsChanged();
+                              },
+                      ),
                       _sheetRow(
                         title: 'Permissions',
                         onTap: () => _openPermissions(context),
@@ -1033,11 +1101,6 @@ class _YouTabState extends State<_YouTab> {
                           subtitle: 'Take over for passwords and 2FA',
                           onTap: () => _pickBotForBrowser(context, auth, active),
                         ),
-                      _sheetRow(
-                        title: 'Switch server',
-                        trailing: '${auth.servers.length} paired',
-                        onTap: () => showServerSheet(context, auth),
-                      ),
                       _sheetRow(
                         title: 'Pair another server',
                         onTap: () => _push(PairPage(auth: auth)),
@@ -1566,38 +1629,4 @@ class _PushGlobalRowState extends State<_PushGlobalRow> {
       onChanged: widget.auth.isAdmin ? _flip : null,
     );
   }
-}
-
-/// Bottom-sheet server switcher with one-tap switching.
-Future<void> showServerSheet(BuildContext context, AuthState auth) {
-  return showModalBottomSheet<void>(
-    context: context,
-    builder: (_) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 12),
-          Text('Servers', style: Theme.of(context).textTheme.titleMedium),
-          for (final server in auth.servers)
-            ListTile(
-              leading: Icon(
-                server.id == auth.active?.id
-                    ? Icons.check_circle
-                    : Icons.circle_outlined,
-                color: server.id == auth.active?.id
-                    ? Theme.of(context).colorScheme.primary
-                    : null,
-              ),
-              title: Text(server.name),
-              subtitle: Text(server.baseUrl),
-              onTap: () {
-                auth.useServer(server.id);
-                Navigator.of(context).pop();
-              },
-            ),
-          const SizedBox(height: 12),
-        ],
-      ),
-    ),
-  );
 }

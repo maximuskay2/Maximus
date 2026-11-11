@@ -8,7 +8,11 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { billingBanner } from "../billing/dunning.ts";
 import { bundledBudgetState } from "../billing/allowance.ts";
+import { botSpendRefusal, noteBotSpend, readBotSpend } from "../billing/bot-ceiling.ts";
+import { modelForBundledTask, rewriteModel } from "../billing/task-route.ts";
 import { createCheckoutSession, providerPriceRefFromEnv, type CheckoutSecrets } from "../billing/checkout.ts";
+import { koboFromUsd, nigeriaFromSignals, type PaymentSettings } from "../billing/payments.ts";
+import { rationWorkspace } from "../billing/ration.ts";
 import type { BillingProvider } from "../billing/events.ts";
 import {
   extractBearerToken, forwardBundledRequest, parseGatewayRoute, tokenStoreFromEnv, type GatewayTokenStore,
@@ -17,8 +21,9 @@ import { billingWebhookSecretsFromEnv, handleBillingWebhook, readRawBody } from 
 import type { BundledPlan } from "../billing/plans.ts";
 import type { RationService } from "../billing/ration-service.ts";
 import { BillingStore } from "../billing/store.ts";
-import type { PriceList } from "../prices.ts";
-import { ownerOrAdmin } from "../request-auth.ts";
+import { billableFor, type PriceList } from "../prices.ts";
+import { readDelivery } from "../delivery-settings.ts";
+import { ownerOrAdmin, type RequestAuth } from "../request-auth.ts";
 import { resolveProvider, type ProviderId } from "../switchboard.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
@@ -29,6 +34,7 @@ export interface BillingRouteDeps {
   knownEntitlements?: readonly string[];
   prices?: () => PriceList | null;
   secrets?: CheckoutSecrets;
+  payments?: () => PaymentSettings;
   fetchImpl?: typeof fetch;
   env?: NodeJS.ProcessEnv;
   workspace?: () => string | null;
@@ -36,6 +42,16 @@ export interface BillingRouteDeps {
 }
 
 const WORKSPACE = /^[a-z][a-z0-9-]{1,30}$/;
+
+function canPay(auth: RequestAuth): boolean {
+  if (auth.kind === "session") return true;
+  return auth.kind === "loopback" && auth.trust !== "service";
+}
+
+function headerText(req: IncomingMessage, name: string): string | null {
+  const value = req.headers[name];
+  return typeof value === "string" ? value : null;
+}
 
 export function createBillingRoutes(deps: BillingRouteDeps): RouteHandler {
   const env = deps.env ?? process.env;
@@ -46,7 +62,7 @@ export function createBillingRoutes(deps: BillingRouteDeps): RouteHandler {
   });
   return async ({ req, res, path, method, auth, json, readBody }) => {
     if (method === "POST" && path === "/api/billing/checkout") {
-      if (!ownerOrAdmin(auth)) return json(res, 403, { error: "Only an admin can start checkout." });
+      if (!canPay(auth)) return json(res, 403, { error: "Sign in to start checkout." });
       let body: unknown;
       try {
         body = await readBody(req, 8192);
@@ -59,14 +75,28 @@ export function createBillingRoutes(deps: BillingRouteDeps): RouteHandler {
       const customerEmail = typeof value.customerEmail === "string" ? value.customerEmail : undefined;
       const successUrl = typeof value.successUrl === "string" ? value.successUrl : "";
       const cancelUrl = typeof value.cancelUrl === "string" ? value.cancelUrl : "";
-      const workspace = typeof value.workspace === "string" && WORKSPACE.test(value.workspace) ? value.workspace : workspaceOf();
+      const workspace = typeof value.workspace === "string" && WORKSPACE.test(value.workspace) ? value.workspace : workspaceOf() ?? rationWorkspace(env);
+      const timeZone = typeof value.timeZone === "string" ? value.timeZone : null;
       if (!provider || !plan || !workspace) return json(res, 400, { error: "provider, plan and workspace are required" });
       const catalogPlan = deps.plans?.get(plan);
       if (deps.plans && !catalogPlan) return json(res, 400, { error: `unknown plan "${plan}"` });
       const entitlements = catalogPlan?.entitlements ?? store.record(workspace)?.carried ?? [];
       const allowanceMinor = catalogPlan ? Math.round(catalogPlan.allowanceUsd * 100) : null;
       const providerPriceRef = providerPriceRefFromEnv(env, provider, plan);
-      if (!providerPriceRef) return json(res, 503, { error: `${provider} has no price configured for plan "${plan}"` });
+      let amountMinor: number | undefined;
+      if (provider === "paystack") {
+        const settings = deps.payments?.() ?? { paystackEnabled: false, ngnPerUsd: 0 };
+        if (!settings.paystackEnabled) return json(res, 403, { error: "Paystack is turned off." });
+        if (!nigeriaFromSignals({ countryHeader: headerText(req, "cf-ipcountry"), timeZone })) {
+          return json(res, 403, { error: "Paystack is available in Nigeria." });
+        }
+        if (!catalogPlan || !(catalogPlan.baseUsd > 0)) return json(res, 400, { error: "That plan is not for sale." });
+        if (!customerEmail) return json(res, 400, { error: "Paystack needs the account email." });
+        amountMinor = koboFromUsd(catalogPlan.baseUsd, settings.ngnPerUsd);
+        if (!providerPriceRef && amountMinor <= 0) return json(res, 503, { error: `paystack has no price configured for plan "${plan}"` });
+      } else if (!providerPriceRef) {
+        return json(res, 503, { error: `${provider} has no price configured for plan "${plan}"` });
+      }
       try {
         const session = await createCheckoutSession({
           provider,
@@ -77,7 +107,8 @@ export function createBillingRoutes(deps: BillingRouteDeps): RouteHandler {
           cancelUrl,
           entitlements,
           allowanceMinor,
-          providerPriceRef,
+          ...(providerPriceRef ? { providerPriceRef } : {}),
+          ...(amountMinor ? { amountMinor } : {}),
         }, { fetchImpl: deps.fetchImpl, secrets: deps.secrets });
         res.setHeader("cache-control", "no-store");
         return json(res, 200, { checkout: { provider: session.provider, url: session.url, sessionId: session.sessionId, livemode: session.livemode } });
@@ -176,6 +207,29 @@ export async function billingGatewayRoute(
       return true;
     }
   }
+  let botId = "";
+  if (method === "POST") {
+    const delivery = readDelivery(deps.dataDir);
+    const routed = delivery.formatModel ? modelForBundledTask(raw, delivery.formatModel, false) : null;
+    if (routed) {
+      try {
+        raw = rewriteModel(raw, routed);
+      } catch {
+        json(res, 400, { error: "Could not read gateway body" });
+        return true;
+      }
+    }
+    const botHeader = req.headers["x-maximus-bot"];
+    botId = typeof botHeader === "string" && /^[A-Za-z0-9_-]{1,80}$/.test(botHeader) ? botHeader : "";
+    const ceiling = botId ? delivery.ceilings[botId] : undefined;
+    if (botId && typeof ceiling === "number") {
+      const refusal = botSpendRefusal(readBotSpend(deps.dataDir, botId), ceiling);
+      if (refusal) {
+        json(res, 409, { error: refusal.message, code: refusal.code });
+        return true;
+      }
+    }
+  }
   const catalog = (ws: string, provider: ProviderId): string[] | null => {
     if (ws !== workspace) return null;
     const verdict = resolveProvider(provider, undefined, env);
@@ -208,6 +262,16 @@ export async function billingGatewayRoute(
         : undefined,
     },
   );
+  if (result.metered && botId && prices) {
+    const usd = billableFor({
+      driverKind: route.provider,
+      model: result.metered.model,
+      input: result.metered.input,
+      output: result.metered.output,
+      cachedInput: result.metered.cachedInput,
+    }, prices);
+    if (usd) noteBotSpend(deps.dataDir, botId, usd);
+  }
   if (result.metered && route.provider === "muse" && deps.ration) {
     const cached = result.metered.cachedInput ?? 0;
     deps.ration.debit(workspace, result.metered.model, {

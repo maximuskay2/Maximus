@@ -683,6 +683,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = LiveActivities/LiveActivities.entitlements;
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 24ZAVJC7HG;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LiveActivities/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
@@ -863,6 +864,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = LiveActivities/LiveActivities.entitlements;
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 24ZAVJC7HG;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LiveActivities/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
@@ -882,6 +884,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = LiveActivities/LiveActivities.entitlements;
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 24ZAVJC7HG;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LiveActivities/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;

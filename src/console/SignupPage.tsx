@@ -9,7 +9,6 @@ import {
   consolePlans,
   createWorkspace,
   normalizeConsoleEmail,
-  startOtp,
   validConsoleEmail,
   validOtpCode,
   validWorkspaceId,
@@ -17,6 +16,7 @@ import {
   type ConsolePlanView,
   type ConsoleWorkspace,
 } from "./account";
+import { defaultDeviceLabel, signUpWithPassword } from "../lib/session";
 import { SiteShell } from "../site/SiteShell";
 import { ConsoleError as ErrorBox, ConsoleShell, fieldInput, fieldLabel, ghostButton, primaryButton } from "./shell";
 
@@ -34,6 +34,8 @@ export interface SignupViewProps {
   busy: boolean;
   error: string | null;
   onEmail: (value: string) => void;
+  onPassword?: (value: string) => void;
+  password?: string;
   onCode: (value: string) => void;
   onWorkspaceId: (value: string) => void;
   onDisplayName: (value: string) => void;
@@ -78,8 +80,18 @@ export function SignupView(props: SignupViewProps) {
             disabled={props.busy}
             onChange={(event) => props.onEmail(event.target.value)}
           />
-          <button type="submit" className={primaryButton} disabled={props.busy || !validConsoleEmail(props.email)}>
-            {props.busy ? t("console.sending") : t("console.sendCode")}
+          <label className={fieldLabel} htmlFor="console-signup-password">{t("account.password")}</label>
+          <input
+            id="console-signup-password"
+            className={fieldInput}
+            type="password"
+            autoComplete="new-password"
+            value={props.password ?? ""}
+            disabled={props.busy}
+            onChange={(event) => props.onPassword?.(event.target.value)}
+          />
+          <button type="submit" className={primaryButton} disabled={props.busy || !validConsoleEmail(props.email) || (props.password ?? "").length < 8}>
+            {props.busy ? t("console.signup.creating") : t("account.create")}
           </button>
         </form>
       )}
@@ -158,7 +170,7 @@ export function SignupView(props: SignupViewProps) {
       )}
       <ErrorBox message={props.error} />
       <p className="mt-5 text-center text-[12px] text-ink-faint">
-        <a href="/signin">{t("console.signup.haveAccount")}</a>
+        <a href="/signin">{t("account.switchToSignIn")}</a>
         {" · "}
         <a href="/pricing">{t("console.signup.viewPlans")}</a>
       </p>
@@ -175,6 +187,7 @@ function initialPlan(): string {
 export function SignupPage() {
   const [step, setStep] = useState<SignupStep>("email");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [workspaceId, setWorkspaceId] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -222,6 +235,11 @@ export function SignupPage() {
         setEmail(value);
         setError(null);
       }}
+      password={password}
+      onPassword={(value) => {
+        setPassword(value);
+        setError(null);
+      }}
       onCode={(value) => {
         setCode(value);
         setError(null);
@@ -243,15 +261,20 @@ export function SignupPage() {
           setError(t("console.invalidEmail"));
           return;
         }
+        if (password.length < 8) {
+          setError(t("account.passwordShort"));
+          return;
+        }
         setBusy(true);
         setError(null);
-        startOtp(normalized)
-          .then(({ email: confirmed }) => {
-            setEmail(confirmed);
-            setStep("code");
-            setBusy(false);
-          })
-          .catch(fail);
+        void signUpWithPassword({ email: normalized, password, label: defaultDeviceLabel() }).then((result) => {
+          setBusy(false);
+          if (!result.ok) {
+            setError(result.error);
+            return;
+          }
+          window.location.assign("/");
+        });
       }}
       onVerifyCode={() => {
         if (!validOtpCode(code)) {

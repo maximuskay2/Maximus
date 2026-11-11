@@ -3,8 +3,8 @@ import { act, createElement, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MausAvatar, type MausAvatarHandle, type MausAvatarProps } from "./Avatar";
-import { EFFECTS, EXPRESSIONS, POOLS } from "./CursorAvatar";
+import { CursorAvatar, EFFECTS, EXPRESSIONS, POOLS, type CursorAvatarHandle, type CursorAvatarProps } from "./CursorAvatar";
+import { MASCOT_BODIES } from "../../shared/mascot-bodies";
 import { mascotClock } from "./mascot-clock";
 import { UNREAD_NOTICE_MS, useUnreadNotice } from "./unread-notice";
 
@@ -33,6 +33,9 @@ let frameRequests = 0;
 let host: HTMLDivElement;
 let root: Root;
 
+const silhouette = MASCOT_BODIES.cursor;
+const gradient: [string, string, string] = ["#7dffb3", "#22c55e", "#0b5c2e"];
+
 beforeAll(() => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame", "performance"] });
   const raf = globalThis.requestAnimationFrame;
@@ -60,8 +63,24 @@ afterEach(() => {
   host.remove();
 });
 
-const render = (avatars: Array<Partial<MausAvatarProps> & { ref?: React.Ref<MausAvatarHandle> }>) =>
-  act(() => root.render(avatars.map((props, key) => createElement(MausAvatar, { key, color: "green", ...props }))));
+type RenderProps = Partial<CursorAvatarProps> & {
+  ref?: React.Ref<CursorAvatarHandle>;
+  animated?: boolean;
+};
+
+const render = (avatars: RenderProps[]) =>
+  act(() => root.render(avatars.map(({ animated = true, ref, ...props }, key) =>
+    createElement(CursorAvatar, {
+      key,
+      ref,
+      size: 44,
+      silhouette,
+      gradient,
+      lookAround: 0,
+      paused: !animated,
+      ...props,
+    }),
+  )));
 const run = (ms: number) => act(() => { vi.advanceTimersByTime(ms); });
 const eyePaths = () => [...host.querySelectorAll("svg")].map((svg) => svg.querySelector("g[clip-path] path")!.getAttribute("d"));
 const toPath = (ring: Array<[number, number]>) => "M" + ring.map((p) => p[0].toFixed(2) + " " + p[1].toFixed(2)).join("L") + "Z";
@@ -108,7 +127,7 @@ describe("CursorAvatar on the shared clock", () => {
   });
 
   it("lets a small idle mascot settle to no frames, and wakes it for a blink", () => {
-    const ref = createRef<MausAvatarHandle>();
+    const ref = createRef<CursorAvatarHandle>();
     render([{ state: "idle", size: 24, ref }]);
     run(3000);
     expect(mascotClock().pending()).toBe(0);
@@ -135,7 +154,13 @@ describe("CursorAvatar on the shared clock", () => {
 
   it("lets an unread mascot play its notice, then draws nothing while the news waits", () => {
     function Row({ unread }: { unread: boolean }) {
-      return createElement(MausAvatar, { color: "green", state: unread ? "notifying" : "idle", size: 42, animated: useUnreadNotice(unread) });
+      return createElement(CursorAvatar, {
+        silhouette,
+        gradient,
+        size: 42,
+        state: unread ? "notifying" : "idle",
+        paused: !useUnreadNotice(unread),
+      });
     }
     act(() => root.render(createElement(Row, { unread: false })));
     run(200);
@@ -165,7 +190,7 @@ describe("CursorAvatar on the shared clock", () => {
 
   it("holds still under reduced motion: no body motion, blinks or spins", () => {
     reducedMotion = true;
-    const ref = createRef<MausAvatarHandle>();
+    const ref = createRef<CursorAvatarHandle>();
     render([{ state: "celebrate", size: 220, ref }]);
     run(200);
     const svg = host.querySelector("svg")!;

@@ -66,6 +66,17 @@ describe("New bot", () => {
     expect(calls).toEqual([]);
   });
 
+  it("makes a plain agent when the workspace defaults are not available", async () => {
+    const request = vi.fn(async (path: string, init?: RequestInit) => {
+      if (path === "/api/bot-defaults") throw new Error("forbidden");
+      if (init?.method === "POST") return { bot: { id: "created", threadId: "created-main", name: "Agent", title: "", description: "", soul: "", color: "green", notifications: true, unread: false, messages: [] } };
+      return {};
+    });
+    const sent = await newBot(request as never);
+    expect(sent[0]).toMatchObject({ type: "botAdded", bot: expect.objectContaining({ name: "Agent" }) });
+    expect(request).toHaveBeenCalledWith("/api/bots", expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "Agent" }) }));
+  });
+
   it("makes a bot at once from the New bot defaults and opens its chat", async () => {
     const { calls, request, created } = server();
     const sent = await newBot(request);

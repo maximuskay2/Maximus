@@ -154,7 +154,7 @@ class _Bubble extends StatelessWidget {
   }
 }
 
-/// Two-tone Maximus M: paper stroke + ember crossbar on ink.
+/// Maximus bull bot avatar (transparent PNG).
 class MaximusMark extends StatelessWidget {
   const MaximusMark({super.key, this.size = 48});
   final double size;
@@ -165,49 +165,12 @@ class MaximusMark extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: SizedBox.square(
         dimension: size,
-        child: CustomPaint(painter: _MarkPainter()),
+        child: Image.asset(
+          'assets/brand/bull-avatar.png',
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
       ),
     );
   }
-}
-
-class _MarkPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width, h = size.height;
-    final bg = Paint()..color = MaxTokens.ink;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Offset.zero & size,
-        const Radius.circular(12),
-      ),
-      bg,
-    );
-    final paper = Paint()
-      ..color = MaxTokens.paper
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.11
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final path = Path()
-      ..moveTo(w * 0.22, h * 0.78)
-      ..lineTo(w * 0.22, h * 0.24)
-      ..lineTo(w * 0.5, h * 0.55)
-      ..lineTo(w * 0.78, h * 0.24)
-      ..lineTo(w * 0.78, h * 0.78);
-    canvas.drawPath(path, paper);
-    final ember = Paint()
-      ..color = MaxTokens.emberBright
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.09
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(
-      Offset(w * 0.22, h * 0.78),
-      Offset(w * 0.78, h * 0.78),
-      ember,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

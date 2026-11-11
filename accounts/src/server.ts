@@ -6,7 +6,8 @@ import type { Pool } from "pg";
 
 import { readProcessConfig } from "./config.ts";
 import { createDatabase, createPool } from "./db.ts";
-import { smtpSender } from "./smtp.ts";
+import { currentSmtpUrl } from "./operator-mail.ts";
+import { resolvingSmtpSender } from "./smtp.ts";
 import { migrate } from "./migrate.ts";
 import { handleRequest } from "./router.ts";
 import type { AccountsEnv, JobContext } from "./types.ts";
@@ -22,17 +23,12 @@ function stringVars(vars: NodeJS.ProcessEnv): Record<string, string> {
 }
 
 export function buildEnv(pool: Pool, vars: NodeJS.ProcessEnv, smtpURL: string | null): AccountsEnv {
+  const DB = createDatabase(pool);
   return {
     ...stringVars(vars),
     RELAY_DISABLED: vars.RELAY_DISABLED ?? "1",
-    DB: createDatabase(pool),
-    EMAIL: smtpURL
-      ? smtpSender(smtpURL)
-      : {
-        send: async () => {
-          throw new Error("SMTP_URL is not set");
-        },
-      },
+    DB,
+    EMAIL: resolvingSmtpSender(() => currentSmtpUrl(DB, smtpURL)),
     BETTER_AUTH_SECRET: vars.BETTER_AUTH_SECRET ?? "",
   };
 }

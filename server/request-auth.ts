@@ -324,6 +324,14 @@ export const CLIENT_ALLOW: ReadonlyArray<{ methods: readonly string[]; path: Reg
   { methods: ["GET"], path: /^\/api\/phones\/self\/jobs$/ },
   { methods: ["POST"], path: /^\/api\/phones\/self\/jobs\/[\w-]+\/(?:lease|result)$/ },
   { methods: ["GET"], path: /^\/api\/health$/ },
+  // A signed-in person makes their own agent. The route still refuses admin-only settings.
+  { methods: ["POST"], path: /^\/api\/bots$/ },
+  { methods: ["GET"], path: /^\/api\/bot-defaults$/ },
+  // The person's own Muse wallet. Choosing Free opens the one grant; the pooled key is not in this response.
+  { methods: ["GET"], path: /^\/api\/ration$/ },
+  // Nigeria sees Naira when Paystack is on; checkout starts that charge.
+  { methods: ["GET"], path: /^\/api\/billing\/offer$/ },
+  { methods: ["POST"], path: /^\/api\/billing\/checkout$/ },
   { methods: ["GET"], path: /^\/api\/edition$/ },
   { methods: ["GET"], path: /^\/api\/brand$/ },
   { methods: ["GET"], path: /^\/api\/events$/ },
@@ -586,20 +594,28 @@ export function resolveRequestAuth(req: IncomingMessage, options: ResolveOptions
   const path = options.url.pathname;
   const deny = (status: 401 | 403, error: string): RequestAuthResult => ({ auth: null, status, error });
 
-  // A presented session credential wins over the loopback rule.
+  // A presented session credential wins over the loopback rule. A dead bearer
+  // must not hide a live sign-in cookie: the phone keeps an old pairing token
+  // beside the cookie from email or password sign-in.
   const bearer = bearerToken(req.headers.authorization);
   const cookie = parseCookies(headerValue(req.headers.cookie)).get(options.cookieName);
   const ticket = path === options.streamPath ? options.url.searchParams.get("ticket") : null;
+  const bearerPresented = Boolean(bearer?.startsWith("maximus_sess_"));
+  const bearerSession = bearerPresented && bearer ? options.sessions.authenticate(bearer) : null;
+  // A browser sign-in is the cookie. Its token in Authorization is the phone's old pairing header, not this sign-in.
+  const bearerUsable = bearerSession && !bearerSession.cookieOnly ? bearerSession : null;
+  const ticketSession = !bearerUsable && ticket ? options.sessions.redeemStreamTicket(ticket) : null;
+  const cookieSession = !bearerUsable && !ticketSession && cookie ? options.sessions.authenticate(cookie) : null;
   let session: SessionRecord | null = null;
   let via: "bearer" | "cookie" | "ticket" | null = null;
-  if (bearer?.startsWith("maximus_sess_")) {
-    session = options.sessions.authenticate(bearer);
+  if (bearerUsable) {
+    session = bearerUsable;
     via = "bearer";
-  } else if (ticket) {
-    session = options.sessions.redeemStreamTicket(ticket);
+  } else if (ticketSession) {
+    session = ticketSession;
     via = "ticket";
-  } else if (cookie) {
-    session = options.sessions.authenticate(cookie);
+  } else if (cookieSession) {
+    session = cookieSession;
     via = "cookie";
   }
 
@@ -622,8 +638,10 @@ export function resolveRequestAuth(req: IncomingMessage, options: ResolveOptions
     return { auth: { kind: "session", session, via, scopes: session.scopes }, status: 401, error: "" };
   }
 
+  if (bearerSession?.cookieOnly) return deny(401, "unauthorized: this session belongs to a browser; sign in with a pairing code");
+
   // A removed member's invalid credential must not fall back to loopback owner.
-  if (via) {
+  if (bearerPresented || ticket || cookie) {
     return deny(401, "unauthorized: this session has expired or was revoked; pair this device again");
   }
 
