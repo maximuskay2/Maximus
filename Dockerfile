@@ -60,8 +60,8 @@ COPY scripts/install-git-hooks.mjs ./scripts/install-git-hooks.mjs
 RUN pnpm install --frozen-lockfile
 COPY . .
 # The Cloud home runs these as root, so nobody else may write them.
-# Node's default heap is about 2GB; vite's build of this tree exceeds it. The packaging lanes set the same cap.
-RUN NODE_OPTIONS=--max-old-space-size=4096 pnpm build:server && pnpm exec vite build && chmod -R go-w dist dist-server skills
+# Node's default heap is about 2GB, and 4GB still dies during vite build of this tree.
+RUN NODE_OPTIONS=--max-old-space-size=8192 pnpm build:server && pnpm exec vite build && chmod -R go-w dist dist-server skills
 # The Data engine's native modules (server/data/engine.ts), staged like the
 # desktop app's extraResources for the image's CPU (amd64 -> x64, arm64), into
 # one tree the runtime stages copy. pnpm installed both CPUs' packages
