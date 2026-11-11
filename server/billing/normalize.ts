@@ -98,6 +98,7 @@ const PAYSTACK_TYPES: Record<string, BillingEventType> = {
   "subscription.disable": "billing.subscription_cancelled",
   "invoice.payment_failed": "billing.payment_failed",
   "invoice.update": "billing.payment_recovered",
+  "charge.success": "billing.checkout_completed",
 };
 
 /** Paystack sends no delivery id, so the idempotency key is `event:object-id:created-at`, stable across redeliveries. */
@@ -106,7 +107,7 @@ export function normalizePaystackEvent(payload: unknown): BillingEvent | null {
   const type = PAYSTACK_TYPES[asString(root.event) ?? ""];
   const data = asRecord(root.data);
   const objectId = data.id;
-  const createdAt = asString(data.createdAt ?? data.created_at);
+  const createdAt = asString(data.createdAt) ?? asString(data.created_at) ?? asString(data.paid_at);
   if (!type || (typeof objectId !== "number" && typeof objectId !== "string") || !createdAt || !Number.isFinite(Date.parse(createdAt))) {
     return null;
   }

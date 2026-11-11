@@ -20,14 +20,22 @@ export function daysMs(value: string | undefined, fallbackDays: number): number 
   const ok = Number.isInteger(days) && days >= 1 && days <= 3650;
   return (ok ? days : fallbackDays) * 24 * 60 * 60_000;
 }
-/** MAXIMUS_SESSION_TTL_DAYS (default 30): a session used with half its term or less left renews for the full term. */
+/** MAXIMUS_SESSION_TTL_DAYS (default 30): Team voucher windows and the renew step for access tokens use this. */
 export const SESSION_TTL_MS = daysMs(process.env.MAXIMUS_SESSION_TTL_DAYS, 30);
-/** MAXIMUS_SESSION_MAX_DAYS (default 180): renewal never passes this, so a stolen cookie has a bounded life. */
+/** MAXIMUS_SESSION_MAX_DAYS (default 180): a script access token never lasts longer than this. */
 export const SESSION_MAX_AGE_MS = daysMs(process.env.MAXIMUS_SESSION_MAX_DAYS, 180);
 export const SESSION_RENEW_WHEN_LEFT_MS = SESSION_TTL_MS / 2;
+/** A signed-in phone or browser stays until Sign out. Free grant and paid plans limit Muse, not the sign-in. */
+export const SESSION_UNTIL_LOGOUT_MS = daysMs(process.env.MAXIMUS_SESSION_UNTIL_LOGOUT_DAYS, 3650);
+/** Browsers refuse a longer Max-Age; each cookie request re-issues within this cap. */
+const COOKIE_BROWSER_CAP_SECONDS = 400 * 24 * 60 * 60;
 
 export function cookieMaxAgeSeconds(session: { expiresAt: number }, now = Date.now()): number {
-  return Math.max(1, Math.floor((session.expiresAt - now) / 1000));
+  return Math.max(1, Math.min(COOKIE_BROWSER_CAP_SECONDS, Math.floor((session.expiresAt - now) / 1000)));
+}
+
+function untilLogout(record: { token?: true; membershipAuthority?: "portal" | "team" }): boolean {
+  return record.token !== true && record.membershipAuthority !== "team";
 }
 export const STREAM_TICKET_TTL_MS = 5 * 60_000;
 /** Slow-down only: a 60-bit code cannot be guessed online in a day, and sources are shared (NAT), so the lock stays short. */
@@ -455,7 +463,11 @@ export class SessionRegistry {
       scopes: [...pairing.scopes],
       createdAt: now,
       lastSeenAt: now,
-      expiresAt: pairing.member ? teamSessionExpiresAt(checkedAt, now + SESSION_TTL_MS) : now + Math.min(pairing.tokenTtlMs ?? SESSION_TTL_MS, SESSION_MAX_AGE_MS),
+      expiresAt: pairing.member
+        ? teamSessionExpiresAt(checkedAt, now + SESSION_TTL_MS)
+        : pairing.tokenTtlMs !== undefined
+          ? now + Math.min(pairing.tokenTtlMs, SESSION_MAX_AGE_MS)
+          : now + SESSION_UNTIL_LOGOUT_MS,
       ...(pairing.tokenTtlMs !== undefined ? { token: true as const } : {}),
       ...(pairing.browser ? { cookieOnly: true as const, ...(pairing.owner ? { owner: pairing.owner } : {}) } : {}),
       ...(pairing.member ? { email: pairing.member.email, teamRole: pairing.member.role, membershipAuthority: "team" as const } : {}),
@@ -531,7 +543,7 @@ export class SessionRegistry {
       scopes: [...new Set(input.scopes)],
       createdAt: now,
       lastSeenAt: now,
-      expiresAt: now + Math.min(SESSION_TTL_MS, SESSION_MAX_AGE_MS),
+      expiresAt: now + SESSION_UNTIL_LOGOUT_MS,
     };
     if (input.userId) record.userId = input.userId;
     if (input.email) record.email = input.email;
@@ -622,9 +634,17 @@ export class SessionRegistry {
     const record = this.sessions.find((s) => s.id === sessionId);
     const now = this.now();
     if (!record || record.expiresAt <= now || record.token) return false;
+    if (untilLogout(record)) {
+      if (record.expiresAt - now > SESSION_UNTIL_LOGOUT_MS / 2) return false;
+      record.expiresAt = now + SESSION_UNTIL_LOGOUT_MS;
+      record.lastSeenAt = now;
+      this.lastSeenWrites.set(record.id, now);
+      this.persist();
+      return true;
+    }
     if (record.expiresAt - now > SESSION_RENEW_WHEN_LEFT_MS) return false;
     const proposed = Math.min(now + SESSION_TTL_MS, record.createdAt + SESSION_MAX_AGE_MS);
-    const next = record.membershipAuthority === "team" ? teamSessionExpiresAt(record.memberCheckedAt ?? record.createdAt, proposed) : proposed;
+    const next = teamSessionExpiresAt(record.memberCheckedAt ?? record.createdAt, proposed);
     if (next <= record.expiresAt) return false;
     record.expiresAt = next;
     record.lastSeenAt = now;

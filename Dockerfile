@@ -50,6 +50,7 @@ ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 # every workspace member's manifest must exist before install resolves the lockfile
 COPY apps/docs/package.json ./apps/docs/package.json
+COPY accounts/package.json ./accounts/package.json
 COPY cloudflare/control-plane/package.json ./cloudflare/control-plane/package.json
 # package.json's `prepare` runs during install. The script itself is written to
 # no-op without a .git (it exits 0 here), but node still has to be able to LOAD
@@ -59,7 +60,8 @@ COPY scripts/install-git-hooks.mjs ./scripts/install-git-hooks.mjs
 RUN pnpm install --frozen-lockfile
 COPY . .
 # The Cloud home runs these as root, so nobody else may write them.
-RUN pnpm build:server && pnpm exec vite build && chmod -R go-w dist dist-server skills
+# Node's default heap is about 2GB, and 4GB still dies during vite build of this tree.
+RUN NODE_OPTIONS=--max-old-space-size=8192 pnpm build:server && pnpm exec vite build && chmod -R go-w dist dist-server skills
 # The Data engine's native modules (server/data/engine.ts), staged like the
 # desktop app's extraResources for the image's CPU (amd64 -> x64, arm64), into
 # one tree the runtime stages copy. pnpm installed both CPUs' packages
@@ -137,6 +139,9 @@ FROM runtime AS cloud-home
 # PATH and out of the volume. What it downloads lives in the volume's cache.
 ARG UV_VERSION=0.13.4
 ARG TARGETARCH
+# Railway production builds pass MAXIMUS_WITH_TUNNEL=0: the tunnel connector
+# and its edge config leave this image, which serves only behind its own edge.
+ARG MAXIMUS_WITH_TUNNEL=1
 RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 poppler-utils unzip bubblewrap socat \
   && rm -rf /var/lib/apt/lists/* \
@@ -194,14 +199,16 @@ COPY --from=build /src/skills ./skills
 RUN export HOME=/tmp/maximus-build-home \
  && chmod go-w /app/cloud /app/cloud/Caddyfile /app/cloud/Caddyfile.tls /app/cloud/Caddyfile.tunnel /app/cloud/edge-routes.caddy \
  && caddy version \
- && cloudflared version \
+ && if [ "$MAXIMUS_WITH_TUNNEL" = "1" ]; then cloudflared version; fi \
  && MAXIMUS_CLOUD_PUBLIC_HOST=validate.fly.dev caddy validate --config /app/cloud/Caddyfile --adapter caddyfile \
  && MAXIMUS_CLOUD_PUBLIC_HOST=validate.example.com MAXIMUS_CLOUD_EDGE_STORAGE=/tmp/maximus-build-home/edge caddy validate --config /app/cloud/Caddyfile.tls --adapter caddyfile \
- && MAXIMUS_CLOUD_PUBLIC_HOST=validate.example.com caddy validate --config /app/cloud/Caddyfile.tunnel --adapter caddyfile \
+ && if [ "$MAXIMUS_WITH_TUNNEL" = "1" ]; then MAXIMUS_CLOUD_PUBLIC_HOST=validate.example.com caddy validate --config /app/cloud/Caddyfile.tunnel --adapter caddyfile; fi \
  && test -f /app/dist-server/cloud-home-start.js \
- && untrusted="$(find /app /usr/local/bin/caddy /usr/local/bin/cloudflared \( ! -user root -o ! -type l -perm /022 \) -print)" \
+ && tunnel_bin="$(if [ "$MAXIMUS_WITH_TUNNEL" = "1" ]; then echo /usr/local/bin/cloudflared; fi)" \
+ && untrusted="$(find /app /usr/local/bin/caddy $tunnel_bin \( ! -user root -o ! -type l -perm /022 \) -print)" \
  && if [ -n "$untrusted" ]; then echo "not root's, or writable by others:" >&2; echo "$untrusted" >&2; exit 1; fi \
  && rm -rf /tmp/maximus-build-home
+RUN if [ "$MAXIMUS_WITH_TUNNEL" != "1" ]; then rm -f /usr/local/bin/cloudflared /app/cloud/Caddyfile.tunnel; fi
 ENV HOME=/data
 VOLUME ["/data"]
 EXPOSE 8080

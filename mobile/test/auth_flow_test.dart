@@ -4,6 +4,7 @@ import 'package:maximus/settings/preferences.dart';
 import 'package:maximus/api/models.dart';
 import 'package:maximus/api/session_store.dart';
 import 'package:maximus/auth/auth_state.dart';
+import 'package:maximus/auth/signin_page.dart';
 import 'package:maximus/auth/welcome_page.dart';
 import 'package:maximus/home/home_page.dart';
 import 'package:maximus/main.dart';
@@ -29,8 +30,8 @@ void main() {
     final auth = AuthState(store: store, client: FakeApi());
     await auth.load();
     await tester.pumpWidget(_app(auth));
-    expect(find.text('Pair a server'), findsOneWidget);
-    expect(find.text('Sign in with email'), findsOneWidget);
+    expect(find.text('Sign in'), findsOneWidget);
+    expect(find.text('Create account'), findsOneWidget);
 
     // Simulate a completed pairing through the real load path.
     await store.saveServer(
@@ -40,6 +41,25 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
     expect(find.text('Search'), findsOneWidget);
+  });
+
+  testWidgets('sign-in and create account switch on the same screen', (
+    tester,
+  ) async {
+    final auth = AuthState(store: MemorySessionStore(), client: FakeApi());
+    await auth.load();
+    await tester.pumpWidget(
+      MaterialApp(theme: MaxTokens.light(), home: SignInPage(auth: auth)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('New here?'), findsOneWidget);
+    await tester.tap(find.text('Create account'));
+    await tester.pump();
+    expect(find.text('Already have an account?'), findsOneWidget);
+    expect(find.text('Create account'), findsWidgets);
+    await tester.tap(find.text('Sign in'));
+    await tester.pump();
+    expect(find.text('New here?'), findsOneWidget);
   });
 
   testWidgets('MaximusApp gates on load then shows welcome', (tester) async {

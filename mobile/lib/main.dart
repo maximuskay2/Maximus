@@ -8,6 +8,7 @@ import 'api/models.dart';
 import 'api/session_store.dart';
 import 'api/thread_cache.dart';
 import 'auth/auth_state.dart';
+import 'auth/signin_page.dart';
 import 'auth/welcome_page.dart';
 import 'home/home_page.dart';
 import 'phoneapps/drivers.dart';
@@ -371,6 +372,8 @@ class _MaximusAppState extends State<MaximusApp>
                   )
                 : active == null
                 ? WelcomePage(auth: _auth)
+                : _auth.needsSignIn
+                ? SignInPage(auth: _auth, initialBaseUrl: active.baseUrl)
                 : HomePage(
                     auth: _auth,
                     push: _push,

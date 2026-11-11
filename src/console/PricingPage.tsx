@@ -5,7 +5,7 @@ import { productName } from "../lib/brand";
 import { t } from "../lib/i18n";
 import { isConnected, readSessionState } from "../lib/session";
 import { SiteShell, site } from "../site/SiteShell";
-import { consolePlans, formatUsd, type ConsolePlanView } from "./account";
+import { billingOffer, consolePlans, formatUsd, type BillingOfferView, type ConsolePlanView } from "./account";
 import { ConsoleError as ErrorBox } from "./shell";
 
 /** A signed-in person opens the app. Everyone else creates an account, carrying the plan they picked. */
@@ -21,8 +21,12 @@ export function planAllowanceLine(plan: ConsolePlanView): string {
   return t("console.pricing.byoOnly");
 }
 
-export function planPriceLine(plan: ConsolePlanView): string {
+export function planPriceLine(plan: ConsolePlanView, offer?: BillingOfferView | null): string {
   if (plan.baseUsd <= 0) return t("console.free");
+  if (offer?.currency === "NGN" && offer.ngnPerUsd > 0) {
+    const naira = Math.round(plan.baseUsd * offer.ngnPerUsd).toLocaleString("en-NG");
+    return t("console.pricing.perMonth", { amount: `₦${naira}` });
+  }
   return t("console.pricing.perMonth", { amount: formatUsd(plan.baseUsd) });
 }
 
@@ -36,7 +40,7 @@ export function planFeatureUnion(plans: ConsolePlanView[]): string[] {
   return [...seen];
 }
 
-export function CompareTable({ plans }: { plans: ConsolePlanView[] }) {
+export function CompareTable({ plans, offer = null }: { plans: ConsolePlanView[]; offer?: BillingOfferView | null }) {
   const features = planFeatureUnion(plans);
   const cell = "px-4 py-3 align-top";
   const check = (on: boolean): React.ReactNode => (on
@@ -57,7 +61,7 @@ export function CompareTable({ plans }: { plans: ConsolePlanView[] }) {
           <tr className="border-b border-white/10">
             <th scope="row" className={`${cell} font-medium ${site.muted}`}>{t("console.pricing.price")}</th>
             {plans.map((plan) => (
-              <td key={plan.id} className={`${cell} font-medium`}>{planPriceLine(plan)}</td>
+              <td key={plan.id} className={`${cell} font-medium`}>{planPriceLine(plan, offer)}</td>
             ))}
           </tr>
           <tr className="border-b border-white/10">
@@ -99,7 +103,7 @@ const SURFACES: { icon: typeof AppWindow; title: "console.pricing.surfaceBrowser
   { icon: Smartphone, title: "console.pricing.surfacePhone", body: "console.pricing.surfacePhoneBody" },
 ];
 
-export function PricingView({ plans, error, signedIn = false, person = null }: { plans: ConsolePlanView[] | null; error: string | null; signedIn?: boolean; person?: string | null }) {
+export function PricingView({ plans, error, signedIn = false, person = null, offer = null }: { plans: ConsolePlanView[] | null; error: string | null; signedIn?: boolean; person?: string | null; offer?: BillingOfferView | null }) {
   const featured = plans?.find((plan) => plan.baseUsd > 0) ?? plans?.[0];
   const enter = signedIn ? t("console.pricing.openApp") : t("console.pricing.startFree");
   return (
@@ -153,7 +157,7 @@ export function PricingView({ plans, error, signedIn = false, person = null }: {
                     )}
                   </div>
                   {plan.blurb ? <p className={`mt-1 text-[13px] leading-relaxed ${hot ? site.darkMuted : site.muted}`}>{plan.blurb}</p> : null}
-                  <p className={`mt-4 text-[32px] font-semibold tracking-tight ${hot ? site.darkInk : ""}`}>{planPriceLine(plan)}</p>
+                  <p className={`mt-4 text-[32px] font-semibold tracking-tight ${hot ? site.darkInk : ""}`}>{planPriceLine(plan, offer)}</p>
                   <p className={`mt-1 text-[13px] ${hot ? site.darkMuted : site.muted}`}>{planAllowanceLine(plan)}</p>
                   <ul className="mt-5 flex-1 space-y-2.5">
                     {plan.features.map((feature) => (
@@ -176,7 +180,7 @@ export function PricingView({ plans, error, signedIn = false, person = null }: {
             })}
           </div>
         )}
-        <p className={`mt-6 text-[13px] ${site.faint}`}>{t("console.pricing.usdNote")}</p>
+        <p className={`mt-6 text-[13px] ${site.faint}`}>{offer?.currency === "NGN" ? "Prices in Naira, billed monthly with Paystack." : t("console.pricing.usdNote")}</p>
         <section id="enterprise" aria-labelledby="enterprise-heading" className="relative mt-16 overflow-hidden rounded-3xl border border-white/10 bg-[#101012] px-6 py-10 sm:px-10">
           <h2 id="enterprise-heading" className={`text-[24px] font-semibold tracking-tight ${site.darkInk} sm:text-[28px]`}>{t("console.pricing.enterpriseTitle")}</h2>
           <p className={`mt-3 max-w-[640px] text-[15px] leading-relaxed ${site.darkMuted}`}>{t("console.pricing.enterpriseBody")}</p>
@@ -194,7 +198,7 @@ export function PricingView({ plans, error, signedIn = false, person = null }: {
             <h2 id="compare-heading" className="text-[24px] font-semibold tracking-tight sm:text-[28px]">
               {t("console.pricing.compareTitle")}
             </h2>
-            <CompareTable plans={plans} />
+            <CompareTable plans={plans} offer={offer} />
           </section>
         )}
         <section aria-labelledby="how-heading" className="mt-16 max-w-[720px]">
@@ -261,12 +265,19 @@ export function PricingView({ plans, error, signedIn = false, person = null }: {
 
 export function PricingPage() {
   const [plans, setPlans] = useState<ConsolePlanView[] | null>(null);
+  const [offer, setOffer] = useState<BillingOfferView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [signedIn, setSignedIn] = useState(false);
   const [person, setPerson] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    billingOffer(zone)
+      .then(({ offer: quoted }) => {
+        if (live) setOffer(quoted);
+      })
+      .catch(() => undefined);
     consolePlans()
       .then(({ plans: listed }) => {
         if (live) setPlans(listed);
@@ -286,5 +297,5 @@ export function PricingPage() {
     };
   }, []);
 
-  return <PricingView plans={plans} error={error} signedIn={signedIn} person={person} />;
+  return <PricingView plans={plans} error={error} signedIn={signedIn} person={person} offer={offer} />;
 }

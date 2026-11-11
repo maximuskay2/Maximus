@@ -62,6 +62,16 @@ describe("billing event normalization", () => {
     expect(normalizeStripeEvent(fixture("stripe.checkout.session.completed.no-metadata.json"))).toBeNull();
     expect(normalizeStripeEvent({})).toBeNull();
     expect(normalizePaystackEvent({ event: "charge.success", data: {} })).toBeNull();
+    expect(normalizePaystackEvent({
+      event: "charge.success",
+      data: {
+        id: 99,
+        paid_at: "2026-11-07T10:00:00.000Z",
+        status: "success",
+        customer: { email: "billing@acme.example", customer_code: "CUS_x" },
+        metadata: { workspace_id: "acme", plan: "plus", entitlements: "[\"billing\"]", allowance: "1900" },
+      },
+    })).toMatchObject({ type: "billing.checkout_completed", plan: "plus", customer_id: "CUS_x", allowance: 1900 });
     expect(normalizeBillingEvent("stripe", fixture("stripe.invoice.payment_failed.json"))?.type).toBe("billing.payment_failed");
     expect(normalizeBillingEvent("paystack", fixture("paystack.invoice.payment_failed.json"))?.type).toBe("billing.payment_failed");
   });

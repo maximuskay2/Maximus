@@ -4,18 +4,15 @@ import { ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { colorSwatch, MAUS_COLOR_LABEL, MAUS_COLOR_NAMES } from "@/lib/mascot";
-import { bodyName } from "@/lib/mascot-names";
 import type { Bot } from "@/state/store";
 import { BOT_PROFILE_LIMITS } from "../../shared/bot-profile";
-import { MASCOT_BODY_IDS } from "../../shared/mascot-bodies";
-import { MausAvatar } from "./Avatar";
 import { AvatarImageGenerator } from "./AvatarImageGenerator";
 import type { AvatarPatch, useAvatarImage } from "./avatar-editing";
 
 export const AVATAR_FILE_TYPES = "image/png,image/jpeg,image/gif,image/webp";
 const LABEL = "text-[12px] font-medium uppercase tracking-wide text-ink-secondary";
 
-/** The welcome's own profile edit: name, colour, look, then a picture of the person's own or one made with AI. */
+/** The welcome's own profile edit: name, colour, then a picture of the person's own or one made with AI. */
 export function MaxCustomize({ preview, name, nameRef, image, onName, onPatch }: {
   preview: Bot;
   name: string;
@@ -57,25 +54,6 @@ export function MaxCustomize({ preview, name, nameRef, image, onName, onPatch }:
               className={cn("size-6 rounded-full border-2 transition-transform hover:scale-110", !picture && preview.color === color ? "border-ink" : "border-transparent")}
               style={{ background: colorSwatch(color) }}
             />
-          ))}
-        </div>
-      </div>
-      <div>
-        <span className={LABEL}>{t("maximusWelcome.look")}</span>
-        <div className="mt-1.5 grid grid-cols-5 gap-1">
-          {MASCOT_BODY_IDS.map((id) => (
-            <button
-              key={id}
-              type="button"
-              aria-pressed={!picture && (preview.mascotBody ?? "cursor") === id}
-              aria-label={bodyName(id)}
-              title={bodyName(id)}
-              data-maximus-welcome-body={id}
-              onClick={() => shape({ mascotBody: id })}
-              className={cn("flex h-11 items-center justify-center rounded-xl", !picture && (preview.mascotBody ?? "cursor") === id ? "bg-ink/[0.08] ring-[1.5px] ring-inset ring-ink/25" : "hover:bg-ink/[0.05]")}
-            >
-              <MausAvatar color={preview.color} bodyId={id} size={30} animated={false} trackPointer={false} />
-            </button>
           ))}
         </div>
       </div>

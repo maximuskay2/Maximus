@@ -142,6 +142,89 @@ void main() {
     expect(store.bought, ['maximus_plus_monthly']);
   });
 
+  testWidgets('paywall shows the free grant when the store is down', (tester) async {
+    final store = FakeIAPPlatform.install(available: false);
+    addTearDown(store.close);
+    final api = FakeApi()
+      ..plansPayload = const [
+        ConsolePlan(
+          id: 'free',
+          name: 'Free',
+          blurb: 'A one-time Muse grant on our key.',
+          baseUsd: 0,
+          allowanceUsd: 0.012,
+          entitlements: [],
+          features: ['Once per account'],
+        ),
+        ConsolePlan(
+          id: 'plus',
+          name: 'Plus',
+          blurb: 'Includes Muse.',
+          baseUsd: 19,
+          allowanceUsd: 8,
+          entitlements: [],
+          features: ['muse-spark-1.3'],
+        ),
+      ];
+    final billing = billingWith(api, store);
+    addTearDown(billing.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: MaxTokens.light(),
+        home: PaywallPage(
+          billing: billing,
+          workspaceName: 'Acme',
+          client: api,
+          baseUrl: 'https://h.example',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Free'), findsWidgets);
+    expect(find.text('\$0.012 of Muse, once'), findsOneWidget);
+    expect(find.text('Plus'), findsOneWidget);
+    expect(find.text('\$19/mo'), findsOneWidget);
+  });
+
+  testWidgets('paywall shows naira and Paystack for Nigeria', (tester) async {
+    final store = FakeIAPPlatform.install(available: false);
+    addTearDown(store.close);
+    final api = FakeApi()
+      ..offerPayload = const BillingOffer(currency: 'NGN', provider: 'paystack', ngnPerUsd: 1600)
+      ..plansPayload = const [
+        ConsolePlan(
+          id: 'plus',
+          name: 'Plus',
+          blurb: 'Includes Muse.',
+          baseUsd: 19,
+          allowanceUsd: 8,
+          entitlements: [],
+          features: [],
+        ),
+      ];
+    final billing = billingWith(api, store);
+    addTearDown(billing.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: MaxTokens.light(),
+        home: PaywallPage(
+          billing: billing,
+          workspaceName: 'Acme',
+          client: api,
+          baseUrl: 'https://h.example',
+          timeZone: 'WAT',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('₦30,400/mo'), findsOneWidget);
+    await tester.tap(find.text('Pay with Paystack'));
+    await tester.pumpAndSettle();
+    expect(api.checkoutWrites.single['plan'], 'plus');
+    expect(api.checkoutWrites.single['customerEmail'], 'owner@example.test');
+    expect(api.checkoutWrites.single['timeZone'], 'WAT');
+  });
+
   testWidgets('paywall explains a missing store', (tester) async {
     final store = FakeIAPPlatform.install(available: false);
     addTearDown(store.close);

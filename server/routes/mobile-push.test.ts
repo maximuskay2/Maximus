@@ -27,7 +27,7 @@ async function serve(options: {
   settings?: Record<string, string>;
 } = {}) {
   const tokens = [...(options.tokens ?? [])];
-  const settings = { ...(options.settings ?? {}) };
+  const settings = { ...options.settings };
   const sender = options.sender === true
     ? { send: vi.fn(async () => ({ ok: true as const, messageId: "m" })), close: () => {} }
     : null;

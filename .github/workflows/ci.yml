@@ -151,6 +151,8 @@ jobs:
     name: typecheck + build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      NODE_OPTIONS: --max-old-space-size=8192
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -423,6 +425,8 @@ jobs:
     name: open-source edition builds without maximus-enterprise/
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      NODE_OPTIONS: --max-old-space-size=8192
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
@@ -602,7 +606,7 @@ jobs:
     # (scripts/testing/browser-identity.e2e.test.ts): a 1280x720 page whose
     # user agent and client hints are the browser's own in the page, a
     # worker, a service worker and a cross-site frame. On Windows this is
-    # also the check that the 0.36.0-maximus.1 engine starts Chrome through the
+    # also the check that the official 0.37.0 engine starts Chrome through the
     # generated batch file. browser-passkey.e2e.test.ts: a passkey step's
     # request ends at once there, so Try another way works. The same
     # platforms as the vitest matrix.
@@ -639,6 +643,8 @@ jobs:
     name: package + smoke (Ubuntu 24.04 x64)
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    env:
+      NODE_OPTIONS: --max-old-space-size=8192
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

@@ -45,7 +45,7 @@ interface GoogleCreds {
 }
 
 function appleCreds(env: Env): AppleCreds | null {
-  const anyEnv = env as Record<string, string | undefined>;
+  const anyEnv = env as unknown as Record<string, string | undefined>;
   const issuerId = anyEnv.APPSTORE_ISSUER_ID;
   const keyId = anyEnv.APPSTORE_KEY_ID;
   const privateKey = anyEnv.APPSTORE_PRIVATE_KEY;
@@ -55,7 +55,7 @@ function appleCreds(env: Env): AppleCreds | null {
 }
 
 function googleCreds(env: Env): GoogleCreds | null {
-  const anyEnv = env as Record<string, string | undefined>;
+  const anyEnv = env as unknown as Record<string, string | undefined>;
   const raw = anyEnv.GOOGLE_SERVICE_ACCOUNT;
   const packageName = anyEnv.GOOGLE_PACKAGE_NAME;
   if (!raw || !packageName) return null;
@@ -568,7 +568,7 @@ export async function googleStoreWebhook(
   apply: (event: BillingEvent) => Promise<unknown>,
   deps: StoreDeps = {},
 ): Promise<Response> {
-  const anyEnv = env as Record<string, string | undefined>;
+  const anyEnv = env as unknown as Record<string, string | undefined>;
   const secret = anyEnv.GOOGLE_RTDN_SECRET;
   const creds = googleCreds(env);
   if (!creds || !secret) throw new HTTPError(503, "store_unavailable");

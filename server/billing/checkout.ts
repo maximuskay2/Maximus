@@ -18,7 +18,9 @@ export interface CheckoutRequest {
   /** Monthly allowance in minor units, echoed back on webhooks via provider metadata. */
   allowanceMinor: number | null;
   /** Stripe price id (`price_…`) or Paystack plan code, from operator config. */
-  providerPriceRef: string;
+  providerPriceRef?: string;
+  /** Paystack charge in kobo when no plan code is configured. */
+  amountMinor?: number;
 }
 
 export interface CheckoutSecrets {
@@ -58,7 +60,10 @@ const WORKSPACE = /^[a-z][a-z0-9-]{1,30}$/;
 
 function validateRequest(request: CheckoutRequest): string | null {
   if (!WORKSPACE.test(request.workspaceId)) return "workspaceId is invalid";
-  if (!request.plan || !request.providerPriceRef) return "plan and providerPriceRef are required";
+  const amount = request.amountMinor;
+  const priced = Boolean(request.providerPriceRef)
+    || (request.provider === "paystack" && typeof amount === "number" && Number.isInteger(amount) && amount > 0);
+  if (!request.plan || !priced) return "plan and providerPriceRef are required";
   if (!absoluteHttp(request.successUrl) || !absoluteHttp(request.cancelUrl)) return "successUrl and cancelUrl must be absolute URLs";
   if (request.entitlements.some((id) => !id)) return "entitlements must be non-empty ids";
   if (request.allowanceMinor !== null && (!Number.isInteger(request.allowanceMinor) || request.allowanceMinor < 0)) {
@@ -88,6 +93,7 @@ export function checkoutSecretsFromEnv(env: NodeJS.ProcessEnv = process.env): Ch
 }
 
 async function createStripeCheckout(request: CheckoutRequest, secret: string, fetchImpl: typeof fetch): Promise<CheckoutResult> {
+  if (!request.providerPriceRef) throw new Error("checkout failed: plan and providerPriceRef are required");
   const form = new URLSearchParams({
     mode: "subscription",
     success_url: request.successUrl,
@@ -125,7 +131,7 @@ async function createPaystackCheckout(request: CheckoutRequest, secret: string, 
     headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
     body: JSON.stringify({
       email: request.customerEmail,
-      plan: request.providerPriceRef,
+      ...(request.providerPriceRef ? { plan: request.providerPriceRef } : { amount: request.amountMinor }),
       callback_url: request.successUrl,
       metadata: {
         workspace_id: request.workspaceId,

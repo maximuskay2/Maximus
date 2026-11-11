@@ -1,35 +1,17 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:maximus/chat/message_bubble.dart';
 import 'package:maximus/main.dart' as app;
 
 /// On-device E2E: welcome → pair by live code → home → thread → profile →
 /// search. Needs the mobile E2E harness on the host (port 8841); the iOS
 /// simulator reaches it at 127.0.0.1. Screenshots leave via the log as
 /// base64 `ITSHOT` chunks (the test app is uninstalled after the run).
-const _base = 'http://127.0.0.1:8841';
-
-Future<String> _mintCode() async {
-  final http = HttpClient();
-  try {
-    final request = await http.postUrl(Uri.parse('$_base/api/auth/pairing'));
-    request.headers.contentType = ContentType.json;
-    // Owner scopes: the run covers admin-only create flows too.
-    request.write('{"label":"device run","scopes":["client","admin"]}');
-    final response = await request.close();
-    final body = jsonDecode(await utf8.decoder.bind(response).join())
-        as Map<String, Object?>;
-    return body['code']! as String;
-  } finally {
-    http.close();
-  }
-}
-
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -56,20 +38,14 @@ void main() {
     expect(find.text('Your proactive AI teammate.'), findsOneWidget);
     await shot('welcome');
 
-    await tester.tap(find.text('Pair a server'));
+    await tester.tap(find.text('Create account'));
     await tester.pumpAndSettle();
-    expect(find.text('Pair this phone'), findsOneWidget);
+    expect(find.text('Create account'), findsWidgets);
 
-    // The URL field is prefilled with the dev harness default; point it
-    // at the E2E harness port instead.
     final fields = find.byType(TextField);
-    expect(fields, findsNWidgets(2));
-    // First TextField is the server address.
-    await tester.enterText(fields.first, _base);
-    final code = await _mintCode();
-    // Second TextField is the pairing code.
-    await tester.enterText(fields.at(1), code);
-    await tester.tap(find.text('Pair this phone'));
+    await tester.enterText(fields.at(0), 'owner@example.test');
+    await tester.enterText(fields.at(1), 'correct-horse');
+    await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
     await tester.pumpAndSettle(const Duration(seconds: 30));
     expect(find.text('Briefing'), findsOneWidget);
     await shot('home');
@@ -87,7 +63,9 @@ void main() {
     await tester.pumpAndSettle(const Duration(seconds: 30));
     expect(find.textContaining(probe), findsWidgets);
 
-    // Phase 3: react to the first message via the emoji sheet.
+    // Phase 3: long-press a message, then react from the icons that appear.
+    await tester.longPress(find.byType(MessageBubble).first);
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('React').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('👍').first);

@@ -21,7 +21,7 @@ const h2 = "text-[26px] font-semibold tracking-tight sm:text-[32px]";
 const lede = `mt-3 max-w-[640px] text-[16px] leading-relaxed ${site.muted}`;
 function Feature({ index, icon, title, children }: { index: string; icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
-    <div className="site-rise rounded-2xl border border-white/10 bg-white/[0.03] p-5 transition duration-300 hover:-translate-y-1 hover:border-white/25 hover:bg-white/[0.06]">
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
       <div className="flex items-center gap-3">
         <span aria-hidden className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 text-[#E86A3A]">{icon}</span>
         <span aria-hidden className={`font-mono text-[12px] ${site.faint}`}>{index}</span>
@@ -32,51 +32,43 @@ function Feature({ index, icon, title, children }: { index: string; icon: React.
   );
 }
 
-/** A hand-built, clearly labeled illustration of the product: no screenshots, no fake data. */
+const AGENTS = [
+  { name: "console.site.mockBot1", state: "console.site.mockTool", detail: "console.site.mockUser", mark: "bg-[#E86A3A]" },
+  { name: "console.site.mockBot2", state: "console.site.mockTool", detail: "console.site.mockToolDetail", mark: "bg-[#7FB685]" },
+  { name: "console.site.mockBot3", state: "console.site.mockBotSub", detail: "console.site.mockComposer", mark: "bg-[#C9A227]" },
+] as const;
+
+/** Agents at work, held still. No entrance slide and no floating frame. */
 function AppMock() {
-  const bubble = "max-w-[85%] rounded-lg px-3.5 py-2.5 text-[13px] leading-relaxed";
   return (
-    <figure className="site-float mt-10">
-      <div className={`overflow-hidden rounded-xl border ${site.darkHairline} bg-[#1D1912] shadow-2xl`}>
-        <div className={`flex items-center gap-2 border-b ${site.darkHairline} px-4 py-2.5`}>
-          <span aria-hidden className="flex gap-1.5">
-            <i className="h-2.5 w-2.5 rounded-full bg-[#3A342A]" />
-            <i className="h-2.5 w-2.5 rounded-full bg-[#3A342A]" />
-            <i className="h-2.5 w-2.5 rounded-full bg-[#3A342A]" />
-          </span>
-          <span className={`ml-2 text-[12px] ${site.darkMuted}`}>{t("console.site.mockTitle", { app: productName() })}</span>
+    <figure className="m-0">
+      <div className={`overflow-hidden rounded-2xl border ${site.darkHairline} bg-[#14120F]`}>
+        <div className={`flex items-center justify-between gap-3 border-b ${site.darkHairline} px-4 py-3`}>
+          <span className={`text-[13px] font-medium ${site.darkInk}`}>{t("console.site.fAgentsTitle")}</span>
+          <span className={`text-[12px] ${site.darkMuted}`}>{t("console.site.mockTitle", { app: productName() })}</span>
         </div>
-        <div className="grid md:grid-cols-[220px_1fr]">
-          <div className={`hidden border-r ${site.darkHairline} p-3 md:block`}>
-            {(["console.site.mockBot1", "console.site.mockBot2", "console.site.mockBot3"] as const).map((key, index) => (
-              <div key={key} className={`rounded-lg px-3 py-2.5 ${index === 0 ? "bg-[#2A241B]" : ""}`}>
-                <p className={`text-[13px] font-medium ${site.darkInk}`}>{t(key)}</p>
-                <p className={`mt-0.5 text-[12px] ${site.darkMuted}`}>{t("console.site.mockBotSub")}</p>
+        <ul className="divide-y divide-white/10">
+          {AGENTS.map((agent) => (
+            <li key={agent.name} className="grid grid-cols-[auto_1fr] gap-3 px-4 py-3.5">
+              <span aria-hidden className={`mt-1.5 h-2 w-2 rounded-full ${agent.mark}`} />
+              <div className="min-w-0">
+                <p className={`flex flex-wrap items-baseline gap-x-2 text-[14px] font-medium ${site.darkInk}`}>
+                  {t(agent.name)}
+                  <span className={`text-[12px] font-normal ${site.darkMuted}`}>{t(agent.state)}</span>
+                </p>
+                <p className={`mt-1 text-[13px] leading-relaxed ${site.darkMuted}`}>{t(agent.detail)}</p>
               </div>
-            ))}
-          </div>
-          <div className="space-y-3 p-4 sm:p-5">
-            <div className="flex justify-end">
-              <p className={`${bubble} bg-[#C2410C] text-white`}>{t("console.site.mockUser")}</p>
-            </div>
-            <div className={`${bubble} bg-[#2A241B] ${site.darkInk}`}>
-              <p>{t("console.site.mockBot")}</p>
-            </div>
-            <div className={`rounded-lg border ${site.darkHairline} bg-[#221D14] px-3.5 py-2.5 text-[13px]`}>
-              <p className={`flex items-center gap-2 font-medium ${site.darkInk}`}>
-                <Check size={14} aria-hidden className="text-[#7FB685]" />
-                {t("console.site.mockTool")}
-              </p>
-              <p className={`mt-1 ${site.darkMuted}`}>{t("console.site.mockToolDetail")}</p>
-            </div>
-            <div className={`flex items-center gap-2 rounded-lg border ${site.darkHairline} bg-[#221D14] px-3.5 py-2.5 text-[13px] ${site.darkMuted}`}>
-              <span className="flex-1">{t("console.site.mockComposer")}</span>
-              <span aria-hidden className={`rounded-md ${site.accent} px-2.5 py-1 text-[12px] font-medium text-white`}>→</span>
-            </div>
-          </div>
+            </li>
+          ))}
+        </ul>
+        <div className={`border-t ${site.darkHairline} px-4 py-3.5`}>
+          <p className={`flex items-start gap-2 text-[13px] leading-relaxed ${site.darkInk}`}>
+            <Check size={14} aria-hidden className="mt-0.5 shrink-0 text-[#7FB685]" />
+            <span>{t("console.site.mockBot")}</span>
+          </p>
         </div>
       </div>
-      <figcaption className={`mt-3 text-center text-[12px] ${site.faint}`}>{t("console.site.mockCaption")}</figcaption>
+      <figcaption className={`mt-3 text-[12px] ${site.faint}`}>{t("console.site.mockCaption")}</figcaption>
     </figure>
   );
 }
@@ -129,7 +121,7 @@ export function DownloadCard({ os, label, note, files, suggested }: { os: Downlo
     ?? null;
   const secondary = files?.filter((file) => file.os === os && file !== primary) ?? [];
   return (
-    <div className={`rounded-2xl border ${site.hairline} bg-white/[0.04] p-6 transition duration-300 hover:-translate-y-1 hover:border-white/25`}>
+    <div className={`rounded-2xl border ${site.hairline} bg-white/[0.04] p-6`}>
       {suggested && (
         <p className="mb-3">
           <span className={`inline-block rounded-full ${site.accent} px-3 py-1 text-[12px] font-medium text-white`}>
@@ -210,36 +202,36 @@ export function WelcomeView() {
   return (
     <SiteShell>
       <main>
-        <section className={`${wrap} site-rise pb-16 pt-16 sm:pt-24`}>
-          <h1 className="max-w-[820px] text-[42px] font-semibold leading-[1.02] tracking-tight sm:text-[68px]">
-            {t("console.site.heroTitle", { app })}
-          </h1>
-          <p className={`mt-6 max-w-[620px] text-[18px] leading-relaxed ${site.muted}`}>{t("console.site.heroBody")}</p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <a href="/signup" className={`rounded-full ${site.accent} ${site.accentHover} px-6 py-3 text-[15px] font-medium text-white no-underline`}>
-              {t("console.site.heroCta")}
-            </a>
-            <a href="#tour" className="rounded-full border border-white/15 px-6 py-3 text-[15px] text-[#F4F1EA] no-underline transition hover:border-white/40 hover:bg-white/5">
-              {t("console.site.heroTour")}
-            </a>
+        <section className={`${wrap} pb-16 pt-10 sm:pt-14`}>
+          <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-12">
+            <div className="min-w-0">
+              <h1 className="max-w-[16ch] text-[32px] font-semibold leading-[1.15] tracking-tight sm:text-[40px]">
+                {t("console.site.heroTitle", { app })}
+              </h1>
+              <p className={`mt-5 max-w-[38ch] text-[16px] leading-relaxed ${site.muted}`}>{t("console.site.heroBody")}</p>
+              <div className="mt-7 flex flex-wrap items-center gap-3">
+                <a href="/signup" className={`rounded-full ${site.accent} ${site.accentHover} px-6 py-3 text-[15px] font-medium text-white no-underline`}>
+                  {t("console.site.heroCta")}
+                </a>
+                <a href="#tour" className="rounded-full border border-white/15 px-6 py-3 text-[15px] text-[#F4F1EA] no-underline hover:border-white/40 hover:bg-white/5">
+                  {t("console.site.heroTour")}
+                </a>
+              </div>
+              <p className={`mt-4 text-[13px] ${site.faint}`}>{t("console.site.heroNote")}</p>
+            </div>
+            <div className="min-w-0"><AppMock /></div>
           </div>
-          <p className={`mt-4 text-[13px] ${site.faint}`}>{t("console.site.heroNote")}</p>
         </section>
 
         <section className={site.dark}>
           <div className={`${wrap} py-14`}>
-            <AppMock />
-            <div className={`mt-10 border-t ${site.darkHairline} pt-8`}>
-              <p className={`text-[13px] font-medium uppercase tracking-wider ${site.darkMuted}`}>{t("console.site.modelsTitle")}</p>
-              <div className="mt-4 overflow-hidden">
-                <ul className={`site-marquee flex w-max gap-12 text-[18px] font-semibold ${site.darkInk}`}>
-                  {[...MODELS, ...MODELS].map((model, index) => (
-                    <li key={`${model}-${index}`}>{model}</li>
-                  ))}
-                </ul>
-              </div>
-              <p className={`mt-3 max-w-[600px] text-[14px] leading-relaxed ${site.darkMuted}`}>{t("console.site.modelsBody")}</p>
-            </div>
+            <p className={`text-[13px] font-medium uppercase tracking-wider ${site.darkMuted}`}>{t("console.site.modelsTitle")}</p>
+            <ul className={`mt-4 flex flex-wrap gap-x-8 gap-y-2 text-[18px] font-semibold ${site.darkInk}`}>
+              {MODELS.map((model) => (
+                <li key={model}>{model}</li>
+              ))}
+            </ul>
+            <p className={`mt-3 max-w-[600px] text-[14px] leading-relaxed ${site.darkMuted}`}>{t("console.site.modelsBody")}</p>
           </div>
         </section>
 

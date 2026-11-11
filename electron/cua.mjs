@@ -1,4 +1,5 @@
-// Packaged: an embedded cua-driver daemon, so macOS TCC grants attribute to Maximus; dev attaches to CuaDriver.app.
+// Packaged: an embedded cua-driver daemon, so macOS TCC grants attribute to Maximus.
+// Dev with MAXIMUS_CUA_DEV embeds the staged binary the same way. Otherwise dev attaches to CuaDriver.app.
 // Agents use the stdio MCP proxy, which executes nothing; the host-owned daemon does.
 
 import { app, ipcMain } from "electron";
@@ -135,11 +136,21 @@ export function resolveWindowsDriver() {
   return null;
 }
 
+export function darwinStagedDriver(root, arch, exists = fs.existsSync) {
+  if (arch !== "arm64" && arch !== "x64") return null;
+  const candidate = path.join(root, "dist-native", arch, "cua-driver");
+  return exists(candidate) ? candidate : null;
+}
+
 export function resolveDriverBinary() {
   if (process.env.CUA_DRIVER_PATH) return process.env.CUA_DRIVER_PATH;
   if (app.isPackaged) {
     const bundled = path.join(process.resourcesPath, "cua-driver" + (process.platform === "win32" ? ".exe" : ""));
     if (fs.existsSync(bundled)) return bundled;
+  }
+  if (process.platform === "darwin" && process.env.MAXIMUS_CUA_DEV === "1" && !app.isPackaged) {
+    const staged = darwinStagedDriver(app.getAppPath(), process.arch);
+    if (staged) return staged;
   }
   if (process.platform === "darwin" && fs.existsSync(INSTALLED_DRIVER)) return INSTALLED_DRIVER;
   if (process.platform === "win32") {
@@ -281,7 +292,8 @@ export async function startCua({ attempt = 0 } = {}) {
   }
 
   const wantEmbedded =
-    process.platform === "win32" || app.isPackaged || process.env.MAXIMUS_CUA_EMBEDDED === "1";
+    process.platform === "win32" || app.isPackaged || process.env.MAXIMUS_CUA_EMBEDDED === "1" ||
+    (process.env.MAXIMUS_CUA_DEV === "1" && process.platform === "darwin" && binary !== INSTALLED_DRIVER);
   let nextConnection;
 
   if (wantEmbedded) {

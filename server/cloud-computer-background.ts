@@ -91,9 +91,21 @@ async function mayStillRun(cfg: AppConfig, boxId: string, processId: number): Pr
   }
 }
 
+export function awakeHold(startedAt: number, now: number, walletUsd: number, rateUsdPerHour: number): { keep: boolean; debitUsd: number } {
+  const held = now - startedAt;
+  if (held <= BACKGROUND_KEEPS_AWAKE_MS) return { keep: true, debitUsd: 0 };
+  if (!(rateUsdPerHour > 0) || !(walletUsd > 0)) return { keep: false, debitUsd: 0 };
+  const debitUsd = ((held - BACKGROUND_KEEPS_AWAKE_MS) / 3_600_000) * rateUsdPerHour;
+  if (walletUsd < debitUsd) return { keep: false, debitUsd: 0 };
+  return { keep: true, debitUsd };
+}
+
 export async function backgroundCommandRunning(cfg: AppConfig, boxId: string): Promise<boolean> {
+  const rate = Number(process.env.MAXIMUS_AWAKE_USD_PER_HOUR ?? "");
+  const wallet = Number(process.env.MAXIMUS_AWAKE_WALLET_USD ?? "");
   for (const [processId, at] of started.get(boxId) ?? []) {
-    if (Date.now() - at < BACKGROUND_KEEPS_AWAKE_MS && await mayStillRun(cfg, boxId, processId)) return true;
+    const keep = rate > 0 ? awakeHold(at, Date.now(), wallet, rate).keep : Date.now() - at < BACKGROUND_KEEPS_AWAKE_MS;
+    if (keep && await mayStillRun(cfg, boxId, processId)) return true;
     untrack(boxId, processId);
   }
   return false;

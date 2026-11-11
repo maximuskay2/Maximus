@@ -9,19 +9,16 @@ import {
   normalizeConsoleEmail,
   rememberedWorkspace,
   rememberWorkspace,
-  signInMethods,
   socialAccountFromHash,
-  startOtp,
-  startSocial,
   validConsoleEmail,
   validOtpCode,
   verifyOtp,
   type ConsoleMembership,
   type SignInMethod,
 } from "./account";
+import { defaultDeviceLabel, signInWithPassword } from "../lib/session";
 import { SiteShell } from "../site/SiteShell";
 import { ConsoleError as ErrorBox, ConsoleShell, fieldInput, fieldLabel, ghostButton, primaryButton } from "./shell";
-import { ServiceEndpointPicker } from "./ServiceEndpoint";
 
 export type SigninStep = "email" | "code" | "workspace";
 
@@ -33,6 +30,8 @@ export interface SigninViewProps {
   busy: boolean;
   error: string | null;
   onEmail: (value: string) => void;
+  onPassword?: (value: string) => void;
+  password?: string;
   onCode: (value: string) => void;
   onSendCode: () => void;
   onVerifyCode: () => void;
@@ -69,8 +68,18 @@ export function SigninView(props: SigninViewProps) {
             disabled={props.busy}
             onChange={(event) => props.onEmail(event.target.value)}
           />
-          <button type="submit" className={primaryButton} disabled={props.busy || !validConsoleEmail(props.email)}>
-            {props.busy ? t("console.sending") : t("console.sendCode")}
+          <label className={fieldLabel} htmlFor="console-signin-password">{t("account.password")}</label>
+          <input
+            id="console-signin-password"
+            className={fieldInput}
+            type="password"
+            autoComplete="current-password"
+            value={props.password ?? ""}
+            disabled={props.busy}
+            onChange={(event) => props.onPassword?.(event.target.value)}
+          />
+          <button type="submit" className={primaryButton} disabled={props.busy || !validConsoleEmail(props.email) || (props.password ?? "").length < 8}>
+            {props.busy ? t("pair.signingIn") : t("accounts.signIn")}
           </button>
           {(props.providers ?? []).filter((method) => method.id !== "email").map((method) => (
             <button
@@ -83,10 +92,6 @@ export function SigninView(props: SigninViewProps) {
               {t("console.signin.continueWith", { provider: method.label })}
             </button>
           ))}
-          <details className="mt-4 text-[13px] text-ink-secondary">
-            <summary className="cursor-pointer underline">{t("console.endpoint.title")}</summary>
-            <div className="mt-2"><ServiceEndpointPicker /></div>
-          </details>
         </form>
       )}
       {props.step === "code" && (
@@ -149,7 +154,7 @@ export function SigninView(props: SigninViewProps) {
       )}
       <ErrorBox message={props.error} />
       <p className="mt-5 text-center text-[12px] text-ink-faint">
-        <a href="/signup">{t("console.signin.needWorkspace")}</a>
+        <a href="/signup">{t("account.switchToSignUp")}</a>
         {" · "}
         <a href="/pricing">{t("console.signup.viewPlans")}</a>
       </p>
@@ -165,6 +170,7 @@ function initialNext(): string {
 export function SigninPage() {
   const [step, setStep] = useState<SigninStep>("email");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [memberships, setMemberships] = useState<ConsoleMembership[]>([]);
   const [busy, setBusy] = useState(false);
@@ -213,7 +219,13 @@ export function SigninPage() {
       setEmail(account.email);
       loadMemberships(account.token);
     }
-    signInMethods().then(({ methods }) => setProviders(methods)).catch(() => setProviders([]));
+    void fetch("/api/auth/methods")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: { methods?: SignInMethod[] } | null) => {
+        const methods = Array.isArray(body?.methods) ? body.methods.filter((method) => method.id !== "email") : [];
+        setProviders(methods);
+      })
+      .catch(() => setProviders([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -228,6 +240,11 @@ export function SigninPage() {
       error={error}
       onEmail={(value) => {
         setEmail(value);
+        setError(null);
+      }}
+      password={password}
+      onPassword={(value) => {
+        setPassword(value);
         setError(null);
       }}
       onCode={(value) => {
@@ -245,15 +262,20 @@ export function SigninPage() {
           setError(t("console.invalidEmail"));
           return;
         }
+        if (password.length < 8) {
+          setError(t("account.passwordShort"));
+          return;
+        }
         setBusy(true);
         setError(null);
-        startOtp(normalized)
-          .then(({ email: confirmed }) => {
-            setEmail(confirmed);
-            setStep("code");
-            setBusy(false);
-          })
-          .catch(fail);
+        void signInWithPassword({ email: normalized, password, label: defaultDeviceLabel() }).then((result) => {
+          setBusy(false);
+          if (!result.ok) {
+            setError(result.error);
+            return;
+          }
+          window.location.assign("/");
+        });
       }}
       onVerifyCode={() => {
         if (!validOtpCode(code)) {
@@ -275,12 +297,7 @@ export function SigninPage() {
       }}
       providers={providers}
       onProvider={(provider) => {
-        const callbackURL = `${window.location.origin}/signin`;
-        setBusy(true);
-        setError(null);
-        startSocial(provider, callbackURL)
-          .then(({ url }) => { window.location.assign(url); })
-          .catch(fail);
+        window.location.assign(`/api/auth/oauth/${provider}/start`);
       }}
     />
     </SiteShell>

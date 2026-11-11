@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { allowedScopes, createEmailSignIn, parseAllowList, signInEnabled } from "./account-signin.ts";
+import { allowedScopes, createEmailSignIn, parseAllowList, sessionScopesForEmail, signInEnabled } from "./account-signin.ts";
 import { startControlPlaneStub } from "./testing/control-plane-stub.ts";
 
 describe("the sign-in allow-list", () => {
@@ -21,6 +21,17 @@ describe("the sign-in allow-list", () => {
     expect(allowedScopes("stranger@example.test", list)).toBeNull();
     expect(signInEnabled(list)).toBe(true);
     expect(signInEnabled({ admins: [], members: [] })).toBe(false);
+  });
+
+  it("keeps a password account signed in when that email is off the OTP allow-list", () => {
+    const empty = { admins: [] as string[], members: [] as string[] };
+    const owner = { email: "owner@example.test", salt: "aa", hash: "bb", createdAt: 1 };
+    const member = { email: "member@example.test", salt: "cc", hash: "dd", createdAt: 2 };
+    expect(sessionScopesForEmail("member@example.test", empty, [owner, member])).toEqual(["client"]);
+    expect(sessionScopesForEmail("owner@example.test", empty, [owner, member])).toEqual(["admin", "client"]);
+    expect(sessionScopesForEmail("owner@example.test", { admins: [], members: ["owner@example.test"] }, [owner, member])).toEqual(["admin", "client"]);
+    expect(sessionScopesForEmail("stranger@example.test", empty, [owner, member])).toBeNull();
+    expect(sessionScopesForEmail("her@example.test", { admins: ["her@example.test"], members: [] }, [member])).toEqual(["admin", "client"]);
   });
 });
 

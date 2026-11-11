@@ -13,6 +13,8 @@ export interface VisibilityHostDeps {
   routines(): Pick<RoutineManager, "listRoutines" | "listRuns"> | null;
   /** A Team Cloud: an admin session is a person too. */
   team: boolean;
+  /** One machine with accounts: a signed-in person sees only the bots that belong to them. */
+  ownAccounts?: boolean;
   audiencesFor(viewer: Viewer): ThreadAudiences | undefined;
   threadsReferencing(name: string): readonly string[];
 }
@@ -21,6 +23,9 @@ export function createVisibilityHost(deps: VisibilityHostDeps) {
   const store = { get bots() { return deps.store().bots; }, get groups() { return deps.store().groups; }, bot: (id: string) => deps.store().bot(id),
     group: (id: string) => deps.store().group(id), botByThread: (id: string) => deps.store().botByThread(id), groupByThread: (id: string) => deps.store().groupByThread(id) };
   function viewerFor(auth: RequestAuth): Viewer {
+    if (deps.ownAccounts && auth.kind === "session" && auth.session.email) {
+      return { kind: "member", email: auth.session.email, onlyOwn: true };
+    }
     if (auth.kind === "loopback" || (auth.scopes.includes("admin") && !deps.team)) return SEES_EVERYTHING;
     if (auth.scopes.includes("admin")) return { kind: "all", email: auth.session.email ?? "" };
     return { kind: "member", ...(auth.session.email ? { email: auth.session.email } : {}) };

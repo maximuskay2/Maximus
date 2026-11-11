@@ -59,8 +59,10 @@ export interface ThreadRouteDeps {
   /** A room's unread mark as this person has read it (a Team Cloud); the room as it is anywhere else. */
   groupFor?(auth: RequestAuth, group: WireGroup): WireGroup;
   visibleTo(viewer: Viewer): VisibleSet;
-  /** A Team Cloud: gives a member their own Max once, before their first list of bots. */
+  /** Gives a signed-in account their own Max once, before their first list of bots. */
   memberDefaultBot?(email: string): unknown;
+  /** One machine with accounts: every signed-in address gets that Max, not the previous user's bots. */
+  personalAccounts?: boolean;
   /** Who uploaded each file: only its uploader discards it, and only while nothing uses it. */
   uploads: { note(auth: RequestAuth, name: string): void; owns(auth: RequestAuth, name: string): boolean };
   attachmentInUse(name: string): boolean;
@@ -78,7 +80,8 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
   const jobs = createJobRoutes({ store, coordinator: deps.coordinator, groupThreadIsWorking: deps.groupThreadIsWorking, viewerFor, visibleTo, sessions });
   const handle = async ({ req, res, url, path, method, auth, json, readBody }: RouteContext): Promise<unknown> => {
     let m: RegExpMatchArray | null = null;
-    const member = auth.kind === "session" && auth.session.membershipAuthority === "team" ? auth.session.email : undefined;
+    const member = auth.kind === "session" && auth.session.email
+      && (deps.personalAccounts || auth.session.membershipAuthority === "team") ? auth.session.email : undefined;
     if (member && method === "GET" && path === "/api/bots") deps.memberDefaultBot?.(member);
     const visible = visibleTo(viewerFor(auth));
     const workspaceAccess = deps.workspaceAccess();

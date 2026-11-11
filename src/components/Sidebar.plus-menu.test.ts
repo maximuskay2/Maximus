@@ -66,11 +66,8 @@ function plusMenu(admin: boolean | null) {
 }
 
 describe("the sidebar's + menu", () => {
-  it("offers a new bot and templates to someone who can make one, and while that isn't known yet", () => {
+  it("offers a new bot to a signed-in person, including one who is not the owner", () => {
     for (const admin of [true, null]) expect(plusMenu(admin)).toEqual(["New bot", "New group chat", "Templates"]);
-  });
-
-  it("offers neither to a User, who keeps New group chat", () => {
-    expect(plusMenu(false)).toEqual(["New group chat"]);
+    expect(plusMenu(false)).toEqual(["New bot", "New group chat"]);
   });
 });

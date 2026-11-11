@@ -1,5 +1,7 @@
 # LLM ration billing roadmap
 
+Who builds this is in [2026-11-10-team-execution-roadmap.md](2026-11-10-team-execution-roadmap.md). Tosin owns this spec.
+
 Date: 2026-11-10. Prices below were read from public pages on that day. Recheck them before an admin saves a catalog. This is a plan, not a live price list.
 
 ## Status

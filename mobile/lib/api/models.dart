@@ -2,10 +2,10 @@
 /// Tolerant reader: unknown fields are ignored, missing optionals default.
 library;
 
-/// Service endpoint presets, mirroring the desktop picker.
+/// Service endpoint presets. The app picks one; a person never types a server.
 enum EndpointPreset {
   production('https://accounts.maximus.com'),
-  local('http://127.0.0.1:8787');
+  local('http://127.0.0.1:8799');
 
   const EndpointPreset(this.url);
   final String url;
@@ -1275,6 +1275,45 @@ class ConsolePlan {
           if (f is String) f,
       ],
     );
+  }
+}
+
+/// What this phone should show for a paid plan, from GET /api/billing/offer.
+class BillingOffer {
+  const BillingOffer({
+    required this.currency,
+    required this.provider,
+    required this.ngnPerUsd,
+  });
+
+  final String currency;
+  final String provider;
+  final int ngnPerUsd;
+
+  bool get paystack => currency == 'NGN' && provider == 'paystack';
+
+  static const usd = BillingOffer(currency: 'USD', provider: 'stripe', ngnPerUsd: 1600);
+
+  static BillingOffer fromJson(Map<String, Object?> json) {
+    final offer = json['offer'];
+    final map = offer is Map ? Map<String, Object?>.from(offer) : json;
+    return BillingOffer(
+      currency: (map['currency'] as String?) ?? 'USD',
+      provider: (map['provider'] as String?) ?? 'stripe',
+      ngnPerUsd: ((map['ngnPerUsd'] as num?) ?? 1600).round(),
+    );
+  }
+}
+
+class BillingCheckout {
+  const BillingCheckout({required this.url});
+
+  final String url;
+
+  static BillingCheckout fromJson(Map<String, Object?> json) {
+    final checkout = json['checkout'];
+    final map = checkout is Map ? Map<String, Object?>.from(checkout) : json;
+    return BillingCheckout(url: (map['url'] as String?) ?? '');
   }
 }
 

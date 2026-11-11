@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 
 import { t } from "../../lib/i18n";
 import {
+  adminPayments,
   adminRation,
   HARNESS_SIGN_IN,
   harnessSession,
   HarnessError,
+  savePayments,
   saveRation,
   saveRationPoolKey,
+  type PaymentSettingsView,
   type RationAdminView,
   type RationProfileView,
 } from "../harness";
@@ -269,6 +272,76 @@ export function RatesPage() {
         {t("console.dashboard.ratesPoolSave")}
       </button>
       </section>
+      <PaystackCard />
     </div>
+  );
+}
+
+function PaystackCard() {
+  const [settings, setSettings] = useState<PaymentSettingsView | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    adminPayments().then((answer) => {
+      if (live) setSettings(answer.payments);
+    }).catch((thrown: unknown) => {
+      if (live) setError(thrown instanceof HarnessError ? thrown.message : t("console.somethingWrong"));
+    });
+    return () => { live = false; };
+  }, []);
+
+  const save = (): void => {
+    if (!settings) return;
+    setBusy(true);
+    setSaved(false);
+    setError(null);
+    savePayments(settings).then((answer) => {
+      setSettings(answer.payments);
+      setSaved(true);
+      setBusy(false);
+    }, (thrown: unknown) => {
+      setError(thrown instanceof HarnessError ? thrown.message : t("console.somethingWrong"));
+      setBusy(false);
+    });
+  };
+
+  return (
+    <section className="mt-4 rounded-lg border border-hairline/40 p-4">
+      <h2 className="text-[15px] font-semibold">Paystack for Nigeria</h2>
+      <p className="mt-1 text-[12px] text-ink-secondary">When this is on, people in Nigeria see the Naira price and pay with Paystack. Everyone else keeps the dollar price. The server still needs PAYSTACK_SECRET_KEY. A plan code in MAXIMUS_PAYSTACK_PLANS is optional; without one, Paystack charges this Naira amount.</p>
+      {settings ? (
+        <>
+          <label className="mt-3 flex items-center gap-2 text-[14px]">
+            <input
+              type="checkbox"
+              checked={settings.paystackEnabled}
+              onChange={(event) => setSettings({ ...settings, paystackEnabled: event.target.checked })}
+            />
+            Accept Paystack
+          </label>
+          <label className="mt-3 block max-w-[240px] text-[13px] font-medium">
+            Naira per dollar
+            <input
+              className={field}
+              inputMode="decimal"
+              value={String(settings.ngnPerUsd)}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                if (Number.isFinite(next)) setSettings({ ...settings, ngnPerUsd: next });
+              }}
+            />
+          </label>
+          <p className="mt-1 text-[12px] text-ink-secondary">The rate you charge. 1600 means $19 is ₦30,400.</p>
+          <button type="button" className="mt-3 rounded-md bg-accent px-4 py-2 text-[14px] font-medium text-accent-ink disabled:opacity-50" disabled={busy} onClick={save}>
+            Save Paystack
+          </button>
+        </>
+      ) : null}
+      <ErrorBox message={error} />
+      {saved ? <p className="mt-3 text-[14px]">Paystack settings saved.</p> : null}
+    </section>
   );
 }

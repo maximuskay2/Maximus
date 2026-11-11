@@ -6,6 +6,7 @@ import {
   Check,
   CircleUserRound,
   Cloud,
+  Crown,
   Download,
   FolderOpen,
   Gauge,
@@ -14,6 +15,8 @@ import {
   Keyboard,
   Laptop,
   LifeBuoy,
+  LogIn,
+  LogOut,
   Loader2,
   RefreshCw,
   Settings as SettingsIcon,
@@ -24,6 +27,8 @@ import {
 } from "lucide-react";
 
 import { accountMenuItems, AccountsSheet, cloudRowLabel, useAccounts } from "./AccountMenu";
+import { askToSubscribe } from "@/components/SubscribeAsk";
+import { openThisWindowSignIn, signOutOfThisWindow } from "@/lib/session";
 import { AccountMoveStatus, useAccountMove, type AccountMoveKind } from "./AccountMove";
 import { InitialsAvatar } from "./Avatar";
 import { DiscordIcon } from "./DiscordIcon";
@@ -466,6 +471,9 @@ export function profileMenuItems({
   onHelp,
   onFeedback,
   onAccount,
+  onSignIn,
+  onSignOut,
+  onSubscribe,
 }: {
   phone: SidebarMenuItem[];
   usage: boolean;
@@ -485,6 +493,9 @@ export function profileMenuItems({
   onHelp: () => void;
   onFeedback: () => void;
   onAccount: () => void;
+  onSignIn?: () => void;
+  onSignOut?: () => void;
+  onSubscribe?: () => void;
 }): SidebarMenuItem[] {
   const help: SidebarMenuItem[] = [
     { key: "help", label: t("sidebar.menu.help"), icon: <HelpCircle size={18} />, onSelect: onHelp },
@@ -511,8 +522,17 @@ export function profileMenuItems({
   const settings: SidebarMenuItem = { key: "settings", label: t("sidebar.menu.settings"), icon: <SettingsIcon size={18} />, onSelect: onSettings };
   const accountItem: SidebarMenuItem | null = account ? { key: "account", label: account, icon: <CircleUserRound size={18} />, onSelect: onAccount } : null;
   const present = (...items: Array<SidebarMenuItem | null | false>) => items.filter((item): item is SidebarMenuItem => Boolean(item));
+  const sessionAction: SidebarMenuItem | null = onSignOut
+    ? { key: "session-sign-out", label: t("accounts.signOut"), icon: <LogOut size={18} />, onSelect: onSignOut }
+    : onSignIn
+      ? { key: "session-sign-in", label: t("accounts.signIn"), icon: <LogIn size={18} />, onSelect: onSignIn }
+      : null;
+  const session: SidebarMenuItem[] = [
+    ...(onSubscribe ? [{ key: "session-subscribe", label: t("subscribe.ask.action"), icon: <Crown size={18} />, onSelect: onSubscribe }] : []),
+    ...(sessionAction ? [sessionAction] : []),
+  ];
   if (!simple) {
-    const rest = [...present(usageItem), ...phone, support, settings, ...present(update), ...(accountItem ? [{ ...accountItem, separatorBefore: true }] : []), ...accounts.map((item, index) => (index === 0 ? { ...item, separatorBefore: true } : item))];
+    const rest = [...present(usageItem), ...phone, support, settings, ...present(update), ...(accountItem ? [{ ...accountItem, separatorBefore: true }] : []), ...accounts.map((item, index) => (index === 0 ? { ...item, separatorBefore: true } : item)), ...session.map((item, index) => (index === 0 && accounts.length === 0 && !accountItem ? { ...item, separatorBefore: true } : item))];
     return [...move, ...rest.map((item, index) => (move.length && index === 0 ? { ...item, separatorBefore: true } : item))];
   }
   const raised: SidebarMenuItem | null = update && updateTop ? {
@@ -528,7 +548,7 @@ export function profileMenuItems({
     [...present(usageItem), ...phone, { ...support, submenu: raised ? help : [...help, ...present(update)] }, settings],
     simple.tools,
     [...simple.places, ...present(accountItem)],
-    accounts,
+    [...accounts, ...session],
   ].filter((group) => group.length > 0);
   return groups.flatMap((group, at) => group.map((item, index) => (at > 0 && index === 0 ? { ...item, separatorBefore: true } : item)));
 }
@@ -626,6 +646,9 @@ export function SidebarProfileMenu({ iconOnly = false, rail = false, circle = fa
     onHelp: () => void openExternalLink(HELP_CENTER_URL),
     onFeedback: () => void openExternalLink(FEEDBACK_URL),
     onAccount: openCloudAccount,
+    onSignIn: session && session.kind !== "session" ? openThisWindowSignIn : undefined,
+    onSignOut: !session || session.kind === "session" ? signOutOfThisWindow : undefined,
+    onSubscribe: askToSubscribe,
   });
   const noteworthy = update && updateNoteworthy(update.phase, update.pending) && !updateHasButton(update.phase);
   const needsYou = account?.automationsNeedYou === true;

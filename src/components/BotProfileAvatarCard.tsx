@@ -11,7 +11,6 @@ import {
   type MausState,
 } from "@/lib/mascot";
 import { BOT_AVATAR_CROPS } from "../../shared/bot-avatar";
-import { MASCOT_BODY_IDS } from "../../shared/mascot-bodies";
 import { HALLOWEEN_BODY_IDS } from "../../shared/halloween-bodies";
 import type { BotBodyId } from "../../shared/bot-body";
 import { BotAvatar, MausAvatar } from "./Avatar";
@@ -165,14 +164,6 @@ export function BotProfileAvatarCard({
               ))}
             </div>
 
-            <div className="mb-2 mt-4 text-[12px] font-medium uppercase tracking-[0.08em] text-ink-secondary">
-              {t("botIdentity.body")}
-            </div>
-            <div className="grid grid-cols-5 gap-1.5">
-              {MASCOT_BODY_IDS.map((id) => (
-                <BodyButton key={id} id={id} name={bodyName(id)} bot={bot} busy={busy} onPatch={onPatch} />
-              ))}
-            </div>
             <div className="mb-2 mt-4 text-[12px] font-medium uppercase tracking-[0.08em] text-ink-secondary">
               {t("botPanel.avatar.halloween")}
             </div>

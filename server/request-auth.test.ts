@@ -29,7 +29,7 @@ import {
   serializeSessionCookie,
   sessionCookieName,
 } from "./request-auth.ts";
-import { SESSION_TTL_MS, SessionRegistry } from "./sessions.ts";
+import { SESSION_TTL_MS, SESSION_UNTIL_LOGOUT_MS, SessionRegistry } from "./sessions.ts";
 
 function request(headers: Record<string, string>, method = "GET"): IncomingMessage {
   // SAFETY: the resolver reads only headers and method; a bare object is the whole contract here
@@ -141,6 +141,7 @@ describe("scopes", () => {
       ["GET", "/api/bots"], ["GET", "/api/threads/t/messages"], ["GET", "/api/search"], ["GET", "/api/events"],
       ["GET", "/api/config"], ["GET", "/api/webhooks"], ["POST", "/api/tts/speak"],
       ["GET", "/api/auth/session"], ["POST", "/api/auth/stream-ticket"], ["POST", "/api/auth/logout"],
+      ["POST", "/api/bots"], ["GET", "/api/bot-defaults"], ["GET", "/api/ration"],
       ["GET", "/api/bots/x/slack-management"],
       ["POST", "/api/bots/x/sign-in-cards/m/done"], ["POST", "/api/bots/x/sign-in-cards/m/cancel"], ["POST", "/api/bots/x/sign-in-cards/m/save-login"],
       ["GET", "/api/bots/x/sign-in-cards/m/save-login"],
@@ -340,11 +341,11 @@ describe("resolveRequestAuth", () => {
     const result = sessions.exchange({ code, label: "phone", source: "10.0.0.2" });
     if (!result.ok) throw new Error(result.error);
     const { token, session } = result;
-    clock += SESSION_TTL_MS / 2 + 1;
+    clock += SESSION_UNTIL_LOGOUT_MS / 2 + 1;
     const csrf = resolve({ host: "bots.example.com", cookie: `${cookieName}=${token}`, origin: "https://evil.example" }, "/api/bots", "POST");
     expect(csrf.error).toBe("forbidden: cross-origin request");
     expect(sessions.list()[0]?.expiresAt).toBe(session.expiresAt);
-    const overScope = resolve({ authorization: `Bearer ${token}` }, "/api/bots", "POST");
+    const overScope = resolve({ authorization: `Bearer ${token}` }, "/api/config", "PUT");
     expect(overScope.status).toBe(403);
     expect(sessions.list()[0]?.expiresAt).toBe(session.expiresAt);
     const { ticket } = sessions.issueStreamTicket(session.id);
@@ -353,10 +354,13 @@ describe("resolveRequestAuth", () => {
     expect(sessions.list()[0]?.expiresAt).toBe(session.expiresAt);
     const ok = resolve({ host: "bots.example.com", cookie: `${cookieName}=${token}`, origin: "http://bots.example.com" });
     expect(ok.auth?.kind).toBe("session");
-    expect(sessions.list()[0]?.expiresAt).toBe(clock + SESSION_TTL_MS);
+    expect(sessions.list()[0]?.expiresAt).toBe(clock + SESSION_UNTIL_LOGOUT_MS);
     clock += SESSION_TTL_MS + 1;
-    const expired = resolve({ host: "bots.example.com", cookie: `${cookieName}=${token}`, origin: "http://bots.example.com" });
-    expect(expired.status).toBe(401);
+    const still = resolve({ host: "bots.example.com", cookie: `${cookieName}=${token}`, origin: "http://bots.example.com" });
+    expect(still.auth?.kind).toBe("session");
+    expect(sessions.revoke(session.id)).toBe(true);
+    const ended = resolve({ host: "bots.example.com", cookie: `${cookieName}=${token}`, origin: "http://bots.example.com" });
+    expect(ended.status).toBe(401);
     expect(sessions.list()).toEqual([]);
   });
 
@@ -540,6 +544,21 @@ describe("resolveRequestAuth", () => {
     expect(remote.status).toBe(401);
     expect(remote.error).toMatch(/expired or was revoked; pair this device again/);
     expect(resolve({ host: "127.0.0.1:8799", cookie: `${cookieName}=${token}` })).toMatchObject({ auth: null, status: 401 });
+  });
+
+  it("keeps a live sign-in cookie when the pairing bearer is dead", () => {
+    const dead = pairedToken();
+    const live = pairedToken();
+    const deadSession = sessions.authenticate(dead);
+    if (!deadSession) throw new Error("no session");
+    sessions.revoke(deadSession.id);
+    const result = resolve({
+      host: "localhost",
+      authorization: `Bearer ${dead}`,
+      cookie: `${cookieName}=${live}`,
+    });
+    expect(result.auth?.kind).toBe("session");
+    expect(result.auth && result.auth.kind === "session" ? result.auth.via : null).toBe("cookie");
   });
 });
 

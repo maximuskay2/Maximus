@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../gallery/gallery_page.dart';
 import 'auth_state.dart';
-import 'pair_page.dart';
 import 'signin_page.dart';
 
 /// First-run: tour + sign-in options. Existing users (paired servers)
@@ -52,25 +51,25 @@ class WelcomePage extends StatelessWidget {
               FilledButton(
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => PairPage(auth: auth),
+                    builder: (_) => SignInPage(auth: auth),
                   ),
                 ),
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
                 ),
-                child: const Text('Pair a server'),
+                child: const Text('Sign in'),
               ),
               const SizedBox(height: 12),
               OutlinedButton(
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => SignInPage(auth: auth),
+                    builder: (_) => SignInPage(auth: auth, creating: true),
                   ),
                 ),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
                 ),
-                child: const Text('Sign in with email'),
+                child: const Text('Create account'),
               ),
             ],
           ),

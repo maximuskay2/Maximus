@@ -131,6 +131,20 @@ describe("VisibleSet", () => {
     expect(admin.thread("t-hr")).toBe(true);
   });
 
+  it("a signed-in account sees only its own bots", () => {
+    const ada: Viewer = { kind: "member", email: "ada@example.test", onlyOwn: true };
+    const owned = [
+      { id: "old", threadId: "t-old", tasks: [{ threadId: "t-old" }] },
+      { id: "mine", threadId: "t-mine", createdBy: "ada@example.test", tasks: [{ threadId: "t-mine" }] },
+      { id: "max", threadId: "t-max", defaultBot: { person: "ada@example.test" }, visibility: { people: ["ada@example.test"] }, tasks: [{ threadId: "t-max" }] },
+      { id: "theirs", threadId: "t-theirs", createdBy: "bob@example.test", tasks: [{ threadId: "t-theirs" }] },
+    ];
+    const set = new VisibleSet(owned, [], ada);
+    expect(set.everything).toBe(false);
+    expect([set.bot("old"), set.bot("mine"), set.bot("max"), set.bot("theirs")]).toEqual([false, true, true, false]);
+    expect([set.thread("t-old"), set.thread("t-mine")]).toEqual([false, true]);
+  });
+
   it("answers bots, rooms, threads and sections for a member", () => {
     const bob = new VisibleSet(bots, groups, BOB);
     expect(bob.everything).toBe(false);

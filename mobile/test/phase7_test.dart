@@ -324,10 +324,15 @@ void main() {
   });
 
   testWidgets('usage page shows the month total and bots', (tester) async {
+    final api = FakeApi();
     await tester.pumpWidget(
       MaterialApp(
         theme: MaxTokens.light(),
-        home: UsagePage(client: FakeApi(), baseUrl: 'https://h.example'),
+        home: UsagePage(
+          client: api,
+          baseUrl: 'https://h.example',
+          auth: await authWith(api),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -336,6 +341,25 @@ void main() {
     expect(find.text('This month'), findsOneWidget);
     expect(find.text('\$1.25'), findsWidgets);
     expect(find.text('Max'), findsOneWidget);
+  });
+
+  testWidgets('usage that needs a sign-in offers sign in', (tester) async {
+    final api = _UsageRefused();
+    final auth = await authWith(api);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: MaxTokens.light(),
+        home: UsagePage(
+          client: api,
+          baseUrl: 'https://h.example',
+          auth: auth,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('sign in to use this Maximus'), findsOneWidget);
+    expect(find.text('Sign in'), findsOneWidget);
+    expect(find.text('Sign out'), findsNothing);
   });
 
   testWidgets('bot settings patches only changed fields', (tester) async {
@@ -541,6 +565,21 @@ void main() {
 }
 
 /// Wraps FakeApi.patchBot to capture the saved bot.
+class _UsageRefused extends FakeApi {
+  @override
+  Future<UsageReport> usageReport(
+    String baseUrl, {
+    required String from,
+    required String to,
+    String groupBy = 'bot',
+  }) async {
+    throw const ApiError(
+      403,
+      'forbidden: sign in to use this Maximus; the app window signs in like a browser',
+    );
+  }
+}
+
 class FakeApiSaving extends FakeApi {
   FakeApiSaving(this.inner, this.onSave);
 

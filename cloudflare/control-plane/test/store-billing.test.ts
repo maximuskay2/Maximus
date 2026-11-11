@@ -81,12 +81,12 @@ const APPLE_KEYS = ["APPSTORE_ISSUER_ID", "APPSTORE_KEY_ID", "APPSTORE_PRIVATE_K
 const GOOGLE_KEYS = ["GOOGLE_SERVICE_ACCOUNT", "GOOGLE_PACKAGE_NAME", "GOOGLE_RTDN_SECRET"] as const;
 
 function saveEnv(): Record<string, string | undefined> {
-  const anyEnv = env as Record<string, string | undefined>;
+  const anyEnv = env as unknown as Record<string, string | undefined>;
   return Object.fromEntries([...APPLE_KEYS, ...GOOGLE_KEYS].map((key) => [key, anyEnv[key]]));
 }
 
 function restoreEnv(saved: Record<string, string | undefined>): void {
-  const anyEnv = env as Record<string, string | undefined>;
+  const anyEnv = env as unknown as Record<string, string | undefined>;
   for (const [key, value] of Object.entries(saved)) {
     if (value === undefined) delete anyEnv[key];
     else anyEnv[key] = value;
@@ -94,7 +94,7 @@ function restoreEnv(saved: Record<string, string | undefined>): void {
 }
 
 function setApple(pem: string): void {
-  const anyEnv = env as Record<string, string | undefined>;
+  const anyEnv = env as unknown as Record<string, string | undefined>;
   anyEnv.APPSTORE_ISSUER_ID = "issuer-1";
   anyEnv.APPSTORE_KEY_ID = "key-1";
   anyEnv.APPSTORE_PRIVATE_KEY = pem;
@@ -102,7 +102,7 @@ function setApple(pem: string): void {
 }
 
 function setGoogle(pem: string): void {
-  const anyEnv = env as Record<string, string | undefined>;
+  const anyEnv = env as unknown as Record<string, string | undefined>;
   anyEnv.GOOGLE_SERVICE_ACCOUNT = JSON.stringify({ client_email: "svc@example.test", private_key: pem });
   anyEnv.GOOGLE_PACKAGE_NAME = "com.maximus.app";
   anyEnv.GOOGLE_RTDN_SECRET = "rtdn-secret";

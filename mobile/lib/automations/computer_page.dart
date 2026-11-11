@@ -73,6 +73,7 @@ class _ComputerPageState extends State<ComputerPage> {
     _giveUp?.cancel();
     final generation = ++_connectGeneration;
     await _live?.cancel();
+    if (!mounted) return;
     final size = MediaQuery.sizeOf(context);
     try {
       _live = await widget.client.browserLive(

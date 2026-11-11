@@ -158,6 +158,16 @@ export async function previewBrowserSignIn(credential: string, fetchImpl: typeof
   }
 }
 
+export function openThisWindowSignIn(): void {
+  location.assign("/pair");
+}
+
+export function signOutOfThisWindow(): void {
+  void fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).finally(() => {
+    location.assign("/pair");
+  });
+}
+
 export function signInWithBrowserGrant(credential: string, attemptId: string, fetchImpl: typeof fetch = fetch): Promise<{ ok: true } | { ok: false; error: string }> {
   return pairWithCode({ code: credential, label: defaultDeviceLabel(), attemptId, browser: true }, fetchImpl);
 }
@@ -177,6 +187,14 @@ async function postAuth(path: string, body: Record<string, unknown>, fetchImpl: 
   const parsed: unknown = await res.json().catch(() => ({}));
   if (res.ok) return { ok: true };
   return { ok: false, error: refusalText(parsed, res) };
+}
+
+export function signInWithPassword(input: { email: string; password: string; label: string }, fetchImpl: typeof fetch = fetch): Promise<{ ok: true } | { ok: false; error: string }> {
+  return postAuth("/api/auth/signin", input, fetchImpl);
+}
+
+export function signUpWithPassword(input: { email: string; password: string; label: string }, fetchImpl: typeof fetch = fetch): Promise<{ ok: true } | { ok: false; error: string }> {
+  return postAuth("/api/auth/signup", input, fetchImpl);
 }
 
 export function startEmailSignIn(email: string, fetchImpl: typeof fetch = fetch): Promise<{ ok: true } | { ok: false; error: string }> {

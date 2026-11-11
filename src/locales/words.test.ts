@@ -4,9 +4,14 @@ import { expect, it } from "vitest";
 
 import en from "./en.json";
 
+// The contracts name the hosted account a workspace. Installation stays the word for the local app.
+const HOSTED_WORKSPACE_KEY = /^(?:console\.|pair\.hosted)/;
+const HOSTED_WORKSPACE_KEYS = new Set(["settings.section.workspaceAccount", "settings.search.workspaceAccount"]);
+
 it("English copy says Organization and installation, not Organisation or workspace", () => {
   const offending = Object.entries(en)
-    .filter(([, value]) => /organis/i.test(value) || /(?<!Slack )\bworkspaces?\b/i.test(value))
+    .filter(([key, value]) => !HOSTED_WORKSPACE_KEY.test(key) && !HOSTED_WORKSPACE_KEYS.has(key)
+      && (/organis/i.test(value) || /(?<!Slack )\bworkspaces?\b/i.test(value)))
     .map(([key]) => key);
   expect(offending).toEqual([]);
 });

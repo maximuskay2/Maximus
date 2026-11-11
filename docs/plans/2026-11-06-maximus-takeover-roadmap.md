@@ -1,3 +1,5 @@
+Who builds this is in [2026-11-10-team-execution-roadmap.md](2026-11-10-team-execution-roadmap.md). This file is the v0.1.0 spec.
+
 ## Goal
 
 Ship **Maximus v0.1.0** as one single, unified, fully monetized tri-platform commercial release — full rebrand, own enterprise gate, hosted control plane with OIDC SSO, metered billing with webhooks, signed macOS/Windows/Linux installers, production infrastructure. Day one also ships **five LLM providers (Claude, ChatGPT/Codex, Grok, Kimi, Muse)** behind a three-level on/off switchboard, and **dual subscriptions**: bring-your-own (BYO) plus LLM-included (allowance + overage). No phased MVP, no features held for v2. Sequential phases are replaced with parallel engineering streams converging on one release gate.

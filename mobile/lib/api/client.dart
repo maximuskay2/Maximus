@@ -25,6 +25,12 @@ String _uuidV4() {
 /// (widget tests run in FakeAsync, where real sockets never resolve).
 abstract class MaximusApi {
   void setCompanionToken(String? token);
+
+  /// Drops the saved sign-in so the next request is not sent with a dead token.
+  void endSession();
+
+  /// The session token from the latest sign-in cookie, when this client saw one.
+  String? get sessionToken;
   Future<bool> probe(String baseUrl);
   Future<List<BotSummary>> bots(String baseUrl, {int messages = 0});
   Future<ThreadMessages> threadMessages(
@@ -108,6 +114,16 @@ abstract class MaximusApi {
     required String label,
   });
   Future<void> emailStart(String baseUrl, String email);
+  Future<List<String>> passwordSignIn(
+    String baseUrl, {
+    required String email,
+    required String password,
+  });
+  Future<List<String>> passwordSignUp(
+    String baseUrl, {
+    required String email,
+    required String password,
+  });
   Future<List<String>> emailVerify(
     String baseUrl, {
     required String email,
@@ -359,6 +375,19 @@ abstract class MaximusApi {
   /// GET /api/console/plans — public plan catalog.
   Future<List<ConsolePlan>> consolePlans(String baseUrl);
 
+  /// GET /api/billing/offer — Naira when Paystack is on and this phone is in Nigeria.
+  Future<BillingOffer> billingOffer(String baseUrl, {required String timeZone});
+
+  /// POST /api/billing/checkout — start a Paystack charge and return its URL.
+  Future<BillingCheckout> billingCheckout(
+    String baseUrl, {
+    required String plan,
+    required String customerEmail,
+    required String successUrl,
+    required String cancelUrl,
+    required String timeZone,
+  });
+
   /// POST /api/console/billing/store/verify — confirm a store purchase
   /// with Apple/Google and grant the workspace (admins).
   Future<StoreGrant> consoleStoreVerify(
@@ -496,6 +525,15 @@ class MaximusClient implements MaximusApi {
   void setCompanionToken(String? token) => _companionToken = token;
   String? _companionToken;
 
+  @override
+  void endSession() {
+    _companionToken = null;
+    _cookies.clear();
+  }
+
+  @override
+  String? get sessionToken => _companionToken;
+
   /// Applies the pairing token to a request. Bearer is the session
   /// credential every server accepts; the companion header is only
   /// honored by desktop-managed sidecars (ignored elsewhere).
@@ -512,12 +550,21 @@ class MaximusClient implements MaximusApi {
     headers.set(HttpHeaders.authorizationHeader, 'Bearer $accountToken');
   }
 
-  void _storeCookies(HttpHeaders headers) {
+  void _storeCookies(HttpHeaders headers, List<Cookie> parsed) {
     for (final raw in headers['set-cookie'] ?? const <String>[]) {
       final pair = raw.split(';').first.trim();
       final equals = pair.indexOf('=');
       if (equals > 0) {
         _cookies[pair.substring(0, equals)] = pair.substring(equals + 1);
+      }
+    }
+    for (final cookie in parsed) {
+      if (cookie.name.isEmpty) continue;
+      _cookies[cookie.name] = cookie.value;
+    }
+    for (final entry in _cookies.entries) {
+      if (entry.key.startsWith('maximus_session') && entry.value.isNotEmpty) {
+        _companionToken = entry.value;
       }
     }
   }
@@ -547,7 +594,7 @@ class MaximusClient implements MaximusApi {
     }
     if (body != null) request.write(jsonEncode(body));
     final response = await request.close();
-    _storeCookies(response.headers);
+    _storeCookies(response.headers, response.cookies);
     final text = await response.transform(utf8.decoder).join();
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw _decodeError(response.statusCode, text);
@@ -737,7 +784,7 @@ class MaximusClient implements MaximusApi {
     }
     request.add(bytes);
     final response = await request.close();
-    _storeCookies(response.headers);
+    _storeCookies(response.headers, response.cookies);
     final text = await response.transform(utf8.decoder).join();
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw _decodeError(response.statusCode, text);
@@ -900,6 +947,42 @@ class MaximusClient implements MaximusApi {
     );
   }
 
+  Future<List<String>> _account(
+    String method,
+    String baseUrl,
+    String path, {
+    required String email,
+    required String password,
+  }) async {
+    final json = await _json(method, _u(baseUrl, path), body: {
+      'email': email,
+      'password': password,
+    });
+    final session = json['session'];
+    if (session is! Map) return const [];
+    return [
+      for (final scope in (session['scopes'] as List? ?? const [])) '$scope',
+    ];
+  }
+
+  @override
+  Future<List<String>> passwordSignIn(
+    String baseUrl, {
+    required String email,
+    required String password,
+  }) {
+    return _account('POST', baseUrl, '/api/auth/signin', email: email, password: password);
+  }
+
+  @override
+  Future<List<String>> passwordSignUp(
+    String baseUrl, {
+    required String email,
+    required String password,
+  }) {
+    return _account('POST', baseUrl, '/api/auth/signup', email: email, password: password);
+  }
+
   /// POST /api/auth/email/start — request an email OTP code.
   @override
   Future<void> emailStart(String baseUrl, String email) async {
@@ -1049,7 +1132,7 @@ class MaximusClient implements MaximusApi {
     }
     request.add(wavBytes);
     final response = await request.close();
-    _storeCookies(response.headers);
+    _storeCookies(response.headers, response.cookies);
     final text = await response.transform(utf8.decoder).join();
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw _decodeError(response.statusCode, text);
@@ -1572,6 +1655,32 @@ class MaximusClient implements MaximusApi {
       for (final row in (json['plans'] as List? ?? const []))
         ?ConsolePlan.tryFrom(row),
     ];
+  }
+
+  @override
+  Future<BillingOffer> billingOffer(String baseUrl, {required String timeZone}) async {
+    final json = await _json('GET', _u(baseUrl, '/api/billing/offer', {'timeZone': timeZone}));
+    return BillingOffer.fromJson(json);
+  }
+
+  @override
+  Future<BillingCheckout> billingCheckout(
+    String baseUrl, {
+    required String plan,
+    required String customerEmail,
+    required String successUrl,
+    required String cancelUrl,
+    required String timeZone,
+  }) async {
+    final json = await _json('POST', _u(baseUrl, '/api/billing/checkout'), body: {
+      'provider': 'paystack',
+      'plan': plan,
+      'customerEmail': customerEmail,
+      'successUrl': successUrl,
+      'cancelUrl': cancelUrl,
+      'timeZone': timeZone,
+    });
+    return BillingCheckout.fromJson(json);
   }
 
   @override

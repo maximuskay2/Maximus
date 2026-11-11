@@ -358,3 +358,28 @@ export function planPriceLine(plan: ConsolePlanView): string {
   if (plan.baseUsd <= 0) return "Free";
   return `${formatUsd(plan.baseUsd)}/mo`;
 }
+
+export interface BillingOfferView {
+  currency: "USD" | "NGN";
+  provider: "stripe" | "paystack";
+  paystackEnabled: boolean;
+  ngnPerUsd: number;
+}
+
+export function billingOffer(timeZone: string, options?: ConsoleCallOptions): Promise<{ offer: BillingOfferView }> {
+  return call<{ offer: BillingOfferView }>(`/api/billing/offer?timeZone=${encodeURIComponent(timeZone)}`, options ?? {});
+}
+
+export function startPaystackCheckout(input: {
+  plan: string;
+  customerEmail: string;
+  successUrl: string;
+  cancelUrl: string;
+  timeZone: string;
+}, options?: ConsoleCallOptions): Promise<{ checkout: { url: string } }> {
+  return call<{ checkout: { url: string } }>("/api/billing/checkout", {
+    ...options,
+    method: "POST",
+    body: { provider: "paystack", ...input },
+  });
+}

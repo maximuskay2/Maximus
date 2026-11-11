@@ -9,7 +9,6 @@ import {
   type BotAvatarProps,
   type MausAvatarProps,
 } from "./Avatar";
-import { MASCOT_BODIES } from "../../shared/mascot-bodies";
 
 const render = (props: Partial<MausAvatarProps>) =>
   renderToStaticMarkup(createElement(MausAvatar, { color: "green", animated: false, ...props }));
@@ -20,48 +19,26 @@ const renderBot = (bot: Partial<BotAvatarProps["bot"]>) =>
   );
 
 describe("MausAvatar body", () => {
-  it("wears the cursor when no body is given", () => {
-    expect(render({})).toContain(MASCOT_BODIES.cursor.fit);
+  it("paints the colorizable bull for every ordinary body", () => {
+    for (const bodyId of [undefined, "cursor", "star", "blob"] as const) {
+      const markup = render(bodyId ? { bodyId } : {});
+      expect(markup).toContain('data-bull-avatar=""');
+      expect(markup).toContain("/bull-avatar.png");
+      expect(markup).toContain("mix-blend-mode:color");
+    }
   });
 
-  it("wears the body it is given", () => {
-    const markup = render({ bodyId: "star" });
-    expect(markup).toContain(MASCOT_BODIES.star.fit);
-  });
-
-  it("falls back to the cursor for an unknown body", () => {
-    // SAFETY: "hexagram" is deliberately not a MascotBodyId, to exercise the runtime fallback for persisted or streamed
-    // data.
-    expect(render({ bodyId: "hexagram" as MausAvatarProps["bodyId"] })).toContain(
-      MASCOT_BODIES.cursor.fit,
-    );
-  });
-
-  it("paints the body with the per-bot gradient, never a flat black fill", () => {
-    const markup = render({ bodyId: "circle" });
-    expect(markup).not.toContain('fill="#000000"');
-    expect(markup).not.toContain("{{GRADIENT}}");
-    expect(markup).toContain("url(#");
+  it("tints the bull with the per-bot gradient", () => {
+    const markup = render({ color: "blue" });
+    expect(markup).toContain("linear-gradient(180deg");
+    expect(markup).toContain("#377FE6");
   });
 });
 
 describe("mascot facial feature colors", () => {
-  it.each(["white", "black"] as const)("uses %s for both eyes and mouth on every body type", (mascotFaceColor) => {
-    const ink = mascotFaceColor === "white" ? "#ffffff" : "#000000";
-    for (const mascotBody of ["cursor", "star", "pumpkin", "vampire"] as const) {
-      for (const color of ["green", "chrome"] as const) {
-        const markup = renderBot({ color, mascotBody, mascotFaceColor });
-        expect(markup).toContain(`fill="${ink}"`);
-        expect(markup).toContain(`stroke="${ink}"`);
-        expect(markup).not.toContain('visibility="hidden"');
-      }
-    }
-  });
-
-  it("keeps default inks when an override is reset or comes from an older profile", () => {
-    expect(renderBot({ color: "chrome", mascotFaceColor: null })).toContain('stroke="#1E2833"');
+  it("keeps carved Halloween inks when an override is set", () => {
+    expect(renderBot({ mascotBody: "pumpkin", mascotFaceColor: "black" })).toContain('fill="#000000"');
     expect(renderBot({ mascotBody: "pumpkin" })).toContain('stroke="#0d0a10"');
-    expect(renderBot({})).toContain('stroke="#ffffff"');
   });
 
   it("does not paint features over an uploaded image", () => {
@@ -99,22 +76,19 @@ describe("BotAvatar's two avatar outcomes", () => {
     expect(markup).not.toContain("radialGradient");
   });
 
-  it("renders the gradient mascot when the crop is mascot, image or not", () => {
+  it("renders the colorizable bull when the crop is mascot, image or not", () => {
     const markup = renderBot({ avatarUrl: "/api/attachments/cat.webp", avatarCrop: "mascot" });
-    expect(markup).not.toContain("<img");
-    expect(markup).toContain("<svg");
+    expect(markup).toContain('data-bull-avatar=""');
+    expect(markup).toContain("/bull-avatar.png");
   });
 
-  it("falls back to the gradient mascot when a flat crop has no valid image", () => {
+  it("falls back to the bull when a flat crop has no valid image", () => {
     const markup = renderBot({ avatarUrl: undefined, avatarCrop: "circle" });
-    expect(markup).not.toContain("<img");
-    expect(markup).toContain("<svg");
+    expect(markup).toContain('data-bull-avatar=""');
   });
 });
 
 describe("resolveBotAvatarOutcome", () => {
-  // imageFailed is set by the <img>'s onError, which renderToStaticMarkup never fires, so the decision is a pure
-  // function.
   it("falls back to the gradient mascot for an image that failed to load", () => {
     expect(
       resolveBotAvatarOutcome({ avatarCrop: "circle", hasUrl: true, imageFailed: true }),

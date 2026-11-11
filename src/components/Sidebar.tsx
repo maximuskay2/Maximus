@@ -1177,7 +1177,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
             <MessageSquarePlus size={16} className="text-ink-secondary" />
             {t("sidebar.newChat.title")}
           </button>}
-          {teamSettingsAllowed !== false && <button
+          {teamPeople?.admin !== false && <button
             onClick={() => { setPlusOpen(false); dispatch({ type: "newBot" }); }}
             role="menuitem"
             className={plusItem}
@@ -1623,7 +1623,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
           anchor={sidebarRef.current}
           style={windowNoDragStyle}
           onClose={() => setNewChatOpen(false)}
-          onNewBot={teamSettingsAllowed === false ? undefined : () => { setNewChatOpen(false); dispatch({ type: "newBot" }); }}
+          onNewBot={teamPeople?.admin === false ? undefined : () => { setNewChatOpen(false); dispatch({ type: "newBot" }); }}
           onNewGroup={() => { setNewChatOpen(false); setNewRoom(true); }}
         />,
         document.body,

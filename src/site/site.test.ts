@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { browserLandingPath } from "./landing";
+import { browserLandingPath, scrollingDocument } from "./landing";
 import { SiteShell } from "./SiteShell";
 import { detectOs, DownloadCard, WelcomeView } from "./WelcomePage";
 
@@ -11,6 +11,13 @@ describe("marketing site", () => {
     expect(browserLandingPath("/", false)).toBe("/welcome");
     expect(browserLandingPath("/pricing", false)).toBeNull();
     expect(browserLandingPath("/", true)).toBeNull();
+  });
+
+  it("keeps a signed-in welcome on the fixed app viewport", () => {
+    expect(scrollingDocument("/welcome", true)).toBe(false);
+    expect(scrollingDocument("/welcome", false)).toBe(true);
+    expect(scrollingDocument("/signin", false)).toBe(true);
+    expect(scrollingDocument("/", true)).toBe(false);
   });
 
   it("shares one header and footer across pages", () => {

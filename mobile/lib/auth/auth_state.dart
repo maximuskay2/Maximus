@@ -21,6 +21,7 @@ class AuthState extends ChangeNotifier {
   String? _activeId;
   List<String> _scopes = const [];
   bool _loaded = false;
+  bool _needsSignIn = false;
 
   ThreadCache? _cache;
 
@@ -41,6 +42,9 @@ class AuthState extends ChangeNotifier {
 
   List<String> get scopes => _scopes;
   bool get loaded => _loaded;
+
+  /// The saved sign-in was refused. The app shows sign-in until a new one succeeds.
+  bool get needsSignIn => _needsSignIn;
   bool get isAdmin => _scopes.contains('admin');
   bool get isChatOnly =>
       _scopes.contains('client') && !isAdmin && active != null;
@@ -49,7 +53,9 @@ class AuthState extends ChangeNotifier {
     _servers = await _store.servers();
     if (_servers.isNotEmpty) {
       _activeId = _servers.first.id;
-      _client.setCompanionToken(_servers.first.companionToken);
+      final token = _servers.first.companionToken;
+      _client.setCompanionToken(token);
+      _needsSignIn = token == null || token.isEmpty;
     }
     _loaded = true;
     notifyListeners();
@@ -77,6 +83,66 @@ class AuthState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> signInWithPassword({
+    required String baseUrl,
+    required String email,
+    required String password,
+  }) async {
+    final scopes = await _client.passwordSignIn(
+      baseUrl,
+      email: email,
+      password: password,
+    );
+    await _remember(baseUrl, scopes);
+  }
+
+  Future<void> signUpWithPassword({
+    required String baseUrl,
+    required String email,
+    required String password,
+  }) async {
+    final scopes = await _client.passwordSignUp(
+      baseUrl,
+      email: email,
+      password: password,
+    );
+    await _remember(baseUrl, scopes);
+  }
+
+  /// The server refused this sign-in. Forget the token and ask for a new one.
+  Future<void> sessionEnded() async {
+    final current = active;
+    _scopes = const [];
+    _needsSignIn = true;
+    _client.endSession();
+    if (current != null) {
+      await _store.saveServer(ServerRef(
+        id: current.id,
+        name: current.name,
+        baseUrl: current.baseUrl,
+      ));
+      _servers = await _store.servers();
+    }
+    notifyListeners();
+  }
+
+  Future<void> _remember(String baseUrl, List<String> scopes) async {
+    _needsSignIn = false;
+    final token = _client.sessionToken;
+    _client.setCompanionToken(token);
+    final server = ServerRef(
+      id: _serverId(baseUrl),
+      name: _nameOf(baseUrl),
+      baseUrl: baseUrl,
+      companionToken: token,
+    );
+    await _store.saveServer(server);
+    _servers = await _store.servers();
+    _activeId = server.id;
+    _scopes = scopes;
+    notifyListeners();
+  }
+
   /// Signs in with an email OTP code (session cookie kept by the client).
   Future<void> signInWithEmail({
     required String baseUrl,
@@ -88,16 +154,7 @@ class AuthState extends ChangeNotifier {
       email: email,
       code: code,
     );
-    final server = ServerRef(
-      id: _serverId(baseUrl),
-      name: _nameOf(baseUrl),
-      baseUrl: baseUrl,
-    );
-    await _store.saveServer(server);
-    _servers = await _store.servers();
-    _activeId = server.id;
-    _scopes = scopes;
-    notifyListeners();
+    await _remember(baseUrl, scopes);
   }
 
   /// Signs in from a provider ticket (session cookie kept by the client).
@@ -106,16 +163,7 @@ class AuthState extends ChangeNotifier {
     required String ticket,
   }) async {
     final scopes = await _client.oauthRedeem(baseUrl, ticket);
-    final server = ServerRef(
-      id: _serverId(baseUrl),
-      name: _nameOf(baseUrl),
-      baseUrl: baseUrl,
-    );
-    await _store.saveServer(server);
-    _servers = await _store.servers();
-    _activeId = server.id;
-    _scopes = scopes;
-    notifyListeners();
+    await _remember(baseUrl, scopes);
   }
 
   void useServer(String id) {

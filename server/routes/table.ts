@@ -1,8 +1,11 @@
 // server/index.ts runs this right after the auth gate, so every handler here is already authenticated.
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import type { json, readBody } from "../harness/http.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import { cloudSyncRoutes } from "./cloud-sync.ts";
+import { createDeliveryRoutes } from "./delivery.ts";
 import { ownMcpHttpRoutes } from "./own-mcp-http.ts";
 import { webPanelRoutes } from "./web-panels.ts";
 
@@ -23,7 +26,12 @@ export interface RouteContext {
 export type RouteHandler = (ctx: RouteContext) => Promise<typeof PASS | void>;
 
 /** Modules with no wiring from index.ts are listed here; index.ts pushes the rest. */
-export const ROUTES: RouteHandler[] = [cloudSyncRoutes, ownMcpHttpRoutes, webPanelRoutes];
+export const ROUTES: RouteHandler[] = [
+  cloudSyncRoutes,
+  ownMcpHttpRoutes,
+  webPanelRoutes,
+  (ctx) => createDeliveryRoutes({ dataDir: process.env.MAXIMUS_DATA_DIR ?? join(homedir(), ".maximus") })(ctx),
+];
 
 /** True means stop routing. A handler that wrote a response but returned PASS still counts as answered. */
 export async function dispatchRoutes(routes: readonly RouteHandler[], ctx: RouteContext): Promise<boolean> {

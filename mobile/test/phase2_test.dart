@@ -37,6 +37,23 @@ void main() {
     expect(find.text('Search'), findsOneWidget);
   });
 
+  testWidgets('an expired session opens sign-in', (tester) async {
+    final store = MemorySessionStore();
+    await store.saveServer(const ServerRef(
+      id: 'h',
+      name: 'Home',
+      baseUrl: 'https://h.example',
+      companionToken: 'maximus_sess_old',
+    ));
+    final auth = AuthState(store: store, client: FakeApi(unauthorizedBots: true));
+    await auth.load();
+    await tester.pumpWidget(_themed(HomePage(auth: auth, prefs: AppPreferences())));
+    await tester.pumpAndSettle();
+    expect(auth.needsSignIn, isTrue);
+    expect(auth.active?.companionToken, isNull);
+    expect(find.text('Retry'), findsNothing);
+  });
+
   testWidgets('home shows the error state with retry', (tester) async {
     await tester.pumpWidget(
       _themed(HomePage(auth: await _authWith(FakeApi(failBots: true)), prefs: AppPreferences())),

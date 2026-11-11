@@ -5,7 +5,7 @@ import '../api/models.dart';
 import '../theme/blobs.dart';
 import '../theme/tokens.dart';
 
-/// Create sheet: name, body, color. The harness still creates
+/// Create sheet: name and color. The harness still creates
 /// the bot; look is a follow-up patch so a failed look never loses the bot.
 Future<bool> showCreateBotSheet({
   required BuildContext context,
@@ -33,7 +33,6 @@ class _CreateBotSheet extends StatefulWidget {
 
 class _CreateBotSheetState extends State<_CreateBotSheet> {
   final _name = TextEditingController();
-  String _shape = 'drop';
   String _color = 'pink';
   bool _busy = false;
 
@@ -55,7 +54,7 @@ class _CreateBotSheetState extends State<_CreateBotSheet> {
       try {
         await widget.client.patchBot(widget.baseUrl, bot.id, {
           'color': _color,
-          'mascotBody': _shape,
+          'mascotBody': 'cursor',
         });
       } on ApiError {
         // The bot exists. Look can be changed later from its profile.
@@ -100,7 +99,7 @@ class _CreateBotSheetState extends State<_CreateBotSheet> {
                     ),
                     const Expanded(
                       child: Text(
-                        'Create New Bot',
+                        'New agent',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 17,
@@ -115,8 +114,8 @@ class _CreateBotSheetState extends State<_CreateBotSheet> {
                 Center(
                   child: BotBlob(
                     color: _color,
-                    seed: _shape,
-                    shape: _shape,
+                    seed: 'cursor',
+                    shape: 'cursor',
                     size: 112,
                   ),
                 ),
@@ -126,7 +125,7 @@ class _CreateBotSheetState extends State<_CreateBotSheet> {
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 17),
                   decoration: InputDecoration(
-                    hintText: 'Name your Bot',
+                    hintText: 'Name your agent',
                     hintStyle: TextStyle(color: Colors.black.withValues(alpha: 0.28)),
                     filled: true,
                     fillColor: const Color(0xFFF4F4F5),
@@ -136,41 +135,6 @@ class _CreateBotSheetState extends State<_CreateBotSheet> {
                     ),
                     contentPadding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                ),
-                const SizedBox(height: 18),
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    for (final shape in blobShapes)
-                      GestureDetector(
-                        onTap: () => setState(() => _shape = shape),
-                        child: AnimatedScale(
-                          duration: const Duration(milliseconds: 180),
-                          curve: Curves.easeOutCubic,
-                          scale: _shape == shape ? 1.08 : 1,
-                          child: Container(
-                            padding: const EdgeInsets.all(3),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: _shape == shape
-                                    ? MaxTokens.ember
-                                    : Colors.transparent,
-                                width: 1.5,
-                              ),
-                            ),
-                            child: BotBlob(
-                              color: _color,
-                              seed: shape,
-                              shape: shape,
-                              size: 36,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
                 ),
                 const SizedBox(height: 18),
                 Wrap(

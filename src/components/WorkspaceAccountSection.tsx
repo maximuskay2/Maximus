@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 
 import { t } from "@/lib/i18n";
-import { ServiceEndpointPicker } from "@/console/ServiceEndpoint";
+import { Select } from "@/components/Select";
 import type { LocaleKey } from "@/locales";
 import { formatUsd } from "@/lib/usage";
 import {
@@ -182,10 +182,6 @@ export function ConnectView({ busy, error, sent, email, code, onEmail, onCode, o
         </form>
       )}
       {error && <p role="alert" className="mt-3 text-[13px] text-danger">{error}</p>}
-      <details className="mt-3 text-[13px] text-ink-secondary">
-        <summary className="cursor-pointer underline">{t("console.endpoint.title")}</summary>
-        <div className="mt-2"><ServiceEndpointPicker /></div>
-      </details>
     </Card>
   );
 }
@@ -212,9 +208,9 @@ export function ProvidersView({ providers, admin, busy, onMode }: {
               <div className="text-[14px] font-medium capitalize">{provider.id}</div>
               {provider.reason && <div className="text-[12px] text-ink-secondary">{provider.reason}</div>}
             </div>
-            <select
+            <Select
               aria-label={provider.id}
-              className="rounded-md border border-hairline/40 bg-inset px-2 py-1 text-[13px] disabled:opacity-50"
+              size="sm"
               value={provider.mode}
               disabled={busy || !admin}
               title={admin ? "" : t("console.account.adminOnly")}
@@ -223,7 +219,7 @@ export function ProvidersView({ providers, admin, busy, onMode }: {
               {(Object.keys(MODE_LABEL) as WorkspaceProviderState["mode"][]).map((mode) => (
                 <option key={mode} value={mode}>{t(MODE_LABEL[mode])}</option>
               ))}
-            </select>
+            </Select>
           </li>
         ))}
       </ul>
@@ -469,16 +465,16 @@ export function WorkspaceAccountSection() {
             </div>
             <div>
               <label className="block text-[12px] font-medium text-ink-secondary" htmlFor="console-invite-role">{t("console.account.inviteRole")}</label>
-              <select
+              <Select
                 id="console-invite-role"
-                className="mt-1 rounded-md border border-hairline/40 bg-inset px-2 py-2 text-[14px]"
+                className="mt-1"
                 value={inviteRole}
                 disabled={busy}
                 onChange={(event) => setInviteRole(event.target.value as "admin" | "member")}
               >
                 <option value="member">{t("console.account.roleMember")}</option>
                 <option value="admin">{t("console.account.roleAdmin")}</option>
-              </select>
+              </Select>
             </div>
             <button type="submit" className="rounded-md bg-accent px-4 py-2 text-[14px] font-medium text-accent-ink disabled:opacity-50" disabled={busy || !validConsoleEmail(inviteEmail)}>
               {t("console.account.inviteSend")}

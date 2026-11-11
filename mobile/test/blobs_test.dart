@@ -3,26 +3,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:maximus/theme/blobs.dart';
 
 void main() {
-  testWidgets('every body paints a face', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(360, 120));
+  testWidgets('BotBlob paints the colorizable bull', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(200, 80));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
-      MaterialApp(
+      const MaterialApp(
         home: ColoredBox(
           color: Colors.white,
           child: Row(
             children: [
-              for (final shape in blobShapes)
-                BotBlob(color: 'pink', seed: 'ada-$shape', shape: shape, size: 36),
+              BotBlob(color: 'pink', seed: 'ada', size: 36),
+              BotBlob(color: 'green', seed: 'ada', size: 36),
+              BotBlob(color: 'blue', seed: 'ada', size: 36),
             ],
           ),
         ),
       ),
     );
-    expect(find.byType(BotBlob), findsNWidgets(blobShapes.length));
-    await expectLater(
-      find.byType(Row),
-      matchesGoldenFile('goldens/bot_faces.png'),
-    );
+    expect(find.byType(BotBlob), findsNWidgets(3));
+    expect(find.byType(Image), findsNWidgets(3));
   });
 }

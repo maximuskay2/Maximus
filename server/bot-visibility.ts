@@ -21,7 +21,7 @@ export interface ThreadAudiences {
 
 /** `all`: every bot and room. On a Team Cloud an admin session is `all` with its address, and still sees only the
  * conversations its person may (audience.ts): its own private chats, never another person's. */
-export type Viewer = { kind: "all"; email?: string } | { kind: "member"; email?: string };
+export type Viewer = { kind: "all"; email?: string } | { kind: "member"; email?: string; onlyOwn?: true };
 
 export const SEES_EVERYTHING: Viewer = { kind: "all" };
 
@@ -60,6 +60,17 @@ export function storedVisibility(value: unknown): BotVisibility {
 
 export function isRestricted(value: unknown): boolean {
   return storedVisibility(value) !== "everyone";
+}
+
+/** A signed-in account on one machine: its own bots, and a bot that names it. An earlier user's bots stay theirs. */
+export function accountOwns(viewer: Viewer, bot: Pick<OwnedBot, "createdBy" | "reportsTo" | "defaultBot"> & { visibility?: unknown }): boolean {
+  if (viewer.kind !== "member" || !viewer.onlyOwn) return viewerSees(viewer, bot.visibility);
+  const email = viewer.email?.trim().toLowerCase() ?? "";
+  const owner = botOwner(bot);
+  if (owner) return owner === email;
+  const stored = storedVisibility(bot.visibility);
+  if (typeof stored === "string") return false;
+  return Boolean(email && stored.people.some((entry) => entryMatches(entry, email)));
 }
 
 export function viewerSees(viewer: Viewer, visibility: unknown): boolean {
@@ -194,8 +205,9 @@ export class VisibleSet {
   ) {
     this.viewer = viewer;
     this.audiences = audiences ?? null;
+    const onlyOwn = viewer.kind === "member" && viewer.onlyOwn === true;
     // On a Team Cloud nobody's view is everything, an admin's included: each conversation has its own audience.
-    this.everything = this.audiences === null && (viewer.kind === "all" ||
+    this.everything = !onlyOwn && this.audiences === null && (viewer.kind === "all" ||
       (!bots.some((bot) => isRestricted(bot.visibility)) && !groups.some((group) => isRestricted(group.audienceFloor))));
     this.ownerOf = ownerOf ?? ((threadId) => this.indexedOwner(threadId));
     if (this.everything) return;
@@ -222,7 +234,7 @@ export class VisibleSet {
     let seen = this.botMemo.get(id);
     if (seen === undefined) {
       const bot = this.bots.get(id);
-      seen = Boolean(bot && viewerSees(this.viewer, bot.visibility));
+      seen = Boolean(bot && (this.viewer.kind === "member" && this.viewer.onlyOwn ? accountOwns(this.viewer, bot) : viewerSees(this.viewer, bot.visibility)));
       this.botMemo.set(id, seen);
     }
     return seen;

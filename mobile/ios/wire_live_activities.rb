@@ -49,6 +49,7 @@ unless ext
     settings['INFOPLIST_FILE'] = 'LiveActivities/Info.plist'
     settings['CODE_SIGN_ENTITLEMENTS'] = 'LiveActivities/LiveActivities.entitlements'
     settings['CODE_SIGN_STYLE'] = 'Automatic'
+    settings['DEVELOPMENT_TEAM'] = '24ZAVJC7HG'
     settings['SWIFT_VERSION'] = '5.0'
     settings['TARGETED_DEVICE_FAMILY'] = '1,2'
     settings['IPHONEOS_DEPLOYMENT_TARGET'] = '18.0'

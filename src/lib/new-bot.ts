@@ -74,9 +74,23 @@ export async function makeNewBot(action: Extract<Action, { type: "newBot" }>, bo
   let made: Awaited<ReturnType<typeof createNewBot>>;
   try {
     made = await createNewBot(action.section, bots, currentTeamPeople(), request);
-  } catch (cause) {
-    if (isBotLimitRefusal(cause)) return;
-    const message = t("newBot.failed", { error: cause instanceof Error ? cause.message : String(cause) });
+  } catch (first) {
+    if (isBotLimitRefusal(first)) return;
+    let failure: unknown = first;
+    const denied = first instanceof Error && /forbidden|admin scope/i.test(first.message);
+    if (currentTeamPeople() == null && denied) {
+      try {
+        const name = freeName("Agent", bots);
+        const { bot } = await request<{ bot: Bot }>("/api/bots", { method: "POST", body: JSON.stringify({ name }) });
+        announceNewBot(dispatch, bot, [], { preserveSelection: action.preserveSelection, showThreads, source: "blank" });
+        action.onCreated?.(bot);
+        return;
+      } catch (again) {
+        if (isBotLimitRefusal(again)) return;
+        failure = again;
+      }
+    }
+    const message = t("newBot.failed", { error: failure instanceof Error ? failure.message : String(failure) });
     if (action.onError) action.onError(message);
     else dispatch({ type: "error", message });
     return;

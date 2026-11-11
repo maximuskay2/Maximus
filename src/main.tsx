@@ -17,11 +17,11 @@ import { JoinPage } from "./console/JoinPage";
 import { PricingPage } from "./console/PricingPage";
 import { SigninPage } from "./console/SigninPage";
 import { SignupPage } from "./console/SignupPage";
-import { browserLandingPath } from "./site/landing";
+import { browserLandingPath, scrollingDocument } from "./site/landing";
 import { WelcomePage } from "./site/WelcomePage";
 import { HomeScreen, SignedOutAtHome } from "./components/HomeScreen";
 import { PageBoundary } from "./components/PageBoundary";
-import { endedBeforeReload, forgetEndedSession } from "./lib/session-ended";
+import { forgetEndedSession } from "./lib/session-ended";
 import "./styles.css";
 
 // Before first paint; settleAdvancedModeDefault must run before applySkin writes maximus-skin.
@@ -75,18 +75,29 @@ async function chooseRoot(): Promise<React.ReactNode> {
   }
   if (location.pathname === "/welcome") {
     await pageLanguage;
+    const welcomeSession = await readSessionState();
+    const signedIn = welcomeSession.kind === "session";
+    if (scrollingDocument(location.pathname, signedIn)) document.documentElement.dataset.page = "site";
+    else delete document.documentElement.dataset.page;
+    if (signedIn) {
+      const { default: App } = await loadApp();
+      return <App />;
+    }
     return <WelcomePage />;
   }
   const session = await readSessionState();
   if (session.kind === "unauthenticated") {
     await pageLanguage;
-    const pair = <PairPage initialCode={null} reason={endedBeforeReload() ? t("pair.sessionEnded") : session.error} />;
+    const pair = <PairPage initialCode={null} reason={t("pair.sessionEnded")} />;
     return home ? <SignedOutAtHome bridge={home} fallback={pair} /> : pair;
   }
   forgetEndedSession();
-  if (session.kind === "loopback" && session.trust === "service") {
+  if (session.kind !== "session") {
     await pageLanguage;
-    return <PairPage initialCode={null} reason={t("pair.serviceTrust")} />;
+    const reason = session.kind === "loopback" && session.trust === "service"
+      ? t("pair.serviceTrust")
+      : session.kind === "unreachable" ? session.error : undefined;
+    return <PairPage initialCode={null} reason={reason} />;
   }
   if (location.pathname === "/desktop-viewer") {
     const { DesktopViewer } = await import("./components/DesktopViewer");
@@ -98,7 +109,7 @@ async function chooseRoot(): Promise<React.ReactNode> {
 
 // The window is named before the brand file is asked for: the answer only ever renames it.
 document.title = productName();
-if (PAGES_WITHOUT_THE_APP.has(location.pathname) && location.pathname !== "/desktop-viewer") {
+if (scrollingDocument(location.pathname, false) && location.pathname !== "/welcome") {
   document.documentElement.dataset.page = "site";
 }
 void Promise.all([bootstrapBrand(), chooseRoot(), pageLanguage]).then(([, root]) => {
