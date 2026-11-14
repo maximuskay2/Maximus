@@ -243,8 +243,14 @@ deb:
   packageCategory: utils
   priority: optional
   # Add the narrow browser policy's parser without replacing Electron's
-  # default shared-library dependencies.
-  fpm: ["--depends", "apparmor"]
+  # default shared-library dependencies. The scalable icon is the vector
+  # source plus the raster it references; fpm only auto-installs an SVG when
+  # linux.icon itself is that SVG, which would drop the PNG sizes.
+  fpm:
+    - "--depends"
+    - "apparmor"
+    - "build/icon.svg=/usr/share/icons/hicolor/scalable/apps/maximus.svg"
+    - "build/icon-1024.png=/usr/share/icons/hicolor/scalable/apps/icon-1024.png"
   # dpkg can preserve legacy directory modes during an upgrade. This
   # idempotent hook repairs only the exact package-owned CUA path.
   afterInstall: build/linux-after-install.sh
