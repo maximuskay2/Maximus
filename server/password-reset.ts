@@ -1,5 +1,8 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { dirname } from "node:path";
 
+import { writeFileAtomic } from "./atomic.ts";
 import { normalizeAccountEmail, passwordLongEnough, validAccountEmail, type createPasswordAccounts } from "./password-accounts.ts";
 import { SignInMailError, smtpOptions, type MailTransport } from "./sign-in-mail.ts";
 
@@ -10,7 +13,7 @@ const MAX_PENDING = 1_000;
 type Accounts = ReturnType<typeof createPasswordAccounts>;
 
 export interface PasswordResetMail {
-  request(email: string): Promise<"sent" | "tooSoon">;
+  request(email: string, linkOrigin?: string | null): Promise<"sent" | "tooSoon">;
   consume(token: string, password: string): { ok: true; email: string } | { ok: false; reason: "invalid" | "short-password" | "missing" };
 }
 
@@ -24,11 +27,37 @@ export function createPasswordResetMail(options: {
   origin: () => string | null;
   now?: () => number;
   transport?: MailTransport;
+  /** Survives a restart so the link in the email still works. */
+  file?: string;
 }): PasswordResetMail {
   const now = options.now ?? Date.now;
   const pending = new Map<string, { email: string; hash: Buffer; sentAt: number }>();
   const lastSent = new Map<string, number>();
   let transport: Promise<MailTransport> | undefined = options.transport ? Promise.resolve(options.transport) : undefined;
+  if (options.file && existsSync(options.file)) {
+    try {
+      const parsed = JSON.parse(readFileSync(options.file, "utf8")) as { pending?: { id?: unknown; email?: unknown; hash?: unknown; sentAt?: unknown }[] };
+      const time = now();
+      for (const row of parsed.pending ?? []) {
+        if (typeof row.id !== "string" || typeof row.email !== "string" || typeof row.hash !== "string" || typeof row.sentAt !== "number") continue;
+        if (time - row.sentAt >= TOKEN_TTL_MS) continue;
+        pending.set(row.id, { email: row.email, hash: Buffer.from(row.hash, "hex"), sentAt: row.sentAt });
+        const previous = lastSent.get(row.email) ?? 0;
+        if (row.sentAt > previous) lastSent.set(row.email, row.sentAt);
+      }
+    } catch {
+      // A damaged file starts empty. The next request rewrites it.
+    }
+  }
+  const save = () => {
+    if (!options.file) return;
+    mkdirSync(dirname(options.file), { recursive: true, mode: 0o700 });
+    const body = JSON.stringify({
+      version: 1,
+      pending: [...pending].map(([id, entry]) => ({ id, email: entry.email, hash: entry.hash.toString("hex"), sentAt: entry.sentAt })),
+    });
+    writeFileAtomic(options.file, body, { mode: 0o600 });
+  };
 
   const from = (): string => {
     const named = options.from?.trim() || smtpOptions(options.url).auth?.user || "";
@@ -42,7 +71,7 @@ export function createPasswordResetMail(options: {
   };
 
   return {
-    async request(rawEmail) {
+    async request(rawEmail, linkOrigin?: string | null) {
       const email = normalizeAccountEmail(rawEmail);
       if (!validAccountEmail(email)) return "sent";
       prune();
@@ -52,11 +81,12 @@ export function createPasswordResetMail(options: {
       lastSent.set(email, now());
       const account = options.accounts.list().find((row) => row.email === email);
       if (!account) return "sent";
-      const origin = options.origin();
+      const origin = linkOrigin === undefined ? options.origin() : linkOrigin;
       if (!origin) return "sent";
       const token = randomBytes(32).toString("base64url");
       const id = randomBytes(16).toString("hex");
       pending.set(id, { email, hash: digest(token), sentAt: now() });
+      save();
       const sender = from();
       transport ??= import("nodemailer").then(({ createTransport }) => createTransport(smtpOptions(options.url)));
       const link = `${origin}/reset?token=${encodeURIComponent(`${id}.${token}`)}`;
@@ -71,6 +101,9 @@ export function createPasswordResetMail(options: {
         });
       } catch (error) {
         pending.delete(id);
+        if (previous) lastSent.set(email, previous);
+        else lastSent.delete(email);
+        save();
         throw error;
       }
       return "sent";
@@ -88,6 +121,7 @@ export function createPasswordResetMail(options: {
       const actual = digest(token);
       if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return { ok: false, reason: "invalid" };
       pending.delete(id);
+      save();
       const changed = options.accounts.setPassword(entry.email, password);
       if (!changed.ok) return { ok: false, reason: "missing" };
       return { ok: true, email: changed.email };

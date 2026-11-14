@@ -6,6 +6,7 @@ import '../api/client.dart';
 import '../api/models.dart';
 import '../gallery/gallery_page.dart';
 import 'auth_state.dart';
+import 'forgot_password_page.dart';
 
 const _serverOverride = String.fromEnvironment('MAXIMUS_SERVER');
 
@@ -210,6 +211,26 @@ class _SignInPageState extends State<SignInPage> {
                 ),
               ),
             ),
+            if (!_creating)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _busy
+                      ? null
+                      : () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => ForgotPasswordPage(
+                                auth: widget.auth,
+                                initialBaseUrl: _baseUrl,
+                                initialEmail: _emailController.text.trim(),
+                              ),
+                            ),
+                          );
+                        },
+                  child: const Text('Forgot password?'),
+                ),
+              ),
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(top: 12),

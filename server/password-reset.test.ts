@@ -32,3 +32,22 @@ it("mails a reset link and accepts it once", async () => {
   expect(mail.consume(decoded, "brand-new-secret")).toEqual({ ok: false, reason: "invalid" });
   expect(accounts.signin("ada@example.com", "brand-new-secret")).toMatchObject({ ok: true });
 });
+
+it("keeps a reset link after the mailer is opened again", async () => {
+  const folder = mkdtempSync(join(tmpdir(), "maximus-reset-file-"));
+  const accounts = createPasswordAccounts(join(folder, "password-accounts.json"));
+  expect(accounts.signup("ada@example.com", "correct-horse")).toMatchObject({ ok: true });
+  const sent: { text: string }[] = [];
+  const options = {
+    accounts,
+    url: "smtp://user:pass@127.0.0.1:1025",
+    from: "info@example.com",
+    origin: () => "https://app.example",
+    file: join(folder, "password-resets.json"),
+    transport: { sendMail: async (message: { text: string }) => { sent.push({ text: message.text }); } },
+  };
+  expect(await createPasswordResetMail(options).request("ada@example.com")).toBe("sent");
+  const decoded = decodeURIComponent(/token=([^&\s]+)/.exec(sent[0]!.text)?.[1] ?? "");
+  const again = createPasswordResetMail(options);
+  expect(again.consume(decoded, "brand-new-secret")).toEqual({ ok: true, email: "ada@example.com" });
+});

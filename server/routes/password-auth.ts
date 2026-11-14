@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { dirname, join } from "node:path";
 
 import { createPasswordAccounts } from "../password-accounts.ts";
 import { createPasswordResetMail, type PasswordResetMail } from "../password-reset.ts";
@@ -20,6 +21,27 @@ export interface PasswordAuthRouteDeps {
   accounts?: ReturnType<typeof createPasswordAccounts>;
   resets?: PasswordResetMail;
   env?: NodeJS.ProcessEnv;
+}
+
+const resetMailers = new Map<string, PasswordResetMail>();
+
+/** One mailer per account file, so the link emailed by forgot is the link reset accepts. */
+function resetMail(deps: PasswordAuthRouteDeps): PasswordResetMail | null {
+  if (deps.resets) return deps.resets;
+  const env = deps.env ?? process.env;
+  const smtpUrl = env.MAXIMUS_SIGNIN_SMTP_URL?.trim();
+  if (!smtpUrl) return null;
+  const cached = resetMailers.get(deps.file);
+  if (cached) return cached;
+  const created = createPasswordResetMail({
+    accounts: deps.accounts ?? createPasswordAccounts(deps.file),
+    url: smtpUrl,
+    from: env.MAXIMUS_SIGNIN_SMTP_FROM,
+    origin: () => null,
+    file: join(dirname(deps.file), "password-resets.json"),
+  });
+  resetMailers.set(deps.file, created);
+  return created;
 }
 
 function failure(reason: string): { status: number; body: { error: string } } {
@@ -58,21 +80,20 @@ export async function passwordAuthRoute(deps: PasswordAuthRouteDeps, req: Incomi
 
   if (forgot) {
     const email = typeof body?.email === "string" ? body.email : "";
-    const origin = requestOrigin(req);
     const env = deps.env ?? process.env;
+    const origin = requestOrigin(req) || env.MAXIMUS_PUBLIC_URL?.trim().replace(/\/$/, "") || null;
     const smtpUrl = env.MAXIMUS_SIGNIN_SMTP_URL?.trim();
     if (!smtpUrl) {
       json(res, 503, { error: "Password reset email is not configured on this server." });
       return true;
     }
-    const mail = deps.resets ?? createPasswordResetMail({
-      accounts,
-      url: smtpUrl,
-      from: env.MAXIMUS_SIGNIN_SMTP_FROM,
-      origin: () => origin,
-    });
+    const mail = resetMail(deps);
+    if (!mail) {
+      json(res, 503, { error: "Password reset email is not configured on this server." });
+      return true;
+    }
     try {
-      const result = await mail.request(email);
+      const result = await mail.request(email, origin);
       if (result === "tooSoon") {
         json(res, 429, userError("serverError.email.tooMany"));
         return true;
@@ -91,11 +112,7 @@ export async function passwordAuthRoute(deps: PasswordAuthRouteDeps, req: Incomi
   if (reset) {
     const token = typeof body?.token === "string" ? body.token : "";
     const password = typeof body?.password === "string" ? body.password : "";
-    const env = deps.env ?? process.env;
-    const smtpUrl = env.MAXIMUS_SIGNIN_SMTP_URL?.trim();
-    const mail = deps.resets ?? (smtpUrl
-      ? createPasswordResetMail({ accounts, url: smtpUrl, from: env.MAXIMUS_SIGNIN_SMTP_FROM, origin: () => requestOrigin(req) })
-      : null);
+    const mail = resetMail(deps);
     if (!mail) {
       json(res, 503, { error: "Password reset is not configured on this server." });
       return true;

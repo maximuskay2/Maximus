@@ -2455,6 +2455,159 @@ class EngineAuthFlow {
   }
 }
 
+/// One marketplace app from `GET /api/connectors/catalog`.
+class ConnectorToolkit {
+  const ConnectorToolkit({
+    required this.slug,
+    required this.label,
+    required this.blurb,
+    this.logo,
+    this.noAuth = false,
+    this.categories = const [],
+  });
+
+  final String slug;
+  final String label;
+  final String blurb;
+  final String? logo;
+  final bool noAuth;
+  final List<String> categories;
+
+  static ConnectorToolkit? tryFrom(Map<String, Object?> json) {
+    final slug = json['slug'];
+    final label = json['label'];
+    if (slug is! String || slug.isEmpty || label is! String || label.isEmpty) {
+      return null;
+    }
+    final rawCategories = json['categories'];
+    return ConnectorToolkit(
+      slug: slug,
+      label: label,
+      blurb: (json['blurb'] as String?) ?? '',
+      logo: json['logo'] as String?,
+      noAuth: json['noAuth'] == true,
+      categories: [
+        for (final item in rawCategories is List ? rawCategories : const [])
+          if (item is String && item.isNotEmpty) item,
+      ],
+    );
+  }
+}
+
+/// Catalog payload from `GET /api/connectors/catalog`.
+class ConnectorCatalog {
+  const ConnectorCatalog({
+    required this.configured,
+    required this.cards,
+    this.mode,
+    this.setup,
+    this.source,
+  });
+
+  final bool configured;
+  final List<ConnectorToolkit> cards;
+  final String? mode;
+  final String? setup;
+  final String? source;
+
+  static ConnectorCatalog fromJson(Map<String, Object?> json) {
+    final raw = json['cards'];
+    return ConnectorCatalog(
+      configured: json['configured'] == true,
+      mode: json['mode'] as String?,
+      setup: json['setup'] as String?,
+      source: json['source'] as String?,
+      cards: [
+        for (final item in raw is List ? raw : const [])
+          if (item is Map<String, Object?>) ?ConnectorToolkit.tryFrom(item),
+      ],
+    );
+  }
+}
+
+/// One signed-in account under a connected app.
+class ConnectorAccount {
+  const ConnectorAccount({
+    required this.id,
+    required this.status,
+    this.alias,
+  });
+
+  final String id;
+  final String status;
+  final String? alias;
+
+  bool get active => status.toLowerCase() == 'active';
+
+  static ConnectorAccount? tryFrom(Map<String, Object?> json) {
+    final id = json['id'];
+    final status = json['status'];
+    if (id is! String || id.isEmpty || status is! String) return null;
+    return ConnectorAccount(
+      id: id,
+      status: status,
+      alias: json['alias'] as String?,
+    );
+  }
+}
+
+/// Connection state for one marketplace slug from `GET /api/connectors/connected`.
+class ConnectorLink {
+  const ConnectorLink({
+    required this.connected,
+    this.pending = false,
+    this.status,
+    this.accounts = const [],
+  });
+
+  final bool connected;
+  final bool pending;
+  final String? status;
+  final List<ConnectorAccount> accounts;
+
+  bool get hasActiveAccount =>
+      accounts.isEmpty ? connected : accounts.any((account) => account.active);
+
+  static ConnectorLink fromJson(Map<String, Object?> json) {
+    final raw = json['accounts'];
+    return ConnectorLink(
+      connected: json['connected'] == true,
+      pending: json['pending'] == true,
+      status: json['status'] as String?,
+      accounts: [
+        for (final item in raw is List ? raw : const [])
+          if (item is Map<String, Object?>) ?ConnectorAccount.tryFrom(item),
+      ],
+    );
+  }
+}
+
+/// Phone-safe MCP row from `GET /api/bots/:id/mcp-servers`.
+class BotMcpServer {
+  const BotMcpServer({
+    required this.name,
+    required this.enabled,
+    required this.on,
+    this.offFor = false,
+  });
+
+  final String name;
+  final bool enabled;
+  final bool on;
+  final bool offFor;
+
+  static BotMcpServer? tryFrom(Map<String, Object?> json) {
+    final name = json['name'];
+    if (name is! String || name.isEmpty) return null;
+    return BotMcpServer(
+      name: name,
+      enabled: json['enabled'] == true,
+      on: json['on'] == true,
+      offFor: json['offFor'] == true,
+    );
+  }
+}
+
 /// API error with the HTTP status preserved for 401/403/429 mapping.
 class ApiError implements Exception {
   const ApiError(this.status, this.message, {this.code, this.details});

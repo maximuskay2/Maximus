@@ -62,6 +62,11 @@ export function AccountForm({
       <input id="account-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} spellCheck={false} className={inputClass} />
       <label className="mt-4 block text-[12px] font-medium text-ink-secondary" htmlFor="account-password">{t("account.password")}</label>
       <input id="account-password" type="password" autoComplete={mode === "signup" ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} className={inputClass} />
+      {mode === "signin" ? (
+        <p className="mt-3 text-center text-[13px]">
+          <a href="/forgot" className="text-ink-secondary underline underline-offset-4">{t("account.forgotLink")}</a>
+        </p>
+      ) : null}
       {error ? <p className="mt-3 text-[13px] text-danger">{error}</p> : null}
       <button type="submit" disabled={busy || !email.includes("@") || password.length < 8} className={buttonClass}>
         {t(busy ? (mode === "signup" ? "console.signup.creating" : "pair.signingIn") : mode === "signup" ? "account.create" : "accounts.signIn")}

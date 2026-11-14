@@ -348,6 +348,25 @@ class FakeApi implements MaximusApi {
     required String password,
   }) async => const ['admin', 'client'];
 
+  String? resetEmail;
+  String? resetToken;
+  String? resetPasswordValue;
+
+  @override
+  Future<void> requestPasswordReset(String baseUrl, String email) async {
+    resetEmail = email;
+  }
+
+  @override
+  Future<void> resetPassword(
+    String baseUrl, {
+    required String token,
+    required String password,
+  }) async {
+    resetToken = token;
+    resetPasswordValue = password;
+  }
+
   @override
   Future<List<String>> emailVerify(
     String baseUrl, {
@@ -1168,6 +1187,54 @@ class FakeApi implements MaximusApi {
     configWrites.add(patch);
   }
 
+  ConnectorCatalog connectorCatalogAnswer = const ConnectorCatalog(
+    configured: true,
+    cards: [],
+  );
+  Map<String, ConnectorLink> connectorConnectionsAnswer = const {};
+  String connectorAuthorizeUrl = 'https://connect.example/auth';
+  final List<Map<String, Object?>> connectorWrites = [];
+  Map<String, List<BotMcpServer>> botMcpServersById = const {};
+
+  @override
+  Future<ConnectorCatalog> connectorCatalog(String baseUrl) async =>
+      connectorCatalogAnswer;
+
+  @override
+  Future<Map<String, ConnectorLink>> connectorConnections(String baseUrl) async =>
+      connectorConnectionsAnswer;
+
+  @override
+  Future<String> connectorAuthorize(
+    String baseUrl,
+    String slug, {
+    String? alias,
+  }) async {
+    connectorWrites.add({
+      'action': 'authorize',
+      'slug': slug,
+      if (alias != null) 'alias': alias,
+    });
+    return connectorAuthorizeUrl;
+  }
+
+  @override
+  Future<void> connectorDisconnect(
+    String baseUrl,
+    String slug, {
+    String? accountId,
+  }) async {
+    connectorWrites.add({
+      'action': 'disconnect',
+      'slug': slug,
+      if (accountId != null) 'accountId': accountId,
+    });
+  }
+
+  @override
+  Future<List<BotMcpServer>> botMcpServers(String baseUrl, String botId) async =>
+      botMcpServersById[botId] ?? const [];
+
   final List<Map<String, Object?>> secretCardWrites = [];
   final List<Map<String, Object?>> signInCardWrites = [];
 
@@ -1255,7 +1322,6 @@ class FakeApi implements MaximusApi {
   final List<Map<String, Object?>> widgetActionWrites = [];
   List<NeedsYouItem> needsYouItems = const [];
   bool connectorConnected = false;
-  String connectorAuthorizeUrl = 'https://connect.example/auth';
 
   @override
   Future<String> authorizeConnectorCard(

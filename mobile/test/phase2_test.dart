@@ -85,10 +85,22 @@ void main() {
     expect(find.text('Retry'), findsOneWidget);
   });
 
-  testWidgets('apps sheet opens the bots directory', (tester) async {
+  testWidgets('apps dock opens the connected apps page', (tester) async {
     await tester.pumpWidget(_themed(HomePage(auth: await _authWith(FakeApi()), prefs: AppPreferences())));
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.grid_view_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('Apps'), findsWidgets);
+    expect(
+      find.textContaining('Connect an app once'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('apps long-press menu opens the bots directory', (tester) async {
+    await tester.pumpWidget(_themed(HomePage(auth: await _authWith(FakeApi()), prefs: AppPreferences())));
+    await tester.pumpAndSettle();
+    await tester.longPress(find.byIcon(Icons.grid_view_rounded));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Bots & rooms'));
     await tester.pumpAndSettle();

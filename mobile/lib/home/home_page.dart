@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../api/models.dart';
 import '../api/thread_cache.dart';
+import '../apps/apps_page.dart';
 import '../auth/auth_state.dart';
 import '../billing/subscribe_ask.dart';
 import '../engines/engines_page.dart';
@@ -221,6 +222,10 @@ class _HomePageState extends State<HomePage> {
               onApps: () {
                 _dismissKeyboard();
                 _openApps();
+              },
+              onMenu: () {
+                _dismissKeyboard();
+                _openMenu();
               },
             ),
           ],
@@ -509,6 +514,25 @@ class _HomePageState extends State<HomePage> {
 
   void _openApps() {
     final baseUrl = widget.auth.active?.baseUrl;
+    if (baseUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connect a computer or Cloud first.')),
+      );
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AppsPage(
+          auth: widget.auth,
+          baseUrl: baseUrl,
+          bots: _bots,
+        ),
+      ),
+    );
+  }
+
+  void _openMenu() {
+    final baseUrl = widget.auth.active?.baseUrl;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.white,
@@ -530,112 +554,121 @@ class _HomePageState extends State<HomePage> {
               clipBehavior: Clip.antiAlias,
               child: Column(
                 children: [
-            ListTile(
-              leading: const Icon(Icons.smart_toy_outlined),
-              title: const Text('Bots & rooms'),
-              subtitle: const Text('Directory, new group, profiles'),
-              onTap: () {
-                Navigator.of(sheet).pop();
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => BotsTab(
-                      auth: widget.auth,
-                      bots: _bots,
-                      onRefresh: _load,
-                    ),
+                  ListTile(
+                    leading: const Icon(Icons.apps_outlined),
+                    title: const Text('Apps'),
+                    subtitle: const Text('Gmail, Slack, GitHub, MCP servers'),
+                    onTap: () {
+                      Navigator.of(sheet).pop();
+                      _openApps();
+                    },
                   ),
-                );
-              },
-            ),
-            if (baseUrl != null)
-              ListTile(
-                leading: const Icon(Icons.schedule_outlined),
-                title: const Text('Routines'),
-                onTap: () {
-                  Navigator.of(sheet).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => RoutinesPage(
-                        auth: widget.auth,
-                        baseUrl: baseUrl,
-                        bots: _bots,
-                      ),
+                  ListTile(
+                    leading: const Icon(Icons.smart_toy_outlined),
+                    title: const Text('Bots & rooms'),
+                    subtitle: const Text('Directory, new group, profiles'),
+                    onTap: () {
+                      Navigator.of(sheet).pop();
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => BotsTab(
+                            auth: widget.auth,
+                            bots: _bots,
+                            onRefresh: _load,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  if (baseUrl != null)
+                    ListTile(
+                      leading: const Icon(Icons.schedule_outlined),
+                      title: const Text('Routines'),
+                      onTap: () {
+                        Navigator.of(sheet).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => RoutinesPage(
+                              auth: widget.auth,
+                              baseUrl: baseUrl,
+                              bots: _bots,
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
-            if (baseUrl != null)
-              ListTile(
-                leading: const Icon(Icons.travel_explore_outlined),
-                title: const Text('Search messages'),
-                onTap: () {
-                  Navigator.of(sheet).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => SearchPage(
-                        client: widget.auth.client,
-                        baseUrl: baseUrl,
-                      ),
+                  if (baseUrl != null)
+                    ListTile(
+                      leading: const Icon(Icons.travel_explore_outlined),
+                      title: const Text('Search messages'),
+                      onTap: () {
+                        Navigator.of(sheet).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => SearchPage(
+                              client: widget.auth.client,
+                              baseUrl: baseUrl,
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
-            if (baseUrl != null && widget.phonePoller != null)
-              ListTile(
-                leading: const Icon(Icons.phone_android_outlined),
-                title: const Text('Phone apps'),
-                subtitle: const Text('Calendar, contacts, location'),
-                onTap: () {
-                  Navigator.of(sheet).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PhonesPage(
-                        auth: widget.auth,
-                        baseUrl: baseUrl,
-                        poller: widget.phonePoller!,
-                        gate: SystemCapabilityGate(),
-                      ),
+                  if (baseUrl != null && widget.phonePoller != null)
+                    ListTile(
+                      leading: const Icon(Icons.phone_android_outlined),
+                      title: const Text('Phone apps'),
+                      subtitle: const Text('Calendar, contacts, location'),
+                      onTap: () {
+                        Navigator.of(sheet).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => PhonesPage(
+                              auth: widget.auth,
+                              baseUrl: baseUrl,
+                              poller: widget.phonePoller!,
+                              gate: SystemCapabilityGate(),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
-            if (baseUrl != null && widget.consoleAccount != null)
-              ListTile(
-                leading: const Icon(Icons.account_balance_outlined),
-                title: const Text('Workspace'),
-                subtitle: const Text('Seats, spend, and providers'),
-                onTap: () {
-                  Navigator.of(sheet).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => WorkspacePage(
-                        account: widget.consoleAccount!,
-                        baseUrl: baseUrl,
-                        prefs: widget.prefs,
-                      ),
+                  if (baseUrl != null && widget.consoleAccount != null)
+                    ListTile(
+                      leading: const Icon(Icons.account_balance_outlined),
+                      title: const Text('Workspace'),
+                      subtitle: const Text('Seats, spend, and providers'),
+                      onTap: () {
+                        Navigator.of(sheet).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => WorkspacePage(
+                              account: widget.consoleAccount!,
+                              baseUrl: baseUrl,
+                              prefs: widget.prefs,
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
-            if (baseUrl != null)
-              ListTile(
-                leading: const Icon(Icons.settings_outlined),
-                title: const Text('Settings'),
-                onTap: () {
-                  Navigator.of(sheet).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => SettingsPage(
-                        auth: widget.auth,
-                        baseUrl: baseUrl,
-                        serverName: widget.auth.active?.name ?? 'Maximus',
-                        bots: _bots,
-                        prefs: widget.prefs,
-                      ),
+                  if (baseUrl != null)
+                    ListTile(
+                      leading: const Icon(Icons.settings_outlined),
+                      title: const Text('Settings'),
+                      onTap: () {
+                        Navigator.of(sheet).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => SettingsPage(
+                              auth: widget.auth,
+                              baseUrl: baseUrl,
+                              serverName: widget.auth.active?.name ?? 'Maximus',
+                              bots: _bots,
+                              prefs: widget.prefs,
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
                 ],
               ),
             ),
@@ -805,11 +838,13 @@ class _InboxDock extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.onApps,
+    required this.onMenu,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
   final VoidCallback onApps;
+  final VoidCallback onMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -823,6 +858,7 @@ class _InboxDock extends StatelessWidget {
             child: InkWell(
               borderRadius: BorderRadius.circular(14),
               onTap: onApps,
+              onLongPress: onMenu,
               child: const SizedBox(
                 width: 44,
                 height: 44,

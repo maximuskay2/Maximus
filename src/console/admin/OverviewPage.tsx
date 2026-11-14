@@ -50,10 +50,11 @@ export function OverviewView({ model, loading, error }: { model: OverviewModel |
   if (loading && !model) return <LoadingState />;
   if (!model) return <EmptyState title={t("console.dashboard.noAccess")} body={error ?? undefined} />;
   const trend = sparkTrend(model.trend);
-  const duties: Array<{ view: string; label: "console.dashboard.navUsers" | "console.dashboard.navPlans" | "console.dashboard.navRates" | "console.harness.keys" | "console.harness.messages" | "console.dashboard.navSettings" }> = [
+  const duties: Array<{ view: string; label: "console.dashboard.navUsers" | "console.dashboard.navPlans" | "console.dashboard.navRates" | "console.dashboard.navCredit" | "console.harness.keys" | "console.harness.messages" | "console.dashboard.navSettings" }> = [
     { view: "users", label: "console.dashboard.navUsers" },
     { view: "plans", label: "console.dashboard.navPlans" },
     { view: "rates", label: "console.dashboard.navRates" },
+    { view: "credit", label: "console.dashboard.navCredit" },
     { view: "keys", label: "console.harness.keys" },
     { view: "messages", label: "console.harness.messages" },
     { view: "settings", label: "console.dashboard.navSettings" },

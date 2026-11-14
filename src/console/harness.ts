@@ -75,6 +75,11 @@ export function harnessSession(options?: HarnessCallOptions): Promise<HarnessSes
   return call<unknown>("/api/auth/session", options ?? {}).then(toHarnessSession, () => toHarnessSession(null));
 }
 
+/** The dashboard opens only for a server session that carries the admin scope and an email. Loopback and a member cookie stay shut. */
+export function adminSessionOpen(session: HarnessSessionView): boolean {
+  return session.kind === "session" && session.admin && session.email.includes("@");
+}
+
 export interface SignInLists {
   admins: string[];
   members: string[];
@@ -451,6 +456,34 @@ export function saveRation(profile: RationProfileView, options?: HarnessCallOpti
 
 export function saveRationPoolKey(key: string, options?: HarnessCallOptions): Promise<{ pool: { configured: boolean; last4: string } }> {
   return call<{ pool: { configured: boolean; last4: string } }>("/api/admin/ration/pool-key", { ...options, method: "PUT", body: { key } });
+}
+
+export interface AccountSeatView {
+  email: string;
+  plan: "byo" | "starter" | "plus" | "pro" | null;
+  creditUsd: number;
+  spentUsd: number;
+  allowanceUsd: number;
+  leftUsd: number;
+  note: string;
+  at: number;
+}
+
+export interface AccountGrantBody {
+  email: string;
+  plan?: "byo" | "starter" | "plus" | "pro";
+  creditUsd?: number;
+  tokens?: number;
+  note?: string;
+  renew?: boolean;
+}
+
+export function adminGrants(options?: HarnessCallOptions): Promise<{ grants: AccountSeatView[] }> {
+  return call<{ grants: AccountSeatView[] }>("/api/admin/grants", options ?? {});
+}
+
+export function grantAccount(body: AccountGrantBody, options?: HarnessCallOptions): Promise<{ seat: AccountSeatView; grants: AccountSeatView[] }> {
+  return call<{ seat: AccountSeatView; grants: AccountSeatView[] }>("/api/admin/grants", { ...options, method: "POST", body });
 }
 
 export interface GatewaySecretStatusView {

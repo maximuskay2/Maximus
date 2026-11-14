@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { t } from "../lib/i18n";
 import { Select } from "../components/Select";
@@ -46,9 +46,11 @@ import {
   type ConsoleWorkspace,
   type WorkspaceProviderState,
 } from "./account";
-import { harnessSession } from "./harness";
+import { adminSessionOpen, harnessSession } from "./harness";
+import { AdminPasswordGate } from "./admin/Gate";
 import { ConsoleError as ErrorBox, ConsoleShell, fieldInput, fieldLabel, ghostButton, primaryButton } from "./shell";
 import { OverviewPage } from "./admin/OverviewPage";
+import { CreditPage } from "./admin/CreditPage";
 import { PlansPage } from "./admin/PlansPage";
 import { RatesPage } from "./admin/RatesPage";
 import { KeysPage, MessagesPage, SettingsPage } from "./admin/ServerPages";
@@ -780,15 +782,36 @@ function initialView(): DashboardView {
 export function AdminPage() {
   const [view, setView] = useState<DashboardView>(initialView);
   const [identity, setIdentity] = useState("");
+  const [phase, setPhase] = useState<"checking" | "locked" | "open">("checking");
+  const watch = useRef(0);
 
   useEffect(() => {
-    const account = consoleAccount.load();
-    harnessSession().then((session) => {
-      const who = account?.email || session.email || session.label;
-      setIdentity(who);
-    }, () => {
-      setIdentity(account?.email ?? "");
-    });
+    let live = true;
+    const check = (): void => {
+      const mine = ++watch.current;
+      harnessSession().then((session) => {
+        if (!live || mine !== watch.current) return;
+        if (adminSessionOpen(session)) {
+          setIdentity(session.email);
+          setPhase("open");
+          return;
+        }
+        setIdentity("");
+        setPhase((current) => (current === "open" ? "locked" : current === "checking" ? "locked" : current));
+      }, () => {
+        if (!live || mine !== watch.current) return;
+        setIdentity("");
+        setPhase((current) => (current === "checking" || current === "open" ? "locked" : current));
+      });
+    };
+    check();
+    const timer = window.setInterval(check, 60_000);
+    window.addEventListener("focus", check);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", check);
+    };
   }, []);
 
   const pickView = (next: DashboardView): void => {
@@ -805,11 +828,24 @@ export function AdminPage() {
   };
 
   const logout = (): void => {
+    watch.current += 1;
     consoleAccount.clear();
-    fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => undefined).finally(() => {
-      window.location.assign("/signin");
-    });
+    setIdentity("");
+    setPhase("locked");
+    fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => undefined);
   };
+
+  if (phase !== "open") {
+    return phase === "checking"
+      ? <p role="status" className="grid min-h-screen place-items-center bg-app text-[14px] text-ink-secondary">{t("console.loading")}</p>
+      : (
+        <AdminPasswordGate onOpen={(email) => {
+          watch.current += 1;
+          setIdentity(email);
+          setPhase("open");
+        }} />
+      );
+  }
 
   return (
     <DashboardShell view={view} onView={pickView} identity={identity} onLogout={logout}>
@@ -818,6 +854,7 @@ export function AdminPage() {
       {view === "workspace" && <WorkspacePage />}
       {view === "plans" && <PlansPage />}
       {view === "rates" && <RatesPage />}
+      {view === "credit" && <CreditPage />}
       {view === "keys" && <KeysPage />}
       {view === "messages" && <MessagesPage />}
       {view === "settings" && <SettingsPage />}

@@ -8,6 +8,7 @@ import 'api/models.dart';
 import 'api/session_store.dart';
 import 'api/thread_cache.dart';
 import 'auth/auth_state.dart';
+import 'auth/forgot_password_page.dart';
 import 'auth/signin_page.dart';
 import 'auth/splash_page.dart';
 import 'auth/welcome_page.dart';
@@ -94,6 +95,15 @@ class _MaximusAppState extends State<MaximusApp>
   void _onAppLink(Uri uri) {
     if (uri.scheme == 'maximus' && uri.host == 'oauth') {
       unawaited(_redeemOAuth(uri));
+      return;
+    }
+    final resetToken = uri.queryParameters['token']?.trim() ?? '';
+    if ((uri.scheme == 'https' || uri.scheme == 'http') && uri.path == '/reset' && resetToken.isNotEmpty) {
+      _nav.currentState?.push(
+        MaterialPageRoute<void>(
+          builder: (_) => ForgotPasswordPage(auth: _auth, initialToken: resetToken),
+        ),
+      );
       return;
     }
     final link = AppLink.parse(uri);

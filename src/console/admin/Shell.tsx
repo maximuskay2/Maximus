@@ -9,6 +9,7 @@ import {
   Settings,
   Tag,
   Users,
+  Wallet,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -17,14 +18,15 @@ import { productName } from "../../lib/brand";
 import { t } from "../../lib/i18n";
 import type { LocaleKey } from "../../locales";
 
-export type DashboardView = "overview" | "users" | "workspace" | "plans" | "rates" | "keys" | "messages" | "settings";
+export type DashboardView = "overview" | "users" | "workspace" | "plans" | "rates" | "credit" | "keys" | "messages" | "settings";
 
-export const DASHBOARD_VIEWS: ReadonlyArray<{ id: DashboardView; labelKey: "console.dashboard.navOverview" | "console.dashboard.navUsers" | "console.admin.legWorkspace" | "console.dashboard.navPlans" | "console.dashboard.navRates" | "console.harness.keys" | "console.harness.messages" | "console.dashboard.navSettings"; icon: LucideIcon }> = [
+export const DASHBOARD_VIEWS: ReadonlyArray<{ id: DashboardView; labelKey: "console.dashboard.navOverview" | "console.dashboard.navUsers" | "console.admin.legWorkspace" | "console.dashboard.navPlans" | "console.dashboard.navRates" | "console.dashboard.navCredit" | "console.harness.keys" | "console.harness.messages" | "console.dashboard.navSettings"; icon: LucideIcon }> = [
   { id: "overview", labelKey: "console.dashboard.navOverview", icon: LayoutDashboard },
   { id: "users", labelKey: "console.dashboard.navUsers", icon: Users },
   { id: "workspace", labelKey: "console.admin.legWorkspace", icon: Building2 },
   { id: "plans", labelKey: "console.dashboard.navPlans", icon: Tag },
   { id: "rates", labelKey: "console.dashboard.navRates", icon: Tag },
+  { id: "credit", labelKey: "console.dashboard.navCredit", icon: Wallet },
   { id: "keys", labelKey: "console.harness.keys", icon: KeyRound },
   { id: "messages", labelKey: "console.harness.messages", icon: MessagesSquare },
   { id: "settings", labelKey: "console.dashboard.navSettings", icon: Settings },
@@ -37,7 +39,7 @@ export function dashboardViewFromParam(raw: string | null): DashboardView {
 const NAV_GROUPS: ReadonlyArray<{ labelKey: LocaleKey | null; ids: readonly DashboardView[] }> = [
   { labelKey: null, ids: ["overview"] },
   { labelKey: "console.harness.users", ids: ["users", "workspace"] },
-  { labelKey: "console.dashboard.navPlans", ids: ["plans", "rates"] },
+  { labelKey: "console.dashboard.navPlans", ids: ["plans", "rates", "credit"] },
   { labelKey: "console.harness.server", ids: ["keys", "messages", "settings"] },
 ];
 
@@ -47,6 +49,7 @@ const PAGE_LEAD: Record<DashboardView, LocaleKey> = {
   workspace: "console.admin.seats",
   plans: "console.dashboard.plansHint",
   rates: "console.dashboard.ratesHint",
+  credit: "console.dashboard.creditHint",
   keys: "console.harness.subtitle",
   messages: "console.harness.subtitle",
   settings: "console.harness.subtitle",

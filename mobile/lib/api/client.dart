@@ -131,6 +131,16 @@ abstract class MaximusApi {
     required String email,
     required String password,
   });
+
+  /// POST /api/auth/password/forgot — email a one-time reset link. Unknown addresses still succeed.
+  Future<void> requestPasswordReset(String baseUrl, String email);
+
+  /// POST /api/auth/password/reset — set a new password from the emailed token.
+  Future<void> resetPassword(
+    String baseUrl, {
+    required String token,
+    required String password,
+  });
   Future<List<String>> emailVerify(
     String baseUrl, {
     required String email,
@@ -512,6 +522,30 @@ abstract class MaximusApi {
 
   /// PUT /api/config — save provider API keys (write-only secrets).
   Future<void> putConfig(String baseUrl, Map<String, Object?> patch);
+
+  /// GET /api/connectors/catalog — third-party apps a bot can use.
+  Future<ConnectorCatalog> connectorCatalog(String baseUrl);
+
+  /// GET /api/connectors/connected — which of those apps are signed in.
+  Future<Map<String, ConnectorLink>> connectorConnections(String baseUrl);
+
+  /// POST /api/connectors/:slug/authorize — the browser page that signs the app in.
+  Future<String> connectorAuthorize(
+    String baseUrl,
+    String slug, {
+    String? alias,
+  });
+
+  /// DELETE one account, or the whole service when [accountId] is omitted.
+  /// Phones paired through the companion may only delete an account id.
+  Future<void> connectorDisconnect(
+    String baseUrl,
+    String slug, {
+    String? accountId,
+  });
+
+  /// GET /api/bots/:id/mcp-servers — names and on/off only (no commands or URLs).
+  Future<List<BotMcpServer>> botMcpServers(String baseUrl, String botId);
 
   /// POST /api/bots/:id/secret-cards/:msg/save — email or custom secret.
   Future<void> saveSecretCard(
@@ -1160,6 +1194,23 @@ class MaximusClient implements MaximusApi {
     required String password,
   }) {
     return _account('POST', baseUrl, '/api/auth/signup', email: email, password: password);
+  }
+
+  @override
+  Future<void> requestPasswordReset(String baseUrl, String email) async {
+    await _json('POST', _u(baseUrl, '/api/auth/password/forgot'), body: {'email': email});
+  }
+
+  @override
+  Future<void> resetPassword(
+    String baseUrl, {
+    required String token,
+    required String password,
+  }) async {
+    await _json('POST', _u(baseUrl, '/api/auth/password/reset'), body: {
+      'token': token,
+      'password': password,
+    });
   }
 
   /// POST /api/auth/email/start — request an email OTP code.
@@ -2458,6 +2509,71 @@ class MaximusClient implements MaximusApi {
       await parser.close();
     });
     return sub;
+  }
+
+  @override
+  Future<ConnectorCatalog> connectorCatalog(String baseUrl) async {
+    final json = await _json('GET', _u(baseUrl, '/api/connectors/catalog'));
+    return ConnectorCatalog.fromJson(json);
+  }
+
+  @override
+  Future<Map<String, ConnectorLink>> connectorConnections(String baseUrl) async {
+    final json = await _json('GET', _u(baseUrl, '/api/connectors/connected'));
+    final services = json['services'];
+    if (services is! Map) return const {};
+    return {
+      for (final entry in services.entries)
+        if (entry.key is String && entry.value is Map)
+          entry.key as String: ConnectorLink.fromJson(
+            Map<String, Object?>.from(entry.value as Map),
+          ),
+    };
+  }
+
+  @override
+  Future<String> connectorAuthorize(
+    String baseUrl,
+    String slug, {
+    String? alias,
+  }) async {
+    final json = await _json(
+      'POST',
+      _u(baseUrl, '/api/connectors/${Uri.encodeComponent(slug)}/authorize'),
+      body: {
+        if (alias != null && alias.isNotEmpty) 'alias': alias,
+      },
+    );
+    final url = json['url'];
+    if (url is! String || url.isEmpty) {
+      throw ApiError(200, 'authorize returned no URL');
+    }
+    return url;
+  }
+
+  @override
+  Future<void> connectorDisconnect(
+    String baseUrl,
+    String slug, {
+    String? accountId,
+  }) async {
+    final path = accountId == null || accountId.isEmpty
+        ? '/api/connectors/${Uri.encodeComponent(slug)}'
+        : '/api/connectors/${Uri.encodeComponent(slug)}/accounts/${Uri.encodeComponent(accountId)}';
+    await _json('DELETE', _u(baseUrl, path));
+  }
+
+  @override
+  Future<List<BotMcpServer>> botMcpServers(String baseUrl, String botId) async {
+    final json = await _json(
+      'GET',
+      _u(baseUrl, '/api/bots/${Uri.encodeComponent(botId)}/mcp-servers'),
+    );
+    final raw = json['servers'];
+    return [
+      for (final item in raw is List ? raw : const [])
+        if (item is Map<String, Object?>) ?BotMcpServer.tryFrom(item),
+    ];
   }
 
   @override

@@ -5,7 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { AdminPlan } from "./harness";
 import { OverviewView } from "./admin/OverviewPage";
 import { PlanModal, planFormOf, planInputOf, validatePlanForm } from "./admin/PlansPage";
+import { CreditForm, creditFormProblem } from "./admin/CreditPage";
+import { AdminPasswordGate } from "./admin/Gate";
 import { DashboardShell, dashboardViewFromParam } from "./admin/Shell";
+import { adminSessionOpen } from "./harness";
 import { DataTable, MetricCard, pageRows, sortRows, Sparkline, sparkTrend } from "./admin/ui";
 import { buildUserRows, filterUserRows, UserModal, validateUserEntry, validAccessEntry } from "./admin/UsersPage";
 
@@ -14,6 +17,7 @@ const noop = (): void => undefined;
 describe("dashboard shell", () => {
   it("reads the view param and falls back to overview", () => {
     expect(dashboardViewFromParam("users")).toBe("users");
+    expect(dashboardViewFromParam("credit")).toBe("credit");
     expect(dashboardViewFromParam("keys")).toBe("keys");
     expect(dashboardViewFromParam("nope")).toBe("overview");
     expect(dashboardViewFromParam(null)).toBe("overview");
@@ -29,8 +33,23 @@ describe("dashboard shell", () => {
     }));
     expect(html).toContain("ada@example.com");
     expect(html).toContain("Users");
+    expect(html).toContain("Credit");
     expect(html).toContain("aria-current=\"page\"");
     expect(html).toContain("body");
+  });
+
+  it("keeps the sidebar shut until a server admin session exists", () => {
+    expect(adminSessionOpen({ kind: "session", admin: true, email: "ada@example.com", label: "" })).toBe(true);
+    expect(adminSessionOpen({ kind: "session", admin: false, email: "ada@example.com", label: "" })).toBe(false);
+    expect(adminSessionOpen({ kind: "session", admin: true, email: "", label: "Browser" })).toBe(false);
+    expect(adminSessionOpen({ kind: "loopback", admin: true, email: "", label: "" })).toBe(false);
+    expect(adminSessionOpen({ kind: "none", admin: false, email: "", label: "" })).toBe(false);
+    const html = renderToStaticMarkup(createElement(AdminPasswordGate, { onOpen: noop }));
+    expect(html).toContain("Admin sign-in");
+    expect(html).toContain("admin-gate-password");
+    expect(html).not.toContain("Users");
+    expect(html).not.toContain("Credit");
+    expect(html).not.toContain("Rates");
   });
 });
 
@@ -95,9 +114,25 @@ describe("overview view", () => {
     }));
     expect(html).toContain("1,000 tokens");
     expect(html).toContain("session.revoke");
+    expect(html).toContain("view=credit");
+    expect(html).toContain("Credit");
     expect(html).toContain("<svg");
     const loading = renderToStaticMarkup(createElement(OverviewView, { loading: true, error: null, model: null }));
     expect(loading).toContain('role="status"');
+  });
+});
+
+describe("credit form", () => {
+  it("asks for an email and a plan, amount, or token count", () => {
+    expect(creditFormProblem("", "", "", "")).toBe("console.dashboard.creditInvalid");
+    expect(creditFormProblem("ada@example.com", "", "", "")).toBe("console.dashboard.creditNeed");
+    expect(creditFormProblem("ada@example.com", "plus", "", "")).toBeNull();
+    expect(creditFormProblem("ada@example.com", "", "5", "")).toBeNull();
+    expect(creditFormProblem("ada@example.com", "", "", "1.5")).toBe("console.dashboard.creditTokensBad");
+    const html = renderToStaticMarkup(createElement(CreditForm, { busy: false, serverError: null, onSubmit: noop }));
+    expect(html).toContain("Add to this account");
+    expect(html).toContain("credit-email");
+    expect(html).toContain("Start a new billing month");
   });
 });
 

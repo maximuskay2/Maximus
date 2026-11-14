@@ -252,11 +252,12 @@ void main() {
 
   testWidgets('settings hub lists every section', (tester) async {
     final api = FakeApi();
+    final auth = await authWith(api);
     await tester.pumpWidget(
       MaterialApp(
         theme: MaxTokens.light(),
         home: SettingsPage(
-          auth: await authWith(api),
+          auth: auth,
           baseUrl: 'https://h.example',
           serverName: 'Home',
           bots: FakeApi.botsPayload,
@@ -265,23 +266,45 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    for (final label in ['Account', 'Devices', 'Usage', 'Bot computer']) {
-      expect(find.text(label), findsWidgets, reason: label);
-    }
-    await tester.drag(find.byType(ListView), const Offset(0, -1200));
-    await tester.pumpAndSettle();
-    for (final label in [
+    expect(auth.isAdmin, isTrue);
+    // Same labels as web Advanced Settings (screenshot) plus phone Apps / prefs.
+    final labels = [
+      'General',
       'Appearance',
+      'Remote access',
+      'Model providers',
+      'API keys',
+      'Decision and extraction',
+      'Image generation',
+      'Apps',
+      'Bot desktops',
+      'Logins',
+      'Usage',
+      'Backups',
+      'Import',
+      'People',
+      'Activity',
+      'Workspace & billing',
+      'Experimental',
       'Haptics',
       'Language',
       'Time zone',
       'Feedback',
-    ]) {
-      expect(find.text(label), findsWidgets, reason: label);
+    ];
+    final seen = <String>{};
+    for (var i = 0; i < 12; i += 1) {
+      seen.addAll(
+        find
+            .byWidgetPredicate((widget) => widget is Text && widget.data != null)
+            .evaluate()
+            .map((el) => (el.widget as Text).data!),
+      );
+      await tester.drag(find.byType(ListView).first, const Offset(0, -400));
+      await tester.pumpAndSettle();
     }
-    await tester.drag(find.byType(ListView), const Offset(0, 1200));
-    await tester.pumpAndSettle();
-    expect(find.text('Max'), findsWidgets);
+    for (final label in labels) {
+      expect(seen.contains(label), isTrue, reason: '$label not in $seen');
+    }
   });
 
   testWidgets('account page shows session and signs out', (tester) async {

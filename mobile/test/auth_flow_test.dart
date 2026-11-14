@@ -4,6 +4,7 @@ import 'package:maximus/settings/preferences.dart';
 import 'package:maximus/api/models.dart';
 import 'package:maximus/api/session_store.dart';
 import 'package:maximus/auth/auth_state.dart';
+import 'package:maximus/auth/forgot_password_page.dart';
 import 'package:maximus/auth/signin_page.dart';
 import 'package:maximus/auth/welcome_page.dart';
 import 'package:maximus/home/home_page.dart';
@@ -65,6 +66,34 @@ void main() {
     await tester.tap(find.text('Sign in'));
     await tester.pump();
     expect(find.text('New here?'), findsOneWidget);
+    expect(find.text('Forgot password?'), findsOneWidget);
+  });
+
+  testWidgets('forgot password emails a link and saves a new password', (tester) async {
+    final api = FakeApi();
+    final auth = AuthState(store: MemorySessionStore(), client: api);
+    await auth.load();
+    await tester.pumpWidget(
+      MaterialApp(theme: MaxTokens.light(), home: SignInPage(auth: auth)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Forgot password?'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Email'), 'ada@example.com');
+    await tester.tap(find.text('Email reset link'));
+    await tester.pumpAndSettle();
+    expect(api.resetEmail, 'ada@example.com');
+    expect(find.textContaining('the link is on its way'), findsOneWidget);
+
+    const link = 'https://app.meetnote.cc/reset?token=abc.def';
+    expect(passwordResetToken(link), 'abc.def');
+    await tester.enterText(find.widgetWithText(TextField, 'Reset link'), link);
+    await tester.enterText(find.widgetWithText(TextField, 'New password'), 'brand-new-secret');
+    await tester.tap(find.text('Save password'));
+    await tester.pumpAndSettle();
+    expect(api.resetToken, 'abc.def');
+    expect(api.resetPasswordValue, 'brand-new-secret');
+    expect(find.text('Back to sign in'), findsOneWidget);
   });
 
   testWidgets('MaximusApp gates on load then shows welcome', (tester) async {
