@@ -56,6 +56,7 @@ const PLAN_DISPLAY: Readonly<Record<string, PlanDisplay>> = {
     name: "Free",
     blurb: "Your own models, on your own machine.",
     features: [
+      "Web, desktop, and phone",
       "Bring your own Claude, ChatGPT, Grok, Kimi and Muse logins",
       "Local-first: data stays on your machine",
       "Approval cards for risky actions",
@@ -64,12 +65,12 @@ const PLAN_DISPLAY: Readonly<Record<string, PlanDisplay>> = {
   team: {
     name: "Team",
     blurb: "Hosted workspaces with admin controls.",
-    features: ["Everything in Free", "Hosted workspaces with team invites", "Admin console, spend caps and billable usage"],
+    features: ["Web, desktop, and phone", "Everything in Free", "Hosted workspaces with team invites", "Admin console, spend caps and billable usage"],
   },
   business: {
     name: "Business",
     blurb: "Bundled models and organization controls.",
-    features: ["Everything in Team", "LLM-included usage with monthly allowance", "SSO and white label"],
+    features: ["Web, desktop, and phone", "Everything in Team", "LLM-included usage with monthly allowance", "SSO and white label"],
   },
 };
 

@@ -6,6 +6,7 @@ import '../api/models.dart';
 import '../billing/billing_service.dart';
 import '../billing/paywall_page.dart';
 import '../billing/subscription_page.dart';
+import '../engines/engines_page.dart';
 import '../settings/preferences.dart';
 import 'console_account.dart';
 
@@ -357,22 +358,44 @@ class _WorkspacePageState extends State<WorkspacePage> {
           subtitle: Text(
             subscribed
                 ? '${billing.status?.plan ?? 'Paid'} · billed by the store'
-                : 'Monthly plans with the AIs included',
+                : 'Use our AI or bring your own',
           ),
           trailing: const Icon(Icons.chevron_right_outlined),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => subscribed
-                  ? SubscriptionPage(
-                      billing: billing,
-                      workspaceName: workspace.displayName,
-                    )
-                  : PaywallPage(
-                      billing: billing,
-                      workspaceName: workspace.displayName,
-                    ),
-            ),
-          ),
+          onTap: () async {
+            if (subscribed) {
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => SubscriptionPage(
+                    billing: billing,
+                    workspaceName: workspace.displayName,
+                  ),
+                ),
+              );
+              return;
+            }
+            final result = await Navigator.of(context).push<PaywallResult>(
+              MaterialPageRoute(
+                builder: (_) => PaywallPage(
+                  billing: billing,
+                  workspaceName: workspace.displayName,
+                  client: _client,
+                  baseUrl: widget.baseUrl,
+                  timeZone: widget.prefs.timeZone,
+                ),
+              ),
+            );
+            if (!context.mounted) return;
+            if (result == PaywallResult.byo) {
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => EnginesPage(
+                    client: _client,
+                    baseUrl: widget.baseUrl,
+                  ),
+                ),
+              );
+            }
+          },
         );
       },
     );
@@ -488,7 +511,24 @@ class _WorkspacePageState extends State<WorkspacePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('AIs', style: Theme.of(context).textTheme.titleMedium),
+        Row(
+          children: [
+            Expanded(
+              child: Text('AIs', style: Theme.of(context).textTheme.titleMedium),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => EnginesPage(
+                    client: _client,
+                    baseUrl: widget.baseUrl,
+                  ),
+                ),
+              ),
+              child: const Text('Connect'),
+            ),
+          ],
+        ),
         const Text('Which AIs this workspace\u2019s bots may use.'),
         const SizedBox(height: 4),
         if (_providers.isEmpty)

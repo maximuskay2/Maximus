@@ -1,4 +1,7 @@
-/// Phase 8: App Store / Play product ids for monthly individual plans.
+/// Phase 8: App Store / Play product ids for monthly Muse (use-our-AI) plans.
+///
+/// BYO ("Your model") is sold through Paystack / the web catalog as plan
+/// id `byo`, not through these store product ids.
 ///
 /// OWNER: create these exact ids in App Store Connect and Play Console
 /// (auto-renewable subscriptions, one month) and mirror them in

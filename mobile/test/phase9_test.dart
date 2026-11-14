@@ -57,6 +57,14 @@ void main() {
       expect(link.threadId, 't1');
     });
 
+    test('share prefills composer text', () {
+      final link = AppLink.parse(
+        Uri.parse('maximus://share?text=look%20at%20this'),
+      );
+      expect(link!.kind, AppLinkKind.share);
+      expect(link.text, 'look at this');
+    });
+
     test('rejects other schemes and hosts', () {
       expect(AppLink.parse(Uri.parse('https://bots')), isNull);
       expect(AppLink.parse(Uri.parse('maximus://nope')), isNull);

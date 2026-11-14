@@ -6,13 +6,16 @@ import 'models.dart';
 /// Minimal SSE parser for `/api/events`: splits `event:`/`data:` frames,
 /// JSON-decodes the payload, and surfaces `{kind, ...payload}` live events.
 /// Multi-line data blocks are joined with `\n` per the SSE spec; comment
-/// lines (`: ...`) and the retry field are ignored.
+/// lines (`: ...`) and the retry field are ignored. An `id:` field is kept
+/// on the event so a reconnect can send it back as `since`.
 class SseParser {
   final StreamController<LiveEvent> _events =
       StreamController<LiveEvent>.broadcast();
   final StringBuffer _data = StringBuffer();
   String _event = 'message';
+  String? _id;
   bool _hasData = false;
+  bool _closed = false;
 
   Stream<LiveEvent> get events => _events.stream;
 
@@ -36,8 +39,11 @@ class SseParser {
         _data.write(value);
         _hasData = true;
         break;
+      case 'id':
+        _id = value;
+        break;
       default:
-        break; // retry, id, and unknown fields are ignored
+        break; // retry and unknown fields are ignored
     }
   }
 
@@ -55,18 +61,22 @@ class SseParser {
       final decoded = jsonDecode(raw);
       if (decoded is Map<String, Object?>) {
         final kind = decoded['kind'] as String? ?? name;
-        _events.add(LiveEvent(kind: kind, data: decoded));
+        _events.add(LiveEvent(kind: kind, data: decoded, id: _id));
       } else {
         _events.add(
-          LiveEvent(kind: name, data: {'value': decoded}),
+          LiveEvent(kind: name, data: {'value': decoded}, id: _id),
         );
       }
     } catch (_) {
-      _events.add(LiveEvent(kind: name, data: {'text': raw}));
+      _events.add(LiveEvent(kind: name, data: {'text': raw}, id: _id));
     }
   }
 
-  Future<void> close() => _events.close();
+  Future<void> close() {
+    if (_closed) return Future<void>.value();
+    _closed = true;
+    return _events.close();
+  }
 }
 
 /// The browser stream puts its message name on the SSE `event:` line and
@@ -87,6 +97,7 @@ StreamSubscription<String> bindLines(
   Stream<List<int>> bytes,
   SseParser parser, {
   void Function(Object error)? onError,
+  void Function()? onDone,
 }) {
   return bytes
       .transform(utf8.decoder)
@@ -101,6 +112,7 @@ StreamSubscription<String> bindLines(
         },
         onDone: () {
           parser.addLine('');
+          onDone?.call();
         },
       );
 }

@@ -9,6 +9,7 @@ import type { WidgetAction } from "../../shared/widget.ts";
 import { parseFollowUp } from "../../shared/follow-up.ts";
 import type { ResolvedSender } from "../../shared/wire.ts";
 import { admit } from "../admission.ts";
+import { chatRationRefusal } from "../billing/ration-service.ts";
 import { dismissQuestionCard } from "../card-dismissal.ts";
 import { AppMessageRate, appContextBlock, prepareAppMessage } from "../chat-apps.ts";
 import { prepareWidgetPress, reopenCancelledPress } from "../chat-widgets.ts";
@@ -48,6 +49,12 @@ type SkillResolution =
 type CardAnswer = { botId: string; botName?: string; threadId: string; requestId: string; behavior: string };
 
 type Behavior = "allow" | "deny" | "answer";
+
+function rationRefusal(auth: RequestAuth, text: string): { status: number; body: { error: string; code: string } } | null {
+  const email = auth.kind === "session" ? auth.session.email : undefined;
+  const refusal = chatRationRefusal(email, text);
+  return refusal ? { status: refusal.status, body: { error: refusal.message, code: refusal.code } } : null;
+}
 
 export interface BotMessageRouteDeps {
   store: Pick<Store,
@@ -237,6 +244,8 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
         const accepted = goalSendId ? acceptedSendMatch(store.messagesFor(threadId), goalSendId, typed, undefined, "goal") : null;
         if (accepted?.kind === "conflict") return json(res, 409, { error: "sendId already belongs to another message" });
         if (accepted?.kind === "match") return json(res, 202, { ok: true, threadId, message: accepted.message });
+        const goalRation = rationRefusal(auth, typed);
+        if (goalRation) return json(res, goalRation.status, goalRation.body);
         const message = goals.start(bot.id, threadId, typed, { sendId: goalSendId, sender: messageSender(auth) });
         return json(res, 202, { ok: true, threadId, message });
       }
@@ -443,9 +452,29 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
       const threadId = parsed.data.threadId ?? bot.threadId;
       if (store.botByThread(threadId)?.id !== bot.id) return json(res, 404, { error: "no such conversation" });
       const connects = auth.scopes.includes("admin") ? undefined : deps.teamAiOwnerName?.();
-      const next = helperFollowup(store.messagesFor(threadId), () => followupFacts(bot, parsed.data, store.bots, routines?.listRoutines() ?? [], connects));
+      const facts = () => followupFacts(bot, parsed.data, store.bots, routines?.listRoutines() ?? [], connects);
+      // Re-read immediately before append so a concurrent first-run POST cannot write a second follow-up.
+      const decide = () => helperFollowup(store.messagesFor(threadId), facts);
+      let next = decide();
       if (!next) return json(res, 409, { ...userError("serverError.setup.noIntroToFollowUp") });
       if ("existing" in next) return json(res, 200, { message: next.existing });
+      if ("upgrade" in next) {
+        const message = store.patchMessage(threadId, next.upgrade.id, {
+          text: next.upgrade.text,
+          helperFollowup: next.upgrade.helperFollowup,
+        });
+        return json(res, 200, { message: message ?? { ...next.upgrade, role: "bot", kind: "text" } });
+      }
+      next = decide();
+      if (!next) return json(res, 409, { ...userError("serverError.setup.noIntroToFollowUp") });
+      if ("existing" in next) return json(res, 200, { message: next.existing });
+      if ("upgrade" in next) {
+        const message = store.patchMessage(threadId, next.upgrade.id, {
+          text: next.upgrade.text,
+          helperFollowup: next.upgrade.helperFollowup,
+        });
+        return json(res, 200, { message: message ?? { ...next.upgrade, role: "bot", kind: "text" } });
+      }
       return json(res, 201, { message: store.appendMessage(threadId, next.append) });
     }
     m = path.match(/^\/api\/bots\/([\w-]+)\/compact$/);
@@ -487,6 +516,8 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
         }
         if (accepted.kind === "match") return json(res, 202, { ok: true, message: accepted.message });
       }
+      const editRation = rationRefusal(auth, text);
+      if (editRation) return json(res, editRation.status, editRation.body);
       // Synchronous from here: startTurn flips busy before the next request, so two racing edits cannot both pass.
       if (threadBusy(bot.id, bot.threadId)) return json(res, 409, userError("serverError.chat.busyEdit"));
       if (phoneSecretSubmissions.hasThread(bot.threadId)) {

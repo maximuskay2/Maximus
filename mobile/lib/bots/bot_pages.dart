@@ -18,6 +18,7 @@ class BotProfilePage extends StatefulWidget {
     this.onChanged,
     this.cache,
     this.serverId,
+    this.onSessionEnded,
   });
 
   final MaximusApi client;
@@ -27,6 +28,7 @@ class BotProfilePage extends StatefulWidget {
   /// Disk cache passthrough for opened threads (both set to enable).
   final ThreadCache? cache;
   final String? serverId;
+  final Future<void> Function()? onSessionEnded;
 
   /// Owner-only: shows the edit action. The server has no bot-delete
   /// endpoint — archive a thread to remove a conversation.
@@ -110,6 +112,14 @@ class _BotProfilePageState extends State<BotProfilePage>
             thread.threadId,
           );
           for (final message in page.messages) {
+            if (message.publishedPage != null) {
+              items.add(
+                _LibraryItem(
+                  page: message.publishedPage,
+                  threadTitle: thread.title,
+                ),
+              );
+            }
             for (final attachment in message.attachments) {
               items.add(
                 _LibraryItem(
@@ -145,6 +155,7 @@ class _BotProfilePageState extends State<BotProfilePage>
           thread: thread,
           cache: widget.cache,
           serverId: widget.serverId,
+          onSessionEnded: widget.onSessionEnded,
         ),
       ),
     );
@@ -393,9 +404,21 @@ class _EmptyThreads extends StatelessWidget {
 }
 
 class _LibraryItem {
-  const _LibraryItem({required this.attachment, required this.threadTitle});
-  final MessageAttachment attachment;
+  const _LibraryItem({
+    this.attachment,
+    this.page,
+    required this.threadTitle,
+  });
+
+  final MessageAttachment? attachment;
+  final PublishedPage? page;
   final String threadTitle;
+
+  String get title =>
+      page?.title ??
+      attachment?.name ??
+      attachment?.mime ??
+      'Item';
 }
 
 class _LibraryView extends StatelessWidget {
@@ -433,7 +456,7 @@ class _LibraryView extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Images, files, and voice notes from recent threads land here.',
+                'Pages, images, files, and voice notes from recent threads land here.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -453,20 +476,27 @@ class _LibraryView extends StatelessWidget {
         itemBuilder: (context, index) {
           final item = items[index];
           final attachment = item.attachment;
+          final page = item.page;
           return ListTile(
             leading: Icon(
-              switch (attachment.kind) {
-                'image' => Icons.image_outlined,
-                'audio' => Icons.audio_file_outlined,
-                _ => Icons.insert_drive_file_outlined,
-              },
+              page != null
+                  ? Icons.link_outlined
+                  : switch (attachment?.kind) {
+                      'image' => Icons.image_outlined,
+                      'audio' => Icons.audio_file_outlined,
+                      _ => Icons.insert_drive_file_outlined,
+                    },
             ),
             title: Text(
-              attachment.name ?? attachment.mime,
+              item.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            subtitle: Text(item.threadTitle),
+            subtitle: Text(
+              page != null
+                  ? '${page.state} · ${item.threadTitle}'
+                  : item.threadTitle,
+            ),
           );
         },
       ),
@@ -564,6 +594,7 @@ class BotListBody extends StatelessWidget {
                   onChanged: (_) => onRefresh(),
                   cache: auth.cache,
                   serverId: auth.active?.id,
+                  onSessionEnded: auth.sessionEnded,
                 ),
               ),
             ),
@@ -731,6 +762,10 @@ class _BotsTabState extends State<BotsTab> {
           auth: widget.auth,
           baseUrl: baseUrl,
           group: group,
+          memberNames: [
+            for (final bot in widget.bots)
+              if (group.memberIds.contains(bot.id)) bot.name,
+          ],
         ),
       ),
     );
@@ -819,11 +854,15 @@ class GroupThreadPage extends StatelessWidget {
     required this.auth,
     required this.baseUrl,
     required this.group,
+    this.memberNames = const [],
   });
 
   final AuthState auth;
   final String baseUrl;
   final GroupSummary group;
+
+  /// Display names for `@` mentions (plus `@everyone` in the composer).
+  final List<String> memberNames;
 
   @override
   Widget build(BuildContext context) {
@@ -846,8 +885,10 @@ class GroupThreadPage extends StatelessWidget {
         createdAt: 0,
       ),
       groupId: group.id,
+      botNames: memberNames,
       cache: auth.cache,
       serverId: auth.active?.id,
+      onSessionEnded: auth.sessionEnded,
     );
   }
 }

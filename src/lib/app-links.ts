@@ -1,3 +1,5 @@
+import { PRODUCT_PUBLIC_ORIGIN } from "../../shared/product-origin";
+
 export const APP_NAME = "Maximus";
 export const APP_REPOSITORY = "https://github.com/RELEASE_OWNER/Maximus";
 export const DOCS_URL = `${APP_REPOSITORY}/tree/main/docs`;
@@ -6,7 +8,7 @@ export const APPROVAL_LEVELS_URL = `${APP_REPOSITORY}/blob/main/docs/approval-le
 export const PASSKEY_HELP_URL = "https://docs.maximus.com/docs/troubleshooting/google-sign-in-cloud-browser";
 export const FEEDBACK_URL = "https://discord.gg/9Wb8MEpXRs";
 export const RELEASES_URL = `${APP_REPOSITORY}/releases`;
-export const PRICING_URL = "https://www.maximus.com/pricing";
+export const PRICING_URL = `${PRODUCT_PUBLIC_ORIGIN}/pricing`;
 export const CLOUD_PLAN_URL = "https://cloud.maximus.com/cloud";
 export function withSource(url: string, source: string): string {
   const target = new URL(url);

@@ -39,6 +39,14 @@ void main() {
     expect(events.first.kind, 'note');
   });
 
+  test('keeps the SSE id on the event', () async {
+    final events = await parseLines([
+      'id: ab12cd34:9',
+      'data: {"kind":"message","id":"m1"}',
+    ]);
+    expect(events.single.id, 'ab12cd34:9');
+  });
+
   test('ignores comments and retry fields', () async {
     final events = await parseLines([
       ': heartbeat',

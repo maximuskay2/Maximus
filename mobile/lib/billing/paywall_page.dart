@@ -8,10 +8,16 @@ import '../api/models.dart';
 import 'billing_service.dart';
 import 'products.dart';
 
-/// Phase 8: monthly individual plans sold through the store. Web-plan
-/// holders never reach this page (the Workspace page only offers the
-/// upgrade while every membership is free and no store subscription
-/// is active).
+/// Result popped when the person finishes the plan list.
+enum PaywallResult {
+  /// Free grant or a Muse (use-our-AI) paid plan.
+  muse,
+
+  /// Bring-your-own seat — open engines next.
+  byo,
+}
+
+/// Monthly plans: Use our AI (Muse) vs Your model (BYO).
 class PaywallPage extends StatefulWidget {
   const PaywallPage({
     super.key,
@@ -21,6 +27,7 @@ class PaywallPage extends StatefulWidget {
     this.baseUrl,
     this.timeZone,
     this.required = false,
+    this.initialTrack = PaywallTrack.muse,
   });
 
   final BillingService billing;
@@ -32,9 +39,13 @@ class PaywallPage extends StatefulWidget {
   /// Sign-in leaves this page up until the person picks Free or a paid plan.
   final bool required;
 
+  final PaywallTrack initialTrack;
+
   @override
   State<PaywallPage> createState() => _PaywallPageState();
 }
+
+enum PaywallTrack { muse, byo }
 
 class _PaywallPageState extends State<PaywallPage> {
   List<ConsolePlan> _plans = const [];
@@ -44,11 +55,11 @@ class _PaywallPageState extends State<PaywallPage> {
   String? _paying;
   String? _freeNote;
   bool _freeChosen = false;
+  late PaywallTrack _track = widget.initialTrack;
 
   @override
   void initState() {
     super.initState();
-    widget.billing.loadProducts();
     _loadPlans();
   }
 
@@ -58,12 +69,15 @@ class _PaywallPageState extends State<PaywallPage> {
     final client = widget.client;
     final baseUrl = widget.baseUrl;
     if (client == null || baseUrl == null || baseUrl.isEmpty) {
+      await widget.billing.loadProducts();
       if (mounted) setState(() => _loadingPlans = false);
       return;
     }
+    var hosted = false;
     try {
       final plans = await client.consolePlans(baseUrl);
       final offer = await client.billingOffer(baseUrl, timeZone: _zone);
+      hosted = offer.hostedCheckout;
       if (mounted) {
         setState(() {
           _plans = plans;
@@ -73,6 +87,7 @@ class _PaywallPageState extends State<PaywallPage> {
     } catch (_) {
       /* the store cards still stand when the catalog cannot be read */
     } finally {
+      if (!hosted) await widget.billing.loadProducts();
       if (mounted) setState(() => _loadingPlans = false);
     }
   }
@@ -85,9 +100,16 @@ class _PaywallPageState extends State<PaywallPage> {
     }
   }
 
-  void _chosen() {
+  void _finish(PaywallResult result) {
     if (!mounted) return;
-    Navigator.of(context).pop(true);
+    Navigator.of(context).pop(result);
+  }
+
+  Future<void> _remember(String choice) async {
+    final client = widget.client;
+    final baseUrl = widget.baseUrl;
+    if (client == null || baseUrl == null || baseUrl.isEmpty) return;
+    await client.chooseAccountPlan(baseUrl, choice);
   }
 
   /// Opens the one free grant. The wallet says when this email or phone already used it.
@@ -95,7 +117,7 @@ class _PaywallPageState extends State<PaywallPage> {
     final client = widget.client;
     final baseUrl = widget.baseUrl;
     if (_freeChosen) {
-      _chosen();
+      _finish(PaywallResult.muse);
       return;
     }
     if (client == null || baseUrl == null || baseUrl.isEmpty) return;
@@ -106,7 +128,14 @@ class _PaywallPageState extends State<PaywallPage> {
     try {
       final wallet = await client.rationWallet(baseUrl, installId: await _installId());
       if (!mounted) return;
+      if (wallet.tier != 'free') {
+        await _remember(wallet.tier == 'byo' ? 'byo' : 'muse');
+        _finish(wallet.tier == 'byo' ? PaywallResult.byo : PaywallResult.muse);
+        return;
+      }
       if (wallet.leftUsd <= 0) {
+        await _remember('free');
+        if (!mounted) return;
         setState(() {
           _freeNote = wallet.grantedUsd <= 0
               ? 'This email or phone already used its free Muse grant.'
@@ -116,7 +145,8 @@ class _PaywallPageState extends State<PaywallPage> {
         });
         return;
       }
-      _chosen();
+      await _remember('free');
+      _finish(PaywallResult.muse);
     } catch (error) {
       if (mounted) setState(() => _payError = '$error');
     } finally {
@@ -128,6 +158,9 @@ class _PaywallPageState extends State<PaywallPage> {
     final client = widget.client;
     final baseUrl = widget.baseUrl;
     if (client == null || baseUrl == null) return;
+    final provider = _offer.provider;
+    if (provider != 'stripe' && provider != 'paystack' && provider != 'bachs') return;
+    final gateway = _offer.checkoutLabel;
     setState(() {
       _paying = plan.id;
       _payError = null;
@@ -138,7 +171,7 @@ class _PaywallPageState extends State<PaywallPage> {
       if (email == null || email.isEmpty) {
         if (mounted) {
           setState(() {
-            _payError = 'Sign in with email to pay with Paystack.';
+            _payError = 'Sign in with email to pay with $gateway.';
             _paying = null;
           });
         }
@@ -146,18 +179,20 @@ class _PaywallPageState extends State<PaywallPage> {
       }
       final checkout = await client.billingCheckout(
         baseUrl,
+        provider: provider,
         plan: plan.id,
         customerEmail: email,
         successUrl: '$baseUrl/',
         cancelUrl: '$baseUrl/',
         timeZone: _zone,
       );
+      await _remember(plan.bringYourOwn ? 'byo' : 'muse');
       final url = Uri.tryParse(checkout.url);
       if (url == null || !url.hasScheme) {
-        throw StateError('Paystack did not return a payment page.');
+        throw StateError('$gateway did not return a payment page.');
       }
       await launchUrl(url, mode: LaunchMode.externalApplication);
-      _chosen();
+      _finish(plan.bringYourOwn ? PaywallResult.byo : PaywallResult.muse);
     } catch (error) {
       if (mounted) setState(() => _payError = '$error');
     } finally {
@@ -196,96 +231,160 @@ class _PaywallPageState extends State<PaywallPage> {
     return '\$$text';
   }
 
+  List<ConsolePlan> _catalogFor(PaywallTrack track, bool hosted) {
+    final filtered = _plans.where((plan) {
+      if (track == PaywallTrack.byo) return plan.bringYourOwn;
+      return plan.useOurAi;
+    });
+    if (hosted) return filtered.toList();
+    return filtered.where((plan) => !_soldInStore(plan)).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: !widget.required,
       child: Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: !widget.required,
-        title: Text(widget.required ? 'Choose a plan' : 'Upgrade'),
+        appBar: AppBar(
+          automaticallyImplyLeading: !widget.required,
+          title: Text(widget.required ? 'Choose a plan' : 'Upgrade'),
+        ),
+        body: ListenableBuilder(
+          listenable: widget.billing,
+          builder: (context, _) {
+            final billing = widget.billing;
+            final hosted = _offer.hostedCheckout;
+            final catalog = _catalogFor(_track, hosted);
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+              children: [
+                Text(
+                  _track == PaywallTrack.muse ? 'Use our AI' : 'Your model',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _track == PaywallTrack.muse
+                      ? 'Muse on our key — free grant or a monthly allowance for ${widget.workspaceName}.'
+                      : 'Bring your own LLM key. The monthly fee is for the app; your provider bills the tokens.',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+                const SizedBox(height: 16),
+                SegmentedButton<PaywallTrack>(
+                  segments: const [
+                    ButtonSegment(
+                      value: PaywallTrack.muse,
+                      label: Text('Use our AI'),
+                      icon: Icon(Icons.auto_awesome_outlined),
+                    ),
+                    ButtonSegment(
+                      value: PaywallTrack.byo,
+                      label: Text('Your model'),
+                      icon: Icon(Icons.key_outlined),
+                    ),
+                  ],
+                  selected: {_track},
+                  onSelectionChanged: (next) {
+                    if (next.isEmpty) return;
+                    setState(() => _track = next.first);
+                  },
+                ),
+                const SizedBox(height: 16),
+                if (_loadingPlans)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                for (final plan in catalog) _catalogCard(context, plan),
+                if (!hosted && _track == PaywallTrack.muse)
+                  for (final product in billing.products) _planCard(context, product),
+                if (!_loadingPlans &&
+                    catalog.isEmpty &&
+                    (_track == PaywallTrack.byo ||
+                        (billing.products.isEmpty && !billing.available)))
+                  Card(
+                    child: ListTile(
+                      leading: Icon(
+                        _track == PaywallTrack.byo
+                            ? Icons.key_outlined
+                            : Icons.store_outlined,
+                      ),
+                      title: Text(
+                        _track == PaywallTrack.byo
+                            ? 'Your model plan'
+                            : 'Store unavailable',
+                      ),
+                      subtitle: Text(
+                        _track == PaywallTrack.byo
+                            ? 'Subscribe on the web, then connect your key here.'
+                            : 'Purchases need the App Store or Google Play on this phone.',
+                      ),
+                    ),
+                  )
+                else if (!_loadingPlans &&
+                    catalog.isEmpty &&
+                    billing.products.isEmpty &&
+                    _track == PaywallTrack.muse)
+                  const Card(
+                    child: ListTile(
+                      leading: Icon(Icons.pending_outlined),
+                      title: Text('Plans are being set up'),
+                      subtitle: Text(
+                        'Monthly plans are not for sale yet — check back soon.',
+                      ),
+                    ),
+                  ),
+                if (!hosted &&
+                    _track == PaywallTrack.byo &&
+                    catalog.any((plan) => plan.baseUsd > 0) &&
+                    widget.baseUrl != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: FilledButton(
+                      onPressed: () {
+                        final plan = catalog.firstWhere((row) => row.baseUsd > 0);
+                        _pay(plan);
+                      },
+                      child: Text('Pay with ${_offer.checkoutLabel}'),
+                    ),
+                  ),
+                if (!hosted && billing.error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      billing.error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                if (_payError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      _payError!,
+                      style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    ),
+                  ),
+                if (billing.outcome == BillingOutcome.purchased)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text('Welcome aboard — your plan is active.'),
+                  ),
+                if (!hosted) ...[
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: billing.busy ? null : billing.restore,
+                    child: const Text('Restore purchases'),
+                  ),
+                ],
+              ],
+            );
+          },
+        ),
       ),
-      body: ListenableBuilder(
-        listenable: widget.billing,
-        builder: (context, _) {
-          final billing = widget.billing;
-          final paystack = _offer.paystack;
-          final catalog = paystack ? _plans : _plans.where((plan) => !_soldInStore(plan)).toList();
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-            children: [
-              Text('Plans', style: Theme.of(context).textTheme.headlineSmall),
-              const SizedBox(height: 8),
-              Text(
-                'Free includes the Muse grant set on this server. '
-                'Paid plans are monthly for ${widget.workspaceName}.',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (_loadingPlans)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-              for (final plan in catalog) _catalogCard(context, plan),
-              if (!paystack)
-                for (final product in billing.products) _planCard(context, product),
-              if (!_loadingPlans && catalog.isEmpty && billing.products.isEmpty && !billing.available)
-                const Card(
-                  child: ListTile(
-                    leading: Icon(Icons.store_outlined),
-                    title: Text('Store unavailable'),
-                    subtitle: Text(
-                      'Purchases need the App Store or Google Play on '
-                      'this phone.',
-                    ),
-                  ),
-                )
-              else if (!_loadingPlans && catalog.isEmpty && billing.products.isEmpty)
-                const Card(
-                  child: ListTile(
-                    leading: Icon(Icons.pending_outlined),
-                    title: Text('Plans are being set up'),
-                    subtitle: Text(
-                      'Monthly plans are not for sale yet — check back soon.',
-                    ),
-                  ),
-                ),
-              if (billing.error != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    billing.error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ),
-              if (_payError != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    _payError!,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
-                  ),
-                ),
-              if (billing.outcome == BillingOutcome.purchased)
-                const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Text('Welcome aboard — your plan is active.'),
-                ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: billing.busy ? null : billing.restore,
-                child: const Text('Restore purchases'),
-              ),
-            ],
-          );
-        },
-      ),
-    ),
     );
   }
 
@@ -296,11 +395,16 @@ class _PaywallPageState extends State<PaywallPage> {
     final grant = plan.id == 'free' && plan.allowanceUsd > 0
         ? '${_money(plan.allowanceUsd)} of Muse, once'
         : plan.allowanceUsd > 0
-        ? '${_money(plan.allowanceUsd)} of Muse each month'
-        : plan.blurb;
+            ? '${_money(plan.allowanceUsd)} of Muse each month'
+            : plan.blurb;
+    final choose = free
+        ? (_paying == 'free' ? null : _chooseFree)
+        : (_paying == plan.id ? null : () => _pay(plan));
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
+      child: InkWell(
+        onTap: choose,
+        child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -320,7 +424,10 @@ class _PaywallPageState extends State<PaywallPage> {
               for (final feature in plan.features)
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
-                  child: Text(feature, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                  child: Text(
+                    feature,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
                 ),
             ],
             if (_freeNote != null && free) ...[
@@ -333,15 +440,20 @@ class _PaywallPageState extends State<PaywallPage> {
                 onPressed: _paying == 'free' ? null : _chooseFree,
                 child: Text(_paying == 'free' ? 'Opening…' : _freeChosen ? 'Continue' : 'Use free'),
               ),
-            ] else if (_offer.paystack && plan.baseUsd > 0) ...[
+            ] else if (plan.baseUsd > 0) ...[
               const SizedBox(height: 12),
               FilledButton(
                 onPressed: _paying == plan.id ? null : () => _pay(plan),
-                child: Text(_paying == plan.id ? 'Opening Paystack…' : 'Pay with Paystack'),
+                child: Text(
+                  _paying == plan.id
+                      ? 'Opening ${_offer.checkoutLabel}…'
+                      : 'Pay with ${_offer.checkoutLabel}',
+                ),
               ),
             ],
           ],
         ),
+      ),
       ),
     );
   }
@@ -396,7 +508,7 @@ class _PaywallPageState extends State<PaywallPage> {
     await widget.billing.buy(product);
     if (context.mounted &&
         widget.billing.outcome == BillingOutcome.purchased) {
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pop(PaywallResult.muse);
     }
   }
 }

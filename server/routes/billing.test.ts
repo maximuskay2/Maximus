@@ -95,7 +95,7 @@ describe("billing routes", () => {
       store,
       plans: PLANS,
       secrets: { paystackSecretKey: "sk_test_fixture" },
-      payments: () => ({ paystackEnabled: true, ngnPerUsd: 1600 }),
+      payments: () => ({ paystackEnabled: true, bachsEnabled: false, ngnPerUsd: 1600 }),
       fetchImpl,
       env: { MAXIMUS_ADMIN_WORKSPACE: "acme" },
       now: () => NOW,

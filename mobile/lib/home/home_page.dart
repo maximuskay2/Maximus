@@ -6,6 +6,7 @@ import '../api/models.dart';
 import '../api/thread_cache.dart';
 import '../auth/auth_state.dart';
 import '../billing/subscribe_ask.dart';
+import '../engines/engines_page.dart';
 import '../auth/pair_page.dart';
 import '../auth/session_actions.dart';
 import '../automations/computer_page.dart';
@@ -60,13 +61,19 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   List<BotSummary> _bots = const [];
   List<GroupSummary> _groups = const [];
+  List<NeedsYouItem> _needsYou = const [];
   bool _loading = true;
   String? _error;
   final _search = TextEditingController();
+  final _searchFocus = FocusNode();
   late String _sessionKey;
 
   String get _currentSessionKey =>
       '${widget.auth.active?.id ?? ''}:${widget.auth.client.sessionToken ?? ''}:${widget.auth.scopes.join(',')}';
+
+  void _dismissKeyboard() {
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
 
   @override
   void initState() {
@@ -91,11 +98,15 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     widget.auth.removeListener(_onAuth);
     _search.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
-    if (widget.auth.needsSignIn) return;
+    if (widget.auth.needsSignIn) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     final server = widget.auth.active;
     final baseUrl = server?.baseUrl;
     if (server == null || baseUrl == null) {
@@ -109,17 +120,8 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _loading = true;
       _error = null;
+      _bots = const [];
     });
-    // Cached bots render instantly; the network refresh follows.
-    if (cache != null) {
-      final cached = await cache.readBots(server.id);
-      if (cached != null && mounted) {
-        setState(() {
-          _bots = cached;
-          _loading = false;
-        });
-      }
-    }
     try {
       final bots = await widget.auth.client.bots(baseUrl);
       await cache?.writeBots(server.id, bots);
@@ -131,16 +133,26 @@ class _HomePageState extends State<HomePage> {
       } on ApiError {
         // Rooms are optional; the inbox still lists bots.
       }
+      try {
+        final needs = await widget.auth.client.needsYou(baseUrl);
+        if (mounted) setState(() => _needsYou = needs);
+      } on ApiError {
+        // Briefing is optional; the inbox still lists bots.
+      }
       // Background prefetch so thread opens are instant after restart.
       if (cache != null) {
         unawaited(_prefetch(cache, server.id, baseUrl, bots));
       }
     } on ApiError catch (error) {
-      if (error.unauthorized) {
+      if (error.unauthorized || error.status == 403) {
         await widget.auth.sessionEnded();
         return;
       }
-      if (_bots.isEmpty && mounted) {
+      final saved = cache == null ? null : await cache.readBots(server.id);
+      if (!mounted) return;
+      if (saved != null) {
+        setState(() => _bots = saved);
+      } else {
         setState(() => _error = error.message);
       }
     } finally {
@@ -177,16 +189,40 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: Column(
           children: [
-            _InboxHeader(
-              initial: _initial(widget.auth.active?.name),
-              onAccount: _openYou,
-              onCreate: _createBot,
+            Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (_) => _dismissKeyboard(),
+              child: _InboxHeader(
+                initial: _initial(widget.auth.active?.name),
+                onAccount: () {
+                  _dismissKeyboard();
+                  _openYou();
+                },
+                onCreate: () {
+                  _dismissKeyboard();
+                  _createBot();
+                },
+              ),
             ),
-            Expanded(child: _body()),
-            _InboxDock(controller: _search, onApps: _openApps),
+            Expanded(
+              child: Listener(
+                behavior: HitTestBehavior.translucent,
+                onPointerDown: (_) => _dismissKeyboard(),
+                child: _body(),
+              ),
+            ),
+            _InboxDock(
+              controller: _search,
+              focusNode: _searchFocus,
+              onApps: () {
+                _dismissKeyboard();
+                _openApps();
+              },
+            ),
           ],
         ),
       ),
@@ -245,12 +281,75 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     }
+    final needs = _needsYou.take(5).toList();
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.builder(
         padding: const EdgeInsets.only(top: 8),
-        itemCount: rows.length,
-        itemBuilder: (context, index) => _InboxRow(row: rows[index]),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        itemCount: rows.length + (needs.isEmpty ? 0 : 1),
+        itemBuilder: (context, index) {
+          if (needs.isNotEmpty && index == 0) {
+            return _NeedsYouStrip(
+              items: needs,
+              onOpen: _openNeedsYou,
+            );
+          }
+          final rowIndex = needs.isEmpty ? index : index - 1;
+          final row = rows[rowIndex];
+          final tile = _InboxRow(row: row);
+          final dismiss = row.onSwipeDelete;
+          if (dismiss == null) return tile;
+          return Dismissible(
+            key: ValueKey('delete-${row.seed}'),
+            direction: DismissDirection.endToStart,
+            background: Container(
+              color: const Color(0xFFFF3B30),
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 20),
+              child: const Text(
+                'Delete',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              ),
+            ),
+            confirmDismiss: (_) => dismiss(),
+            child: tile,
+          );
+        },
+      ),
+    );
+  }
+
+  void _openNeedsYou(NeedsYouItem item) {
+    final baseUrl = widget.auth.active?.baseUrl;
+    if (baseUrl == null) return;
+    final botId = item.botId;
+    final threadId = item.threadId;
+    if (botId == null || threadId == null) return;
+    BotSummary? bot;
+    for (final candidate in _bots) {
+      if (candidate.id == botId) {
+        bot = candidate;
+        break;
+      }
+    }
+    if (bot == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ThreadPage(
+          client: widget.auth.client,
+          baseUrl: baseUrl,
+          bot: bot!,
+          thread: ThreadSummary(
+            threadId: threadId,
+            title: bot.name,
+            createdAt: item.at,
+          ),
+          botNames: [for (final item in _bots) item.name],
+          cache: widget.auth.cache,
+          serverId: widget.auth.active?.id,
+          onSessionEnded: widget.auth.sessionEnded,
+        ),
       ),
     );
   }
@@ -284,6 +383,7 @@ class _HomePageState extends State<HomePage> {
       sortAt: latest?.updatedAt ?? latest?.createdAt ?? 0,
       unread: bot.unread,
       onTap: () => _openBot(bot, latest),
+      onSwipeDelete: bot.defaultBot ? null : () => _deleteBot(bot),
     );
   }
 
@@ -305,11 +405,52 @@ class _HomePageState extends State<HomePage> {
               auth: widget.auth,
               baseUrl: baseUrl,
               group: group,
+              memberNames: [
+                for (final bot in _bots)
+                  if (group.memberIds.contains(bot.id)) bot.name,
+              ],
             ),
           ),
         );
       },
     );
+  }
+
+  Future<bool> _deleteBot(BotSummary bot) async {
+    final baseUrl = widget.auth.active?.baseUrl;
+    if (baseUrl == null || !mounted) return false;
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Delete ${bot.name}?'),
+        content: const Text('This removes the bot and its chats.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (yes != true || !mounted) return false;
+    try {
+      await widget.auth.client.deleteBot(baseUrl, bot.id);
+      final kept = [for (final item in _bots) if (item.id != bot.id) item];
+      final cache = widget.auth.cache;
+      final server = widget.auth.active;
+      if (cache != null && server != null) await cache.writeBots(server.id, kept);
+      if (mounted) setState(() => _bots = kept);
+      return true;
+    } on ApiError catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+      return false;
+    }
   }
 
   void _openBot(BotSummary bot, ThreadSummary? latest) {
@@ -332,6 +473,7 @@ class _HomePageState extends State<HomePage> {
           botNames: [for (final item in _bots) item.name],
           cache: widget.auth.cache,
           serverId: widget.auth.active?.id,
+          onSessionEnded: widget.auth.sessionEnded,
         ),
       ),
     );
@@ -599,10 +741,74 @@ class _AccountMark extends StatelessWidget {
   }
 }
 
+class _NeedsYouStrip extends StatelessWidget {
+  const _NeedsYouStrip({required this.items, required this.onOpen});
+
+  final List<NeedsYouItem> items;
+  final ValueChanged<NeedsYouItem> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Needs you',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF8E8E93),
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final item in items)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Material(
+                color: const Color(0xFFFFF4E5),
+                borderRadius: BorderRadius.circular(14),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: item.threadId == null ? null : () => onOpen(item),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.priority_high, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            item.text.isEmpty ? item.kind : item.text,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _InboxDock extends StatelessWidget {
-  const _InboxDock({required this.controller, required this.onApps});
+  const _InboxDock({
+    required this.controller,
+    required this.focusNode,
+    required this.onApps,
+  });
 
   final TextEditingController controller;
+  final FocusNode focusNode;
   final VoidCallback onApps;
 
   @override
@@ -628,6 +834,9 @@ class _InboxDock extends StatelessWidget {
           Expanded(
             child: TextField(
               controller: controller,
+              focusNode: focusNode,
+              textInputAction: TextInputAction.search,
+              onTapOutside: (_) => focusNode.unfocus(),
               decoration: InputDecoration(
                 hintText: 'Search',
                 prefixIcon: const Icon(Icons.search, size: 20),
@@ -658,6 +867,7 @@ class _InboxItem {
     required this.unread,
     required this.onTap,
     this.shape,
+    this.onSwipeDelete,
   });
 
   final String title;
@@ -668,6 +878,7 @@ class _InboxItem {
   final int sortAt;
   final bool unread;
   final VoidCallback onTap;
+  final Future<bool> Function()? onSwipeDelete;
 }
 
 class _InboxRow extends StatelessWidget {
@@ -942,7 +1153,17 @@ class _YouTabState extends State<_YouTab> {
                             timeZone: widget.prefs.timeZone,
                           ),
                         ),
-                      if (active != null)
+                      if (active != null && auth.isAdmin)
+                        _sheetRow(
+                          title: 'Your AI',
+                          subtitle: 'Connect your own LLM key or account',
+                          onTap: () => _push(EnginesPage(
+                            client: auth.client,
+                            baseUrl: active.baseUrl,
+                            auth: auth,
+                          )),
+                        ),
+                      if (active != null && auth.isAdmin)
                         _sheetRow(
                           title: 'Usage',
                           onTap: () => _push(UsagePage(
@@ -1286,7 +1507,7 @@ class _VaultSheet extends StatelessWidget {
           const _PopupMark(icon: Icons.lock_outline),
           const SizedBox(height: 8),
           const Text(
-            'Logins stay on this server. A bot asks before it uses one, and you answer in the chat.',
+            'When a bot needs email or a login, it posts a secure card in chat. Save it here on the phone — same as web or desktop.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 15, height: 1.35, color: Color(0xFF3A3A3C)),
           ),
@@ -1305,7 +1526,7 @@ class _VaultSheet extends StatelessWidget {
             _PopupFact(
               icon: Icons.chat_bubble_outline,
               title: 'You answer in chat',
-              detail: 'Allow it once, or keep it for later.',
+              detail: 'Save the secure card, or allow / deny permissions.',
             ),
           ]),
           const SizedBox(height: 18),

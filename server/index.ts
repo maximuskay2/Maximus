@@ -308,6 +308,8 @@ import { createWebhookRoomPost } from "./host/webhook-room-deps.ts";
 import { createRoomJobs, parallelRoomJobsEnabled, type RoomRoundLine } from "./host/room-jobs.ts";
 import { createDelegatedLevel } from "./host/delegated-level.ts";
 import { createLiveApprovalMode } from "./host/live-approval.ts";
+import { acknowledgeInterruptedTurns, clearParkedTurn, interruptParkedTurns, parkTurn } from "./turn-resume.ts"; import { deliverHandoff } from "./room-handoff.ts";
+import { beginBrowserTeach, finishTeachSession, isTeaching, recordBrowserCall } from "./browser/teach-session.ts";
 import { CONSENT_RULE, escapeNotes, labelledLine, OUTSIDE, peerLineText, peerProvenanceNote, reportNote, requestWorkOrigin, type WorkOrigin } from "./peer-provenance.ts"; import { lineNote, PROVENANCE_PROMPT } from "./provenance-label.ts"; import { openRoomThread } from "./host/room-new-thread.ts"; import { createLineLabels } from "./host/line-labels.ts";
 import { decideRoomPost, emptyRoomPostBudget, type RoomPostAttempt, type RoomPostBudget } from "./room-post-budget.ts";
 import { messagePages, pageSize, slimMessage } from "./host/message-pages.ts";
@@ -553,6 +555,7 @@ import {
   parseCookies,
   serializeSessionCookie,
   sessionCookieName, ownerOrAdmin,
+  clientMayDeleteBot,
 } from "./request-auth.ts";
 import { cookieMaxAgeSeconds, formatPairingCode, pairingRequest, SessionRegistry, type SessionRecord } from "./sessions.ts";
 import { ThreadStarters } from "./thread-starters.ts";
@@ -641,6 +644,8 @@ import { createConsolePublicRoutes } from "./routes/console.ts";
 import { createDownloadsRoute } from "./routes/downloads.ts";
 import { createEndpointRoute } from "./routes/endpoint.ts";
 import { checkoutSecretsFromEnv } from "./billing/checkout.ts";
+import { billingWebhookSecretsFromEnv } from "./billing/http.ts";
+import { mergeCheckoutSecrets, mergeWebhookSecrets, PaymentStore } from "./billing/payments.ts";
 import { planCatalogFromEnv } from "./billing/plans.ts";
 import { PlanStore, resolveCatalog, type PlanDisplayView } from "./billing/plan-store.ts";
 import { ContractMismatchError, EntitlementSync } from "./entitlement-sync.ts";
@@ -654,8 +659,7 @@ import { createMarginRoutes } from "./routes/margin.ts";
 import { createPlanRoutes } from "./routes/plans.ts";
 import { createRationRoutes } from "./routes/ration.ts";
 import { billingOfferRoute, createPaymentRoutes } from "./routes/payments.ts";
-import { PaymentStore } from "./billing/payments.ts";
-import { bindLiveRation, liveRation, RationService } from "./billing/ration-service.ts";
+import { bindLiveRation, chatRationRefusal, liveRation, RationService } from "./billing/ration-service.ts";
 import { pushWorkerPlanCatalog } from "./billing/catalog-sync.ts";
 import { plansFromRation, rationWorkspace, type RationProfile } from "./billing/ration.ts";
 import { createBotMessageRoutes } from "./routes/bot-messages.ts";
@@ -832,6 +836,11 @@ const decorateHostedProvider = hostedModels ? (instance: ProviderInstance) => ho
 if (hostedModels) {
   const selection = hostedModels.select(cfg.defaultModelSelection);
   if (selection.instanceId && JSON.stringify(selection) !== JSON.stringify(cfg.defaultModelSelection)) saveConfig({ defaultModelSelection: selection });
+  cfg.defaultModelSelection = selection;
+} else if (cfg.meta?.key && cfg.meta?.url?.includes("/api/gateway/") && !cfg.defaultModelSelection?.instanceId) {
+  // Product free Muse: Meta API rides the local gateway; Contributor Spark fits the free grant.
+  const selection = { instanceId: "meta", model: "muse-spark-1.3-contributor" };
+  saveConfig({ defaultModelSelection: selection });
   cfg.defaultModelSelection = selection;
 }
 bindThreadLogCapProvider(() => threadEventLogMaxBytes(cfg));
@@ -2676,7 +2685,7 @@ function checkedModelSelection(
   if (typeof value.model !== "string" || !value.model.trim()) {
     return { ok: false, status: 400, error: "modelSelection.model is required" };
   }
-  const selection: ModelSelection = {
+  let selection: ModelSelection = {
     instanceId: value.instanceId.trim(),
     model: value.model.trim(),
   };
@@ -2724,7 +2733,8 @@ function checkedModelSelection(
   }
   const allowed: readonly string[] = target?.adapter.capabilities.effortLevels ?? [];
   if (target && selection.effort !== undefined && !allowed.includes(selection.effort)) {
-    return { ok: false, status: 400, error: `effort "${selection.effort}" is not offered by this bot's engine` };
+    const { effort: _effort, ...withoutEffort } = selection;
+    selection = withoutEffort;
   }
   if (target && selection.variant !== undefined && !target.adapter.capabilities.modelVariants) {
     return { ok: false, status: 400, error: "model variants are not offered by this bot's engine" };
@@ -5555,6 +5565,8 @@ function forgetTurnCheckpoint(threadId: string): void {
 function clearTurnDigestState(threadId: string): void {
   turnStartedAt.delete(threadId);
   forgetTurnCheckpoint(threadId);
+  const parkedTurnId = liveTurnByThread.get(threadId);
+  if (parkedTurnId) clearParkedTurn(DATA_DIR, parkedTurnId);
   liveTurnByThread.delete(threadId);
   memoryRowsByThread.delete(threadId);
 }
@@ -6543,11 +6555,14 @@ bus.subscribe((event: RuntimeEvent) => {
       directTurnDispatchClaims.get(event.threadId)?.id === requestOwner.generation) requestOwner.turnId = event.turnId;
   const liveTurnId = event.turnId ?? liveTurnByThread.get(event.threadId);
   switch (event.type) {
-    case "turn.started":
+    case "turn.started": {
+      const parkedBotId = bot?.id ?? speaker?.botId;
+      if (parkedBotId && event.turnId && !replayed) parkTurn(DATA_DIR, { botId: parkedBotId, turnId: event.turnId, threadId: event.threadId });
       turnStartedAt.set(event.threadId, Date.now());
       // A stop that never saw its turn.completed must not pass for this turn.
       stoppedTurns.delete(event.threadId); personStops.turnStarted(event.threadId, event.turnId);
       break;
+    }
     case "session.started":
       if (bot && event.sessionId && event.providerInstanceId) {
         store.setResumeCursor(bot.id, event.providerInstanceId, event.sessionId, event.threadId);
@@ -6817,6 +6832,8 @@ bus.subscribe((event: RuntimeEvent) => {
       }
       break;
     case "turn.completed": {
+      if (event.turnId) clearParkedTurn(DATA_DIR, event.turnId);
+      if (isTeaching(event.threadId)) finishTeachSession(join(DATA_DIR, "skills"), event.threadId);
       askCards.settleWaitingOnPersonChips(event.threadId);
       const internal = isInternalTurn(event.threadId);
       clearInternalTurn(event.threadId);
@@ -7382,6 +7399,10 @@ async function acceptDirectSend(
         }
       }
 
+      const rationEmail = trigger.kind === "user" ? trigger.email : undefined;
+      const rationHit = chatRationRefusal(rationEmail, text);
+      if (rationHit) throw new DirectSendRefused(rationHit.status, { error: rationHit.message, code: rationHit.code });
+
       // Provider discovery yields, probes afresh for an engine installed or signed in since, and reads a thread's own model's engines at start before it may give way; the transcript reservation after these checks must stay synchronous.
       const ownModel = store.taskByThread(botId, threadId)?.modelSelection, ownModelRead = ownModel && registry.engineRead(ownModel.instanceId, store.bot(botId)?.modelSelection.instanceId);
       if (ownModelRead) await ownModelRead;
@@ -7498,6 +7519,7 @@ async function startOrQueueOpenedThread(
   origin: WorkOrigin,
 ): Promise<{ state: "running" } | { state: "queued"; position: number } | { state: "failed"; error: string }> {
   const peerAsk = { botId, name: store.bot(botId)!.name, unattended: unattended || undefined };
+  try { deliverHandoff(join(DATA_DIR, "handoffs"), { fromBot: peerAsk.botId, toBot: botId, taskId: threadId, payload: redactSecretsInText(text), threadId }); } catch {}
   const decision = admit("opened-thread", {}, {
     atCapacity: botAtThreadCapacity(botId, undefined, true),
     groupTurn: Boolean(activeGroupTurnForBot(botId)),
@@ -7981,6 +8003,7 @@ async function beginTurn(
         ? skillsHost.expandSkillCommand(bot, threadId, providerText, instance, personLine ? activeMessages.filter((line) => skipTranscript.has(line.id)) : [], (personLine && !userMessage.relayed && !startedOutside(threadId)) || ["schedule", "manual", "startup"].includes(opts?.automationSource ?? ""))
         : providerText;
       const setupText = agentsMounted ? expandSetupTurnText(skillCommandText) : skillCommandText;
+      if (skillAuthoring) beginBrowserTeach(threadId, setupText);
       const userTurnText = (opts?.app?.context ?? "") + (opts?.cardContinuation ? "" : routineRunNote(threadId, opts?.automationSource)) + labelledLine(personLine && !opts?.excludeMessageIds ? userMessage : {}, withReactionNotes(promptWithReply(
         skillAuthoring ? expandLearnTurnText(setupText) : setupText,
         opts?.replyTo,
@@ -12311,6 +12334,12 @@ ROUTES.push(createBotPatchRoutes({
 ROUTES.push(createBotLifecycleRoutes({
   store, routines: () => routines, interruptAllDirectThreads, cancelDirectTurnDispatch, revokeInternalCapabilitiesForThread,
   activeGroupTurnForBot, cancelGroupTurnOperations, runningTurnInstance, closeOpenApprovals, deleteBotWithLifecycle,
+  mayDelete: (auth, botId) => {
+    if (!store.bot(botId) || !visibleTo(viewerFor(auth)).bot(botId)) return { status: 404, error: "no such bot" };
+    const ownAccounts = !CLOUD_TEAM && !HOSTED_WORKSPACE && !CLOUD_HOME && !CLOUD_PERSONAL;
+    const allowed = clientMayDeleteBot({ admin: auth.scopes.includes("admin"), seesBot: true, ownAccounts, edit: levelOf(auth, botId) === "edit" });
+    return allowed ? null : { status: 403, error: "You can delete only a bot you can edit." };
+  },
 }));
 ROUTES.push(createBotSkillsRoutes({ store, cfg, listBotSkills, readBotSkillFile, stagedSkillListing }));
 ROUTES.push(createHighLevelRoutes({ service: highlevel })); ROUTES.push(createEmailRoutes({ service: emailService }));
@@ -12644,7 +12673,7 @@ ROUTES.push(createBillingRoutes({
   plans: billingPlans,
   knownEntitlements: KNOWN_ENTITLEMENTS,
   prices: operatorPrices,
-  secrets: checkoutSecretsFromEnv(),
+  secrets: () => mergeCheckoutSecrets(checkoutSecretsFromEnv(), paymentStore.readSecrets()),
   payments: () => paymentStore.read(),
 }));
 
@@ -12819,7 +12848,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     }
     // Hosted workspaces have one sign-in authority: a missing optional layer must never reactivate email/QR credential minting.
     if (HOSTED_WORKSPACE) {
-      if ((method === "POST" && ["/api/auth/pair", "/api/pair", "/api/auth/pairing", "/api/auth/email/start", "/api/auth/email/verify", "/api/auth/oauth/redeem", "/api/auth/signup", "/api/auth/signin"].includes(path))
+      if ((method === "POST" && ["/api/auth/pair", "/api/pair", "/api/auth/pairing", "/api/auth/email/start", "/api/auth/email/verify", "/api/auth/oauth/redeem", "/api/auth/signup", "/api/auth/signin", "/api/auth/password/forgot", "/api/auth/password/reset"].includes(path))
         || (method === "GET" && (path === "/api/auth/methods" || path.startsWith("/api/auth/oauth/")))) {
         return json(res, 403, { error: "Sign in through the workspace portal." });
       }
@@ -12922,6 +12951,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     // Matching lives in server/routes/billing.ts; each call declines non-billing paths itself.
     if (method === "POST" && await billingWebhookRoute(req, res, path, json, {
       dataDir: DATA_DIR, plans: billingPlans, knownEntitlements: KNOWN_ENTITLEMENTS,
+      webhookSecrets: () => mergeWebhookSecrets(billingWebhookSecretsFromEnv(), paymentStore.readSecrets()),
       onApplied: (event) => {
         if (event.type === "billing.checkout_completed" || event.type === "billing.subscription_updated" || event.type === "billing.payment_recovered") {
           ration.grantPaid(event.workspace_id, event.plan, `${event.provider}:${event.event_id}`);
@@ -13396,7 +13426,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
             throw Object.assign(new Error("another thread is using this browser — pause browser work until that thread finishes"), { status: 409 });
           }
         }, stepContext(bot, internalCapability, () => liveTurnByThread.get(internalCapability.threadId) ?? null));
-        requireActiveInternalCapability(); if (body.method === "tools/call") browserSeats.used(internalCapability, browser.session);
+        requireActiveInternalCapability(); if (body.method === "tools/call") { browserSeats.used(internalCapability, browser.session); if (!(result as { isError?: boolean } | null)?.isError) recordBrowserCall(internalCapability.threadId, params?.name, params?.arguments); }
         return json(res, 200, { result });
       }
       // The turn's capability names its Boat; the Boat credential stays here.
@@ -14104,6 +14134,15 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
             }));
             if (!duplicate) {
               if (!EXTERNAL) delegatedThisTurn(node.id);
+              try {
+                deliverHandoff(join(DATA_DIR, "handoffs"), {
+                  fromBot: internalSender.id,
+                  toBot: node.botId,
+                  taskId: node.id,
+                  payload: redactSecretsInText(call.message),
+                  threadId: node.threadId,
+                });
+              } catch { /* envelope is best-effort beside the live coordinator path */ }
               store.appendMessage(address.threadId, sentRow({ sender: internalSender, recipient, threadId: node.threadId, room: addressedRoom, via, language: threadLanguage(address.threadId),
                 reason: call.reason, doneWhen: call.doneWhen ? redactSecretsInText(call.doneWhen) : undefined, title: store.taskByThread(recipient.id, node.threadId)?.title }));
             }
@@ -15758,9 +15797,16 @@ if (CLOUD_HOME) registerCloudPower(cloudPower = createCloudPower({ dataDir: DATA
   liveCall: () => liveCalls.current() !== null, computer: () => cloudComputerPower.awake() || boatLifecycleBusyBots.size > 0, nextDueAt: () => { const due = [routines?.nextDueAt() ?? null, proactive.brief.nextWakeAt(), botWaits.nextWakeAt()].filter((at): at is number => at !== null); return due.length ? Math.min(...due) : null; },
   maintenance: () => workspaceMaintenance.active || providerFleetReloading || providerAuthSessions.active || browserEngineInstall !== null } }));
 
-server.listen(PORT, "127.0.0.1", async () => {
+for (const turn of interruptParkedTurns(DATA_DIR)) {
+  if (turn.status !== "interrupted" || !store.bot(turn.botId) || !(store.botByThread(turn.threadId) || store.groupByThread(turn.threadId))) continue;
+  store.appendMessage(turn.threadId, { role: "bot", kind: "activity", tool: { name: "turn interrupted — Maximus restarted", ok: false } });
+}
+acknowledgeInterruptedTurns(DATA_DIR);
+
+const LISTEN_HOST = process.env.MAXIMUS_LISTEN_HOST?.trim() || "127.0.0.1";
+server.listen(PORT, LISTEN_HOST, async () => {
   companyRuntimeReady();
-  console.log(`maximus server on http://127.0.0.1:${PORT}`);
+  console.log(`maximus server on http://${LISTEN_HOST}:${PORT}`);
   personWaits.boot(); browserSweep.start(); startCloudTeamPolicy({ cloudHome: CLOUD_HOME, dataDir: DATA_DIR, managed: managedPolicy, sessions }); moveFreeze.hold(() => appTriggers.start(), () => void appTriggers.stop()); startCloudHomeConnectedApps({ cloudHome: CLOUD_HOME !== null, dataDir: DATA_DIR, cloudGrant: CLOUD_ENV.MAXIMUS_CLOUD_CONNECTED_APPS_GRANT, apply: (access) => { composio.setManagedBrokerAccess(access); broadcast({ kind: "config", ...configStatus() }); } });
   void afterFirstEngineRead().then(() => { if (builtInBrowserEnabled(cfg)) chromeLauncher.start(); });
   followupsReady = true;

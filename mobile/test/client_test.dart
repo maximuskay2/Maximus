@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:maximus/api/client.dart';
 import 'package:maximus/api/models.dart';
 
+final eventQueries = <String?>[];
+
 /// In-process stub of the Maximus server surface the app uses.
 Future<HttpServer> startStub() async {
   final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -61,6 +63,11 @@ Future<HttpServer> startStub() async {
       response.write('<!doctype html><html></html>');
       await response.close();
     } else if (path == '/api/events') {
+      if (request.uri.queryParameters['since'] == 'unauthorized') {
+        write({'error': 'sign in'}, status: 401);
+        return;
+      }
+      eventQueries.add(request.uri.queryParameters['since']);
       response.headers.contentType =
           ContentType.parse('text/event-stream; charset=utf-8');
       response.write('data: {"kind":"ping"}\n\n');
@@ -135,6 +142,28 @@ void main() {
     }
     await sub.cancel();
     expect(kinds, ['ping']);
+  });
+
+  test('resumes events from a cursor', () async {
+    eventQueries.clear();
+    final sub = await client.events(
+      base,
+      (_) {},
+      since: 'ab12cd34:9',
+    );
+    final deadline = DateTime.now().add(const Duration(seconds: 5));
+    while (eventQueries.isEmpty && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+    await sub.cancel();
+    expect(eventQueries, ['ab12cd34:9']);
+  });
+
+  test('a refused event stream is a 401', () async {
+    expect(
+      () => client.events(base, (_) {}, since: 'unauthorized'),
+      throwsA(isA<ApiError>().having((error) => error.unauthorized, 'unauthorized', isTrue)),
+    );
   });
 
   test('an HTML success is an API error, not a crash', () async {

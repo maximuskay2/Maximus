@@ -1,5 +1,6 @@
 import { t } from "./i18n";
 import { serverErrorText } from "./server-error";
+import { markSessionEnded } from "./session-ended";
 
 export interface EnvironmentDescriptor {
   environmentId: string;
@@ -163,6 +164,7 @@ export function openThisWindowSignIn(): void {
 }
 
 export function signOutOfThisWindow(): void {
+  markSessionEnded();
   void fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).finally(() => {
     location.assign("/pair");
   });

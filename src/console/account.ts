@@ -361,8 +361,9 @@ export function planPriceLine(plan: ConsolePlanView): string {
 
 export interface BillingOfferView {
   currency: "USD" | "NGN";
-  provider: "stripe" | "paystack";
+  provider: "stripe" | "paystack" | "bachs";
   paystackEnabled: boolean;
+  bachsEnabled?: boolean;
   ngnPerUsd: number;
 }
 
@@ -381,5 +382,33 @@ export function startPaystackCheckout(input: {
     ...options,
     method: "POST",
     body: { provider: "paystack", ...input },
+  });
+}
+
+export function startStripeCheckout(input: {
+  plan: string;
+  customerEmail: string;
+  successUrl: string;
+  cancelUrl: string;
+  timeZone: string;
+}, options?: ConsoleCallOptions): Promise<{ checkout: { url: string } }> {
+  return call<{ checkout: { url: string } }>("/api/billing/checkout", {
+    ...options,
+    method: "POST",
+    body: { provider: "stripe", ...input },
+  });
+}
+
+export function startBachsCheckout(input: {
+  plan: string;
+  customerEmail: string;
+  successUrl: string;
+  cancelUrl: string;
+  timeZone: string;
+}, options?: ConsoleCallOptions): Promise<{ checkout: { url: string } }> {
+  return call<{ checkout: { url: string } }>("/api/billing/checkout", {
+    ...options,
+    method: "POST",
+    body: { provider: "bachs", ...input },
   });
 }

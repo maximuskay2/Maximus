@@ -17,7 +17,7 @@ afterEach(async () => {
   for (const folder of folders.splice(0)) rmSync(folder, { recursive: true, force: true });
 });
 
-async function serve(scopes: string[]) {
+async function serve(scopes: string[], email?: string) {
   const folder = mkdtempSync(join(tmpdir(), "maximus-ration-route-"));
   folders.push(folder);
   const routes = [createRationRoutes({ ration: new RationService({ dataDir: folder }) })];
@@ -25,7 +25,7 @@ async function serve(scopes: string[]) {
     const url = new URL(req.url ?? "/", "http://localhost");
     const handled = await dispatchRoutes(routes, {
       req, res, url, path: url.pathname, method: req.method ?? "GET",
-      auth: { kind: "session", scopes } as never, json, readBody,
+      auth: { kind: "session", scopes, session: { email } } as never, json, readBody,
     });
     if (!handled) json(res, 404, { error: "missing" });
   });
@@ -91,7 +91,7 @@ describe("/api/admin/ration", () => {
     expect(status).toBe(200);
     expect(body.tier).toBe("free");
     expect(body.grantedUsd).toBe(0.012);
-    expect(body.sparkTokens).toBe(2_823);
+    expect(body.sparkTokens).toBe(60_000);
     expect(body.pool).toBeUndefined();
     expect(JSON.stringify(body)).not.toContain("meta");
     const accepted = await call("/api/ration/contributor", {
@@ -102,5 +102,61 @@ describe("/api/admin/ration", () => {
     expect(accepted[0]).toBe(200);
     expect(accepted[1].contributorAccepted).toBe(true);
     expect(accepted[1].sparkTokens).toBe(60_000);
+  });
+
+  it("keeps one free grant for an email that already chose, on the next sign-in", async () => {
+    const call = await serve(["client"], "Ada@example.com");
+    expect((await call("/api/account/plan"))[1]).toEqual({ choice: null });
+    const chosen = await call("/api/account/plan", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ choice: "free" }),
+    }) as [number, { choice: string }];
+    expect(chosen).toEqual([200, { choice: "free" }]);
+    expect((await call("/api/account/plan"))[1]).toEqual({ choice: "free" });
+    const first = await call("/api/ration") as [number, { grantedUsd: number }];
+    const second = await call("/api/ration") as [number, { grantedUsd: number }];
+    expect(first[1].grantedUsd).toBe(0.012);
+    expect(second[1].grantedUsd).toBe(0.012);
+    const paid = await call("/api/account/plan", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ choice: "muse" }),
+    }) as [number, { choice: string }];
+    expect(paid[1].choice).toBe("muse");
+    const downgrade = await call("/api/account/plan", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ choice: "free" }),
+    }) as [number, { choice: string }];
+    expect(downgrade[1].choice).toBe("muse");
+  });
+
+  it("lets an admin grant credit or a plan and refuses a member", async () => {
+    const admin = await serve(["admin"]);
+    const member = await serve(["client"]);
+    expect((await member("/api/admin/grants"))[0]).toBe(403);
+    const refused = await member("/api/admin/grants", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "ada@example.com", plan: "pro", creditUsd: 5 }),
+    });
+    expect(refused[0]).toBe(403);
+    const granted = await admin("/api/admin/grants", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "Ada@example.com", plan: "plus", creditUsd: 2, note: "bank transfer" }),
+    }) as [number, { seat: { email: string; plan: string; allowanceUsd: number; creditUsd: number } }];
+    expect(granted[0]).toBe(200);
+    expect(granted[1].seat).toMatchObject({ email: "ada@example.com", plan: "plus", creditUsd: 2, allowanceUsd: 24 });
+    const listed = await admin("/api/admin/grants") as [number, { grants: Array<{ email: string }> }];
+    expect(listed[0]).toBe(200);
+    expect(listed[1].grants.map((row) => row.email)).toEqual(["ada@example.com"]);
+    const empty = await admin("/api/admin/grants", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "ada@example.com" }),
+    });
+    expect(empty[0]).toBe(400);
   });
 });

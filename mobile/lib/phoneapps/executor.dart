@@ -23,6 +23,9 @@ const phoneToolCapability = <String, String>{
   'PHONE_LIST_HOME': 'home',
   'PHONE_SET_ACCESSORY': 'home',
   'PHONE_RUN_SCENE': 'home',
+  'PHONE_LIST_ALARMS': 'alarms',
+  'PHONE_CREATE_ALARM': 'alarms',
+  'PHONE_DELETE_ALARM': 'alarms',
   'PHONE_SEND_MESSAGE': 'messages',
   'PHONE_SEND_WHATSAPP': 'messages',
 };
@@ -109,6 +112,20 @@ abstract class MessageDriver {
   Future<bool> sendWhatsapp(String to, String text);
 }
 
+/// Local alarms / wake notifications.
+abstract class AlarmsDriver {
+  Future<List<Map<String, Object?>>> list();
+  Future<String?> create(Map<String, Object?> fields);
+  Future<bool> delete(String id);
+}
+
+/// HomeKit / home accessories.
+abstract class HomeDriver {
+  Future<Map<String, Object?>> list();
+  Future<bool> setAccessory(Map<String, Object?> fields);
+  Future<bool> runScene(Map<String, Object?> fields);
+}
+
 /// Runs PHONE_* jobs against the OS apps. Drivers throw
 /// [PhoneDriverError] for expected failures (denied, missing, too big);
 /// anything else becomes a generic failure.
@@ -126,6 +143,8 @@ class PhoneToolExecutor {
     this._contacts,
     this._location,
     this._messages,
+    this._alarms,
+    this._home,
   });
 
   /// Capabilities this phone registered (calendar, reminders, ...).
@@ -135,6 +154,8 @@ class PhoneToolExecutor {
   final ContactsDriver? _contacts;
   final LocationDriver? _location;
   final MessageDriver? _messages;
+  final AlarmsDriver? _alarms;
+  final HomeDriver? _home;
 
   Future<PhoneOutcome> execute(PhoneJob job) async {
     final capability = phoneToolCapability[job.tool];
@@ -292,12 +313,62 @@ class PhoneToolExecutor {
           code: 'unsupported',
         );
       case 'PHONE_LIST_HOME':
+        final home = _home;
+        if (home == null) {
+          return const PhoneOutcome.fail(
+            'Home accessories are not on this phone.',
+            code: 'unsupported',
+          );
+        }
+        return PhoneOutcome.ok(await home.list());
       case 'PHONE_SET_ACCESSORY':
+        final home = _home;
+        if (home == null) {
+          return const PhoneOutcome.fail(
+            'Home accessories are not on this phone.',
+            code: 'unsupported',
+          );
+        }
+        final ok = await home.setAccessory(args);
+        return ok
+            ? const PhoneOutcome.ok({'updated': true})
+            : const PhoneOutcome.fail(
+                'The accessory was not updated.',
+                code: 'not_found',
+              );
       case 'PHONE_RUN_SCENE':
-        return const PhoneOutcome.fail(
-          'Home accessories are not on this phone.',
-          code: 'unsupported',
-        );
+        final home = _home;
+        if (home == null) {
+          return const PhoneOutcome.fail(
+            'Home accessories are not on this phone.',
+            code: 'unsupported',
+          );
+        }
+        final ok = await home.runScene(args);
+        return ok
+            ? const PhoneOutcome.ok({'ran': true})
+            : const PhoneOutcome.fail(
+                'The scene was not run.',
+                code: 'not_found',
+              );
+      case 'PHONE_LIST_ALARMS':
+        final alarms = _alarms;
+        if (alarms == null) return _missing('alarms');
+        return PhoneOutcome.ok({'alarms': await alarms.list()});
+      case 'PHONE_CREATE_ALARM':
+        final id = await _alarms?.create(args);
+        if (id == null) {
+          return const PhoneOutcome.fail('The alarm was not created.');
+        }
+        return PhoneOutcome.ok({'id': id});
+      case 'PHONE_DELETE_ALARM':
+        final ok = await _alarms?.delete('${args['id']}') ?? false;
+        return ok
+            ? const PhoneOutcome.ok({'deleted': true})
+            : const PhoneOutcome.fail(
+                'No such alarm.',
+                code: 'not_found',
+              );
       case 'PHONE_SEND_MESSAGE':
         final messages = _messages;
         if (messages == null) return _missing('messages');

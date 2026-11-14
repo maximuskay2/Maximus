@@ -64,6 +64,12 @@ abstract class MaximusApi {
     List<int> bytes,
     String mime,
   );
+  Future<UploadedAttachment> uploadFile(
+    String baseUrl,
+    List<int> bytes,
+    String mime,
+    String name,
+  );
   Future<ChatMessage?> react(
     String baseUrl,
     String threadId,
@@ -92,6 +98,7 @@ abstract class MaximusApi {
     String botId,
     Map<String, Object?> patch,
   );
+  Future<void> deleteBot(String baseUrl, String botId);
   Future<List<GroupSummary>> groups(String baseUrl);
   Future<GroupSummary> createGroup(
     String baseUrl, {
@@ -375,12 +382,13 @@ abstract class MaximusApi {
   /// GET /api/console/plans — public plan catalog.
   Future<List<ConsolePlan>> consolePlans(String baseUrl);
 
-  /// GET /api/billing/offer — Naira when Paystack is on and this phone is in Nigeria.
+  /// GET /api/billing/offer — which gateway Admin enabled (Bachs primary, else Paystack in NG).
   Future<BillingOffer> billingOffer(String baseUrl, {required String timeZone});
 
-  /// POST /api/billing/checkout — start a Paystack charge and return its URL.
+  /// POST /api/billing/checkout — start Bachs or Paystack and return its URL.
   Future<BillingCheckout> billingCheckout(
     String baseUrl, {
+    required String provider,
     required String plan,
     required String customerEmail,
     required String successUrl,
@@ -424,6 +432,12 @@ abstract class MaximusApi {
   /// second free grant.
   Future<RationWallet> rationWallet(String baseUrl, {String? installId});
 
+  /// GET /api/account/plan — the plan this email already accepted, or null.
+  Future<String?> accountPlan(String baseUrl);
+
+  /// POST /api/account/plan — remember free, byo, or muse for this email.
+  Future<void> chooseAccountPlan(String baseUrl, String choice);
+
   /// POST /api/ration/contributor — turn Contributor Spark on or off.
   Future<RationWallet> acceptRationContributor(String baseUrl, bool accept);
 
@@ -464,10 +478,138 @@ abstract class MaximusApi {
     Map<String, Object?> action,
   );
 
+  /// GET /api/instances — engines this server can run.
+  Future<List<EngineInstance>> listInstances(String baseUrl, {bool fresh = false});
+
+  /// POST /api/instances/:id/auth/start — begin device or paste sign-in.
+  Future<EngineAuthFlow> startInstanceAuth(String baseUrl, String instanceId);
+
+  /// GET /api/instances/:id/auth/status — poll a started sign-in.
+  Future<EngineAuthFlow> instanceAuthStatus(
+    String baseUrl,
+    String instanceId, {
+    required String flowId,
+  });
+
+  /// POST /api/instances/:id/auth/complete — finish a paste-code sign-in.
+  Future<void> completeInstanceAuth(
+    String baseUrl,
+    String instanceId, {
+    required String flowId,
+    required String code,
+  });
+
+  /// POST /api/instances/:id/auth/cancel — abandon a sign-in.
+  Future<void> cancelInstanceAuth(String baseUrl, String instanceId);
+
+  /// POST /api/instances/openai-compat — add an OpenAI-compatible endpoint.
+  Future<String> addOpenaiCompat(
+    String baseUrl, {
+    required String displayName,
+    required String url,
+    required String key,
+  });
+
+  /// PUT /api/config — save provider API keys (write-only secrets).
+  Future<void> putConfig(String baseUrl, Map<String, Object?> patch);
+
+  /// POST /api/bots/:id/secret-cards/:msg/save — email or custom secret.
+  Future<void> saveSecretCard(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+    required String value,
+    String? address,
+    Map<String, Object?>? server,
+  });
+
+  /// POST /api/bots/:id/secret-cards/:msg/{provided|dismiss|resume}.
+  Future<void> settleSecretCard(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+    required String action,
+  });
+
+  /// POST /api/logins/1password — connect a 1Password service account token.
+  Future<void> saveOnePasswordToken(String baseUrl, String token);
+
+  /// POST /api/bots/:id/sign-in-cards/:msg/{done|cancel}.
+  Future<void> settleSignInCard(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+    required String action,
+  });
+
+  /// POST /api/bots/:id/sign-in-cards/:msg/save-login.
+  Future<void> saveSignInLogin(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+    required String username,
+    required String password,
+    String? totp,
+    String? signInHost,
+  });
+
+  /// POST /api/bots/:id/connector-cards/:msg/authorize.
+  Future<String> authorizeConnectorCard(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+    String? alias,
+  });
+
+  /// GET /api/bots/:id/connector-cards/:msg/status.
+  Future<bool> connectorCardStatus(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+  });
+
+  /// POST /api/bots/:id/connector-cards/:msg/resume.
+  Future<void> resumeConnectorCard(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+  });
+
+  /// POST /api/bots/:id/connector-cards/:msg/dismiss.
+  Future<void> dismissConnectorCard(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+  });
+
+  /// POST /api/bots/:id/messages with widgetAction (confirm/cancel press).
+  Future<void> sendWidgetAction(
+    String baseUrl,
+    String botId, {
+    required String threadId,
+    required String messageId,
+    required String ref,
+    required int rev,
+    Map<String, Object?>? values,
+  });
+
+  /// GET /api/needs-you — what only this person can unblock.
+  Future<List<NeedsYouItem>> needsYou(String baseUrl);
+
   Future<StreamSubscription<LiveEvent>> events(
     String baseUrl,
     void Function(LiveEvent) onEvent, {
     void Function(Object error)? onError,
+    void Function()? onDone,
+    String? since,
   });
   void close();
 }
@@ -794,6 +936,37 @@ class MaximusClient implements MaximusApi {
     );
   }
 
+  @override
+  Future<UploadedAttachment> uploadFile(
+    String baseUrl,
+    List<int> bytes,
+    String mime,
+    String name,
+  ) async {
+    if (_closed) throw StateError('client is closed');
+    final url = _u(baseUrl, '/api/files', {'name': name, 'uploadId': _uuidV4()});
+    final request = await _http.openUrl('POST', url);
+    request.headers.contentType = ContentType.parse(mime);
+    request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+    _authToken(request.headers);
+    if (_cookies.isNotEmpty) {
+      request.cookies.addAll([
+        for (final entry in _cookies.entries)
+          Cookie(entry.key, entry.value),
+      ]);
+    }
+    request.add(bytes);
+    final response = await request.close();
+    _storeCookies(response.headers, response.cookies);
+    final text = await response.transform(utf8.decoder).join();
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _decodeError(response.statusCode, text);
+    }
+    return UploadedAttachment.fromJson(
+      jsonDecode(text) as Map<String, Object?>,
+    );
+  }
+
   /// POST /api/threads/{thread}/messages/{id}/reactions — toggle a reaction.
   @override
   Future<ChatMessage?> react(
@@ -872,6 +1045,12 @@ class MaximusClient implements MaximusApi {
     final bot = json['bot'] ?? json;
     if (bot is Map<String, Object?>) return BotSummary.fromJson(bot);
     throw ApiError(200, 'patch returned no bot');
+  }
+
+  /// DELETE /api/bots/{id} — remove a bot this account can edit.
+  @override
+  Future<void> deleteBot(String baseUrl, String botId) async {
+    await _json('DELETE', _u(baseUrl, '/api/bots/$botId'));
   }
 
   /// GET /api/bots groups section — rooms list.
@@ -1666,6 +1845,7 @@ class MaximusClient implements MaximusApi {
   @override
   Future<BillingCheckout> billingCheckout(
     String baseUrl, {
+    required String provider,
     required String plan,
     required String customerEmail,
     required String successUrl,
@@ -1673,7 +1853,7 @@ class MaximusClient implements MaximusApi {
     required String timeZone,
   }) async {
     final json = await _json('POST', _u(baseUrl, '/api/billing/checkout'), body: {
-      'provider': 'paystack',
+      'provider': provider,
       'plan': plan,
       'customerEmail': customerEmail,
       'successUrl': successUrl,
@@ -1781,6 +1961,18 @@ class MaximusClient implements MaximusApi {
   }
 
   @override
+  Future<String?> accountPlan(String baseUrl) async {
+    final json = await _json('GET', _u(baseUrl, '/api/account/plan'));
+    final choice = json['choice'];
+    return choice is String && choice.isNotEmpty ? choice : null;
+  }
+
+  @override
+  Future<void> chooseAccountPlan(String baseUrl, String choice) async {
+    await _json('POST', _u(baseUrl, '/api/account/plan'), body: {'choice': choice});
+  }
+
+  @override
   Future<RationWallet> acceptRationContributor(
     String baseUrl,
     bool accept,
@@ -1870,6 +2062,300 @@ class MaximusClient implements MaximusApi {
     );
   }
 
+  @override
+  Future<List<EngineInstance>> listInstances(
+    String baseUrl, {
+    bool fresh = false,
+  }) async {
+    final json = await _json(
+      'GET',
+      _u(baseUrl, '/api/instances', fresh ? {'fresh': '1'} : null),
+    );
+    return EngineInstance.listFrom(json);
+  }
+
+  @override
+  Future<EngineAuthFlow> startInstanceAuth(
+    String baseUrl,
+    String instanceId,
+  ) async {
+    final json = await _json(
+      'POST',
+      _u(baseUrl, '/api/instances/${Uri.encodeComponent(instanceId)}/auth/start'),
+      body: const {},
+    );
+    return EngineAuthFlow.fromJson(json);
+  }
+
+  @override
+  Future<EngineAuthFlow> instanceAuthStatus(
+    String baseUrl,
+    String instanceId, {
+    required String flowId,
+  }) async {
+    final json = await _json(
+      'GET',
+      _u(
+        baseUrl,
+        '/api/instances/${Uri.encodeComponent(instanceId)}/auth/status',
+        {'flowId': flowId},
+      ),
+    );
+    return EngineAuthFlow.fromJson(json);
+  }
+
+  @override
+  Future<void> completeInstanceAuth(
+    String baseUrl,
+    String instanceId, {
+    required String flowId,
+    required String code,
+  }) async {
+    await _json(
+      'POST',
+      _u(baseUrl, '/api/instances/${Uri.encodeComponent(instanceId)}/auth/complete'),
+      body: {'flowId': flowId, 'code': code},
+    );
+  }
+
+  @override
+  Future<void> cancelInstanceAuth(String baseUrl, String instanceId) async {
+    await _json(
+      'POST',
+      _u(baseUrl, '/api/instances/${Uri.encodeComponent(instanceId)}/auth/cancel'),
+      body: const {},
+    );
+  }
+
+  @override
+  Future<String> addOpenaiCompat(
+    String baseUrl, {
+    required String displayName,
+    required String url,
+    required String key,
+  }) async {
+    final json = await _json(
+      'POST',
+      _u(baseUrl, '/api/instances/openai-compat'),
+      body: {
+        'displayName': displayName,
+        'url': url,
+        'key': key,
+      },
+    );
+    return (json['instanceId'] as String?) ?? '';
+  }
+
+  @override
+  Future<void> putConfig(String baseUrl, Map<String, Object?> patch) async {
+    await _json('PUT', _u(baseUrl, '/api/config'), body: patch);
+  }
+
+  @override
+  Future<void> saveSecretCard(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+    required String value,
+    String? address,
+    Map<String, Object?>? server,
+  }) async {
+    await _json(
+      'POST',
+      _u(
+        baseUrl,
+        '/api/bots/${Uri.encodeComponent(botId)}/secret-cards/${Uri.encodeComponent(messageId)}/save',
+      ),
+      body: {
+        'threadId': threadId,
+        'value': value,
+        if (address != null) 'address': address,
+        ...?server,
+      },
+    );
+  }
+
+  @override
+  Future<void> settleSecretCard(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+    required String action,
+  }) async {
+    await _json(
+      'POST',
+      _u(
+        baseUrl,
+        '/api/bots/${Uri.encodeComponent(botId)}/secret-cards/${Uri.encodeComponent(messageId)}/$action',
+      ),
+      body: {'threadId': threadId},
+    );
+  }
+
+  @override
+  Future<void> saveOnePasswordToken(String baseUrl, String token) async {
+    await _json(
+      'POST',
+      _u(baseUrl, '/api/logins/1password'),
+      body: {'token': token},
+    );
+  }
+
+  @override
+  Future<void> settleSignInCard(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+    required String action,
+  }) async {
+    await _json(
+      'POST',
+      _u(
+        baseUrl,
+        '/api/bots/${Uri.encodeComponent(botId)}/sign-in-cards/${Uri.encodeComponent(messageId)}/$action',
+      ),
+      body: {'threadId': threadId},
+    );
+  }
+
+  @override
+  Future<void> saveSignInLogin(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+    required String username,
+    required String password,
+    String? totp,
+    String? signInHost,
+  }) async {
+    await _json(
+      'POST',
+      _u(
+        baseUrl,
+        '/api/bots/${Uri.encodeComponent(botId)}/sign-in-cards/${Uri.encodeComponent(messageId)}/save-login',
+      ),
+      body: {
+        'threadId': threadId,
+        'username': username,
+        'password': password,
+        if (totp != null && totp.isNotEmpty) 'totp': totp,
+        if (signInHost != null && signInHost.isNotEmpty) 'signInHost': signInHost,
+      },
+    );
+  }
+
+  String _connectorCardPath(String botId, String messageId, String action) =>
+      '/api/bots/${Uri.encodeComponent(botId)}/connector-cards/${Uri.encodeComponent(messageId)}/$action';
+
+  @override
+  Future<String> authorizeConnectorCard(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+    String? alias,
+  }) async {
+    final json = await _json(
+      'POST',
+      _u(baseUrl, _connectorCardPath(botId, messageId, 'authorize')),
+      body: {
+        'threadId': threadId,
+        if (alias != null && alias.isNotEmpty) 'alias': alias,
+      },
+    );
+    final url = json['url'];
+    if (url is! String || url.isEmpty) {
+      throw ApiError(200, 'authorize returned no URL');
+    }
+    return url;
+  }
+
+  @override
+  Future<bool> connectorCardStatus(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+  }) async {
+    final json = await _json(
+      'GET',
+      _u(
+        baseUrl,
+        _connectorCardPath(botId, messageId, 'status'),
+        {'threadId': threadId},
+      ),
+    );
+    return json['connected'] == true;
+  }
+
+  @override
+  Future<void> resumeConnectorCard(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+  }) async {
+    await _json(
+      'POST',
+      _u(baseUrl, _connectorCardPath(botId, messageId, 'resume')),
+      body: {'threadId': threadId},
+    );
+  }
+
+  @override
+  Future<void> dismissConnectorCard(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+  }) async {
+    await _json(
+      'POST',
+      _u(baseUrl, _connectorCardPath(botId, messageId, 'dismiss')),
+      body: {'threadId': threadId},
+    );
+  }
+
+  @override
+  Future<void> sendWidgetAction(
+    String baseUrl,
+    String botId, {
+    required String threadId,
+    required String messageId,
+    required String ref,
+    required int rev,
+    Map<String, Object?>? values,
+  }) async {
+    await _json(
+      'POST',
+      _u(baseUrl, '/api/bots/$botId/messages'),
+      body: {
+        'threadId': threadId,
+        'sendId': _uuidV4(),
+        'widgetAction': {
+          'messageId': messageId,
+          'ref': ref,
+          'rev': rev,
+          if (values != null) 'values': values,
+        },
+      },
+    );
+  }
+
+  @override
+  Future<List<NeedsYouItem>> needsYou(String baseUrl) async {
+    final json = await _json('GET', _u(baseUrl, '/api/needs-you'));
+    final raw = json['items'] as List? ?? json['needsYou'] as List? ?? const [];
+    return [
+      for (final item in raw)
+        if (item is Map) ?NeedsYouItem.tryFrom(Map<String, Object?>.from(item)),
+    ];
+  }
+
   /// Opens `/api/events` and parses the SSE stream into [LiveEvent]s.
   /// The caller owns the subscription; closing it ends the request.
   /// `client=mobile` marks the stream so desktop-preferred push routing
@@ -1879,9 +2365,12 @@ class MaximusClient implements MaximusApi {
     String baseUrl,
     void Function(LiveEvent) onEvent, {
     void Function(Object error)? onError,
+    void Function()? onDone,
+    String? since,
   }) async {
-    final request =
-        await _http.getUrl(_u(baseUrl, '/api/events', {'client': 'mobile'}));
+    final query = <String, String>{'client': 'mobile'};
+    if (since != null && since.isNotEmpty) query['since'] = since;
+    final request = await _http.getUrl(_u(baseUrl, '/api/events', query));
     request.headers.set(HttpHeaders.acceptHeader, 'text/event-stream');
     _authToken(request.headers);
     if (_cookies.isNotEmpty) {
@@ -1896,17 +2385,34 @@ class MaximusClient implements MaximusApi {
       throw _decodeError(response.statusCode, text);
     }
     final parser = SseParser();
-    final sub = parser.events.listen(onEvent, onError: onError);
-    bindLines(response, parser, onError: (error) {
-      // Teardown races (client closed mid-stream) are quiet; anything else
-      // goes to the caller's handler when one is registered.
-      if (_closed) return;
-      onError?.call(error);
-    }).onDone(() async {
-      await sub.cancel();
-      await parser.close();
+    StreamSubscription<String>? lines;
+    var released = false;
+    final controller = StreamController<LiveEvent>(onCancel: () {
+      released = true;
+      lines?.cancel();
     });
-    return sub;
+    parser.events.listen((event) {
+      if (!controller.isClosed) controller.add(event);
+    });
+    lines = bindLines(
+      response,
+      parser,
+      onError: (error) {
+        if (_closed || released || controller.isClosed) return;
+        controller.addError(error);
+      },
+      onDone: () {
+        parser.close();
+        if (!released && !_closed && !controller.isClosed) controller.close();
+      },
+    );
+    return controller.stream.listen(
+      onEvent,
+      onError: onError,
+      onDone: () {
+        if (!released) onDone?.call();
+      },
+    );
   }
 
   /// GET /api/bots/:id/browser/live — v1 viewer SSE frames as raw maps.

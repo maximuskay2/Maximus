@@ -1,3 +1,4 @@
+import { refreshAccountRation } from "@/lib/account-ration";
 import { cloudAsleep, onCloudPower } from "../lib/cloud-power";
 import { api, ApiError, retryRequest, snapshotArrays } from "./api";
 import {
@@ -2475,7 +2476,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 });
               }
             })
+            .then(() => { refreshAccountRation(); })
             .catch((error) => {
+              refreshAccountRation();
               if (threadId) {
                 rawDispatch({ type: "optimisticMessageRemoved", threadId, sendId });
               }
@@ -2723,7 +2726,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 });
               }
             })
+            .then(() => { refreshAccountRation(); })
             .catch((error) => {
+              refreshAccountRation();
               if (threadId) {
                 rawDispatch({ type: "optimisticMessageRemoved", threadId, sendId });
               }

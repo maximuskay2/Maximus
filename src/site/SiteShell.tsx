@@ -176,12 +176,19 @@ export function SiteFooter() {
           <ul className="mt-3 space-y-2">
             <li><a className={link} href="/signup">{t("console.site.tourSignup")}</a></li>
             <li><a className={link} href="/signin">{t("console.site.tourSignin")}</a></li>
+            <li><a className={link} href="/about">{t("console.legal.aboutNav")}</a></li>
+            <li><a className={link} href="/terms">{t("console.legal.termsNav")}</a></li>
+            <li><a className={link} href="/privacy">{t("console.legal.privacyNav")}</a></li>
           </ul>
         </nav>
       </div>
       <div className="border-t border-white/10">
         <div className={`mx-auto flex w-full max-w-[1120px] flex-wrap items-center gap-x-4 gap-y-1 px-5 py-4 text-[13px] ${site.faint}`}>
           <span>© {year} {productName()}</span>
+          <span aria-hidden>·</span>
+          <a className="text-inherit no-underline hover:text-white" href="/about">{t("console.legal.aboutNav")}</a>
+          <a className="text-inherit no-underline hover:text-white" href="/terms">{t("console.legal.termsNav")}</a>
+          <a className="text-inherit no-underline hover:text-white" href="/privacy">{t("console.legal.privacyNav")}</a>
           <span aria-hidden>·</span>
           <span>{t("console.site.footerPlatforms")}</span>
         </div>

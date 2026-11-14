@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ResolvedSender, WireGroup } from "../../shared/wire.ts";
 import { admit } from "../admission.ts";
+import { chatRationRefusal } from "../billing/ration-service.ts";
 import {
   cancelChannelMessage,
   headChannelGroup,
@@ -358,6 +359,7 @@ export function createChannelRoutes(deps: ChannelRouteDeps): RouteHandler {
       if (via) {
         console.warn(`room message from ${requestSource(req)} through the local API (no session, no browser origin) into "${group.name}"`);
       }
+      try {
       const receipt = await sendSequencer.run(
         sendId ? `group:${group.id}:${threadId}:${sendId}` : undefined,
         sendFingerprint(text, replyTo?.id, channelMode),
@@ -385,6 +387,9 @@ export function createChannelRoutes(deps: ChannelRouteDeps): RouteHandler {
               return { ok: true as const, queued: true as const, queueId: queued.id, threadId };
             }
           }
+          const rationEmail = auth.kind === "session" ? auth.session.email : undefined;
+          const rationHit = chatRationRefusal(rationEmail, text);
+          if (rationHit) throw Object.assign(new Error(rationHit.message), { status: rationHit.status, code: rationHit.code });
           const current = store.group(group.id);
           if (!current) throw Object.assign(new Error("no such group"), { status: 404 });
           const ownsTarget = current.threadId === threadId || store.groupTasks(current.id).some((task) => task.threadId === threadId);
@@ -419,6 +424,14 @@ export function createChannelRoutes(deps: ChannelRouteDeps): RouteHandler {
         },
       );
       return json(res, 202, receipt);
+      } catch (error) {
+        const code = (error as { code?: unknown }).code;
+        const status = (error as { status?: unknown }).status;
+        if ((code === "spend_cap" || code === "rate_limit" || code === "model_locked") && typeof status === "number") {
+          return json(res, status, { error: error instanceof Error ? error.message : "send refused", code });
+        }
+        throw error;
+      }
     }
     m = path.match(/^\/api\/groups\/([\w-]+)\/queue\/([\w-]+)$/);
     if (m && method === "DELETE") {

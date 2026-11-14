@@ -33,7 +33,7 @@ public struct MaximusActivityAttributes: ActivityAttributes {
 /// unavailable (unsigned builds), in which case Siri falls back to
 /// free-text bot names.
 public enum MaximusSharedDefaults {
-  public static let suiteName = "group.com.maximus.app"
+  public static let suiteName = "group.com.maximusbot.app"
   public static let botsKey = "siri.bots.v1"
 
   public static var suite: UserDefaults? {

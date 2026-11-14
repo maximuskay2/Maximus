@@ -12,7 +12,7 @@ You sign by commenting on your pull request:
 It applies to every contribution you make to `maximus-enterprise/` from then on. It is
 modelled on the Apache Individual Contributor License Agreement, shortened.
 
-1. **Copyright license.** You grant Milind Soni ("the Project Owner") and
+1. **Copyright license.** You grant Akingbade Kayode ("the Project Owner") and
    recipients of software distributed by the Project Owner a perpetual,
    worldwide, non-exclusive, no-charge, royalty-free, irrevocable license to
    reproduce, prepare derivative works of, publicly display, publicly perform,

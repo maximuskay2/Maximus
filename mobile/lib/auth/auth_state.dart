@@ -56,9 +56,26 @@ class AuthState extends ChangeNotifier {
       final token = _servers.first.companionToken;
       _client.setCompanionToken(token);
       _needsSignIn = token == null || token.isEmpty;
+      if (!_needsSignIn) await refreshSession();
     }
     _loaded = true;
     notifyListeners();
+  }
+
+  /// Pulls scopes from the live session so admin gates match the server.
+  Future<void> refreshSession() async {
+    final current = active;
+    if (current == null) return;
+    final token = current.companionToken;
+    if (token == null || token.isEmpty) return;
+    try {
+      final info = await _client.authSession(current.baseUrl);
+      _scopes = info.scopes;
+      _needsSignIn = false;
+      notifyListeners();
+    } on ApiError catch (error) {
+      if (error.status == 401) await sessionEnded();
+    }
   }
 
   /// Pairs a server by code and makes it active.
@@ -116,6 +133,7 @@ class AuthState extends ChangeNotifier {
     _needsSignIn = true;
     _client.endSession();
     if (current != null) {
+      await _cache?.forgetServer(current.id);
       await _store.saveServer(ServerRef(
         id: current.id,
         name: current.name,

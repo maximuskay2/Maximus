@@ -5,6 +5,7 @@ plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.gms.google-services")
 }
 
 // Phase 10: Play upload key from android/key.properties (gitignored; CI
@@ -17,7 +18,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.maximus.app"
+    namespace = "com.maximusbot.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -27,7 +28,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.maximus.app"
+        applicationId = "com.maximusbot.app"
         // Android 9 floor per the mobile roadmap (Grok Bot benchmark).
         minSdk = 28
         targetSdk = flutter.targetSdkVersion

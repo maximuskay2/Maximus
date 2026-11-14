@@ -17,10 +17,16 @@ export function compactionReading<T>(capabilities: { contextReading?: "meter" } 
   return capabilities?.contextReading === "meter" ? undefined : reading;
 }
 
+/** Above this, 80% of the window never folds in practice (Muse reports ~1M), so turns stay large and slow. */
+const LARGE_WINDOW = 200_000;
+/** Default fold target for those windows when the operator did not set `context.compactAt`. */
+const LARGE_WINDOW_COMPACT_AT = 32_000;
+
 /** Leave headroom even for a small local model: an 8k floor would make compaction unreachable on an 8k window. */
 export function compactBudget(window: number, compactAt?: number, nativeCompactAt?: number): number {
   if (!positive(window)) throw new Error("invalid model context window");
-  const configured = positive(compactAt) ? (compactAt < 1 ? window * compactAt : compactAt) : window * 0.8;
+  const unsetDefault = window > LARGE_WINDOW ? Math.min(window * 0.8, LARGE_WINDOW_COMPACT_AT) : window * 0.8;
+  const configured = positive(compactAt) ? (compactAt < 1 ? window * compactAt : compactAt) : unsetDefault;
   return Math.max(1, Math.floor(Math.min(configured, window * 0.9, positive(nativeCompactAt) ? nativeCompactAt * 0.9 : Infinity)));
 }
 

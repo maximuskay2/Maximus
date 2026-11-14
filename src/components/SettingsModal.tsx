@@ -40,6 +40,7 @@ import { ProSettingsCard } from "./ProIntroduction";
 import { CloudUsageSettings } from "./CloudUsageMeter";
 import { Card, SettingsGroup, SIMPLE_BUTTONS } from "./SettingsPrimitives";
 import { shortcutLabel } from "./ShortcutHint";
+import { AccountRation } from "./AccountRation";
 import { UsageSection } from "./UsageSection";
 import { SkillsSection } from "./SkillsSection";
 import { BillingBanner } from "./BillingBanner";
@@ -265,7 +266,7 @@ export function SettingsModal() {
     else dialog?.focus();
 
     const onKey = (event: KeyboardEvent) => {
-      if (!searchFirst.current && dialog && document.activeElement === dialog && event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey
+      if (!searchFirst.current && dialog && document.activeElement === dialog && (event.key?.length ?? 0) === 1 && !event.metaKey && !event.ctrlKey && !event.altKey
         && search?.checkVisibility()) {
         event.preventDefault();
         search.focus();
@@ -418,7 +419,7 @@ export function SettingsModal() {
       case "logins":
         return <LoginsSettings />;
       case "usage":
-        return <AdminOnly note="settings.adminOnly.usage"><UsageSection /></AdminOnly>;
+        return ownerOrAdmin === true ? <UsageSection /> : <AccountRation />;
       case "skills":
         return skillsLibraryEnabled(state.config) ? <SkillsSection /> : null;
       case "people":
@@ -499,7 +500,7 @@ export function SettingsModal() {
               "mb-2 flex h-8 shrink-0 items-center gap-2 rounded-lg bg-ink/[0.05] px-[9px] text-[13px] focus-within:ring-2 focus-within:ring-focus/60",
               "w-full min-w-0 bg-transparent text-[13px] text-ink placeholder:text-ink-secondary focus:outline-none",
             )}
-            {visiblePages.length === 0 && advancedMatches.length === 0 && keyResults.length === 0 && (
+            {(visiblePages?.length ?? 0) === 0 && (advancedMatches?.length ?? 0) === 0 && (keyResults?.length ?? 0) === 0 && (
               <div className="px-[9px] py-3 text-[13px] leading-[18px] text-ink-secondary">{t("settings.noMatch", { query: query.trim() })}</div>
             )}
             {visiblePages.map((page) => {

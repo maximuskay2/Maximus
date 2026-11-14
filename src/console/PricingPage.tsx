@@ -11,7 +11,6 @@ import { ConsoleError as ErrorBox } from "./shell";
 /** A signed-in person opens the app. Everyone else creates an account, carrying the plan they picked. */
 export function planHref(planId: string, signedIn: boolean): string {
   if (signedIn) return "/";
-  if (planId === "free") return "/signup";
   return `/signup?plan=${encodeURIComponent(planId)}`;
 }
 

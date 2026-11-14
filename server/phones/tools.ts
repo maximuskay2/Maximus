@@ -50,6 +50,9 @@ const tools: PhoneTool[] = [
   tool("PHONE_LIST_HOME", "List the home's accessories, their current state and the scenes. Read only.", {}),
   tool("PHONE_SET_ACCESSORY", "Set one characteristic of a home accessory, such as turning a light on or setting a thermostat.", { accessoryId: ID, characteristic: TEXT(100, "Characteristic name from PHONE_LIST_HOME, e.g. power."), value: { type: ["string", "number", "boolean"], description: "The new value." } }, ["accessoryId", "characteristic", "value"]),
   tool("PHONE_RUN_SCENE", "Run a home scene by id.", { sceneId: ID }, ["sceneId"]),
+  tool("PHONE_LIST_ALARMS", "List pending phone alarms this app set. Read only.", {}),
+  tool("PHONE_CREATE_ALARM", "Set a one-shot alarm or wake notification at a time.", { title: TEXT(500, "Alarm label."), at: DATE("When it should fire"), notes: TEXT(5000, "Notes.") }, ["title", "at"]),
+  tool("PHONE_DELETE_ALARM", "Cancel a pending alarm by id.", { id: ID }, ["id"]),
   tool("PHONE_SEND_MESSAGE", "Prepare a text message. It opens a sheet on the phone and is sent only when the person taps Send.", { to: TEXT(200, "Contact name or phone number."), text: { type: "string", minLength: 1, maxLength: 4000 } }, ["to", "text"]),
   tool("PHONE_SEND_WHATSAPP", "Prepare a WhatsApp message. It opens a sheet on the phone and is sent only when the person taps Send.", { to: TEXT(200, "Contact name or phone number."), text: { type: "string", minLength: 1, maxLength: 4000 } }, ["to", "text"]),
 ];

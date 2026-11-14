@@ -22,11 +22,17 @@ describe("marketing site", () => {
 
   it("shares one header and footer across pages", () => {
     const html = renderToStaticMarkup(createElement(SiteShell, null, "page"));
-    for (const href of ["/welcome#features", "/welcome#tour", "/pricing", "/welcome#download", "/signin", "/signup"]) {
+    for (const href of ["/welcome#features", "/welcome#tour", "/pricing", "/welcome#download", "/signin", "/signup", "/about", "/terms", "/privacy"]) {
       expect(html, href).toContain(`href="${href}"`);
     }
     expect(html).not.toContain("/admin");
     expect(html).toContain("page");
+  });
+
+  it("scrolls legal and password-reset pages like other marketing routes", () => {
+    for (const path of ["/about", "/terms", "/privacy", "/forgot", "/reset"]) {
+      expect(scrollingDocument(path, false)).toBe(true);
+    }
   });
 
   it("gives the Features/Tour/Pricing/Download links a focus background", () => {
@@ -42,8 +48,9 @@ describe("marketing site", () => {
 
   it("shows the Maximus mark in the header and footer", () => {
     const html = renderToStaticMarkup(createElement(SiteShell, null, "page"));
-    expect(html.match(/M512 616 L784 312 V712/g) ?? []).toHaveLength(2);
-    expect(html).toContain('viewBox="0 0 1024 1024"');
+    expect(html.match(/src="\/bull-avatar.png"/g) ?? []).toHaveLength(2);
+    expect(html.match(/bull-lid-left/g) ?? []).toHaveLength(2);
+    expect(html.match(/bull-lid-right/g) ?? []).toHaveLength(2);
   });
 
   it("never mentions admin in marketing copy", () => {

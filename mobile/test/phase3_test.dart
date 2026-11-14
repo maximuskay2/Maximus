@@ -309,9 +309,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('New agent'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).last, 'Helper 2');
+    expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Create')).onPressed, isNull);
+    await tester.enterText(find.byType(TextField), 'Helper 2');
+    await tester.pump();
     await tester.tap(find.text('Create'));
     await tester.pumpAndSettle();
+    expect(api.createdBot, isTrue);
+    expect(api.createdName, 'Helper 2');
     expect(refreshed, 1);
   });
 

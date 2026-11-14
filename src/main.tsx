@@ -13,15 +13,17 @@ import { settleAdvancedModeDefault } from "./lib/interface-mode";
 import { BrowserSignInPage } from "./pair/BrowserSignInPage";
 import { PairPage } from "./pair/PairPage";
 import { AdminPage } from "./console/AdminPage";
+import { ForgotPasswordPage, ResetPasswordPage } from "./console/ForgotPasswordPage";
 import { JoinPage } from "./console/JoinPage";
 import { PricingPage } from "./console/PricingPage";
 import { SigninPage } from "./console/SigninPage";
 import { SignupPage } from "./console/SignupPage";
 import { browserLandingPath, scrollingDocument } from "./site/landing";
+import { AboutPage, PrivacyPage, TermsPage } from "./site/LegalPages";
 import { WelcomePage } from "./site/WelcomePage";
 import { HomeScreen, SignedOutAtHome } from "./components/HomeScreen";
 import { PageBoundary } from "./components/PageBoundary";
-import { forgetEndedSession } from "./lib/session-ended";
+import { endedBeforeReload, forgetEndedSession } from "./lib/session-ended";
 import "./styles.css";
 
 // Before first paint; settleAdvancedModeDefault must run before applySkin writes maximus-skin.
@@ -36,7 +38,10 @@ if (landing) history.replaceState(null, "", `${landing}${location.search}${locat
 
 // The app is its own chunk, so these pages don't parse it. Everywhere else its fetch starts now, alongside the session
 // read, instead of after it. A failed fetch renders as a throw, so PageBoundary offers a reload.
-const PAGES_WITHOUT_THE_APP = new Set(["/home", "/pair", "/desktop-viewer", "/signup", "/join", "/pricing", "/signin", "/admin", "/welcome"]);
+const PAGES_WITHOUT_THE_APP = new Set([
+  "/home", "/pair", "/desktop-viewer", "/signup", "/join", "/pricing", "/signin", "/forgot", "/reset",
+  "/about", "/terms", "/privacy", "/admin", "/welcome",
+]);
 const loadApp = () => import("./App").catch((error: unknown) => ({ default: (): never => { throw error; } }));
 const appPage = PAGES_WITHOUT_THE_APP.has(location.pathname) ? null : loadApp();
 
@@ -69,6 +74,26 @@ async function chooseRoot(): Promise<React.ReactNode> {
     await pageLanguage;
     return <SigninPage />;
   }
+  if (location.pathname === "/forgot") {
+    await pageLanguage;
+    return <ForgotPasswordPage />;
+  }
+  if (location.pathname === "/reset") {
+    await pageLanguage;
+    return <ResetPasswordPage />;
+  }
+  if (location.pathname === "/about") {
+    await pageLanguage;
+    return <AboutPage />;
+  }
+  if (location.pathname === "/terms") {
+    await pageLanguage;
+    return <TermsPage />;
+  }
+  if (location.pathname === "/privacy") {
+    await pageLanguage;
+    return <PrivacyPage />;
+  }
   if (location.pathname === "/admin") {
     await pageLanguage;
     return <AdminPage />;
@@ -88,7 +113,13 @@ async function chooseRoot(): Promise<React.ReactNode> {
   const session = await readSessionState();
   if (session.kind === "unauthenticated") {
     await pageLanguage;
-    const pair = <PairPage initialCode={null} reason={t("pair.sessionEnded")} />;
+    const ended = endedBeforeReload();
+    if (!ended && !home) {
+      const next = `${location.pathname}${location.search}${location.hash}`;
+      history.replaceState(null, "", `/signin?next=${encodeURIComponent(next || "/app")}`);
+      return <SigninPage />;
+    }
+    const pair = <PairPage initialCode={null} reason={ended ? t("pair.sessionEnded") : undefined} />;
     return home ? <SignedOutAtHome bridge={home} fallback={pair} /> : pair;
   }
   forgetEndedSession();

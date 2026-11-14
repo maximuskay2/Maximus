@@ -23,8 +23,8 @@ describe("Nigeria Paystack pricing", () => {
   it("saves the admin switch", () => {
     const store = new PaymentStore(mkdtempSync(join(tmpdir(), "payments-")));
     expect(store.read().paystackEnabled).toBe(false);
-    expect(store.save({ paystackEnabled: true, ngnPerUsd: 1550 })).toBeNull();
-    expect(store.read()).toEqual({ paystackEnabled: true, ngnPerUsd: 1550 });
-    expect(store.save({ paystackEnabled: true, ngnPerUsd: 0 })).toBeTruthy();
+    expect(store.save({ paystackEnabled: true, bachsEnabled: false, ngnPerUsd: 1550 })).toBeNull();
+    expect(store.read()).toEqual({ paystackEnabled: true, bachsEnabled: false, ngnPerUsd: 1550 });
+    expect(store.save({ paystackEnabled: true, bachsEnabled: false, ngnPerUsd: 0 })).toBeTruthy();
   });
 });

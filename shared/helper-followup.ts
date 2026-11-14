@@ -13,6 +13,8 @@ export interface HelperFollowupFacts {
   /** On a team, for someone who can't connect an AI: the name of the person who does; empty until the team's owner has
    * opened the team. */
   connects?: string;
+  /** Ready on the product free Muse grant (our pooled Meta key), not a Claude/ChatGPT login of their own. */
+  museGrant?: boolean;
 }
 
 export interface HelperFollowupField {
@@ -41,6 +43,8 @@ export const FOLLOWUP_ENGLISH = {
   "helperIntro.followup.noAiTeamOwner": "I looked around. Before I can do real work, I need an AI to think with. The team's owner connects that, and I'll take it from there.",
   "helperIntro.followup.backupOwner": "I looked around. For now I'm thinking with a free backup model. {name} can connect a better one for the team.",
   "helperIntro.followup.backupTeamOwner": "I looked around. For now I'm thinking with a free backup model. The team's owner can connect a better one.",
+  "helperIntro.followup.museGrant": "I looked around — I'm ready. You're on a one-time free Muse grant (Contributor Spark; Meta may use those turns to train). Just send me a message and I'll get to work.",
+  "helperIntro.followup.museGrantNext": "When that grant runs out, open Plans: keep using Muse on our key with a paid plan, or choose Your model and connect your own Claude or ChatGPT so we don't bill those tokens.",
 } as const;
 
 export type FollowupKey = keyof typeof FOLLOWUP_ENGLISH;
@@ -57,6 +61,13 @@ export function followupText(facts: HelperFollowupFacts, say: Say, list: (items:
     if (connects === undefined) return say(none ? "helperIntro.followup.noAi" : "helperIntro.followup.backup");
     if (connects) return say(none ? "helperIntro.followup.noAiOwner" : "helperIntro.followup.backupOwner", { name: connects });
     return say(none ? "helperIntro.followup.noAiTeamOwner" : "helperIntro.followup.backupTeamOwner");
+  }
+  if (facts.museGrant) {
+    const grant = `${say("helperIntro.followup.museGrant")} ${say("helperIntro.followup.museGrantNext")}`;
+    if (!facts.apps.length) return grant;
+    const shown = facts.apps.slice(0, FOLLOWUP_APP_NAMES);
+    const rest = facts.apps.length - shown.length;
+    return `${grant} ${say("helperIntro.followup.apps", { apps: list(rest > 0 ? [...shown, say("helperIntro.followup.more", { count: rest })] : shown) })}`;
   }
   const found = say("helperIntro.followup.found");
   if (facts.apps.length) {

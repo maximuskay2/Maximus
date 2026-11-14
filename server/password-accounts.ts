@@ -82,5 +82,17 @@ export function createPasswordAccounts(file: string, now: () => number = Date.no
       const owner = read().slice().sort((left, right) => left.createdAt - right.createdAt)[0]?.email === email;
       return { ok: true, email, owner };
     },
+    setPassword(rawEmail: string, password: string): { ok: true; email: string } | { ok: false; reason: PasswordFailure } {
+      const email = normalizeAccountEmail(rawEmail);
+      if (!validAccountEmail(email)) return { ok: false, reason: "invalid-email" };
+      if (!passwordLongEnough(password)) return { ok: false, reason: "short-password" };
+      const accounts = read();
+      const index = accounts.findIndex((row) => row.email === email);
+      if (index < 0) return { ok: false, reason: "wrong" };
+      const salt = randomBytes(16);
+      accounts[index] = { ...accounts[index]!, salt: salt.toString("hex"), hash: hashPassword(password, salt).toString("hex") };
+      write(accounts);
+      return { ok: true, email };
+    },
   };
 }

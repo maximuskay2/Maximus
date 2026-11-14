@@ -36,6 +36,8 @@ export type SidebarBot = DefaultBotFields & {
   section?: string;
   pinned?: boolean;
   hidden?: boolean;
+  createdBy?: string;
+  reportsTo?: string;
 };
 
 export type SidebarGroup = {

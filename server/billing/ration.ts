@@ -165,11 +165,11 @@ export function plansFromRation(profile: RationProfile): RationPlanSeed[] {
       baseUsd: 0,
       allowanceUsd: profile.freeGrantUsd,
       hardCapUsd: profile.freeGrantUsd,
-      entitlements: [],
+      entitlements: ["gateway"],
       display: {
         name: "Free",
         blurb: "A one-time Muse grant on our key.",
-        features: ["Spark", "Once per account"],
+        features: ["Web, desktop, and phone", "Spark", "Once per account"],
       },
     },
     {
@@ -193,7 +193,7 @@ export function plansFromRation(profile: RationProfile): RationPlanSeed[] {
       display: {
         name: tier.id === "starter" ? "Starter" : tier.id === "plus" ? "Plus" : "Pro",
         blurb: `Includes $${tier.includedCostUsd} of Muse on our key.`,
-        features: tier.models.map((model) => model),
+        features: ["Web, desktop, and phone", ...tier.models],
       },
     })),
   ];

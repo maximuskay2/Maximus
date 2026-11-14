@@ -9,10 +9,14 @@ import 'api/session_store.dart';
 import 'api/thread_cache.dart';
 import 'auth/auth_state.dart';
 import 'auth/signin_page.dart';
+import 'auth/splash_page.dart';
 import 'auth/welcome_page.dart';
 import 'home/home_page.dart';
+import 'dart:io' show Platform;
+
 import 'phoneapps/drivers.dart';
 import 'phoneapps/executor.dart';
+import 'phoneapps/native_phone_apps.dart';
 import 'phoneapps/phones_page.dart';
 import 'phoneapps/policy.dart';
 import 'phoneapps/poller.dart';
@@ -202,15 +206,21 @@ class _MaximusAppState extends State<MaximusApp>
       client: _client,
       baseUrl: baseUrl,
       executor: PhoneToolExecutor(
-        capabilities: const {
+        capabilities: {
           'calendar',
+          if (Platform.isIOS) 'reminders',
+          'alarms',
           'contacts',
           'location',
+          if (Platform.isIOS) 'home',
           'messages',
         },
         calendar: SystemCalendarDriver(),
+        reminders: Platform.isIOS ? SystemRemindersDriver() : null,
+        alarms: SystemAlarmsDriver(),
         contacts: SystemContactsDriver(),
         location: SystemLocationDriver(),
+        home: Platform.isIOS ? SystemHomeDriver() : null,
         messages: SystemMessageDriver(),
       ),
       policies: PhonePolicyStore(),
@@ -328,6 +338,7 @@ class _MaximusAppState extends State<MaximusApp>
           tap: tap,
           cache: _auth.cache,
           serverId: server.id,
+          onSessionEnded: _auth.sessionEnded,
         ),
       ),
     );
@@ -366,21 +377,20 @@ class _MaximusAppState extends State<MaximusApp>
             themeMode: _prefs.theme,
             navigatorKey: _nav,
             scaffoldMessengerKey: _banners,
-            home: !_auth.loaded
-                ? const Scaffold(
-                    body: Center(child: CircularProgressIndicator()),
-                  )
-                : active == null
-                ? WelcomePage(auth: _auth)
-                : _auth.needsSignIn
-                ? SignInPage(auth: _auth, initialBaseUrl: active.baseUrl)
-                : HomePage(
-                    auth: _auth,
-                    push: _push,
-                    phonePoller: _phonePoller,
-                    prefs: _prefs,
-                    consoleAccount: _console,
-                  ),
+            home: SplashGate(
+              ready: _auth.loaded,
+              child: active == null
+                  ? WelcomePage(auth: _auth)
+                  : _auth.needsSignIn
+                  ? SignInPage(auth: _auth, initialBaseUrl: active.baseUrl)
+                  : HomePage(
+                      auth: _auth,
+                      push: _push,
+                      phonePoller: _phonePoller,
+                      prefs: _prefs,
+                      consoleAccount: _console,
+                    ),
+            ),
           ),
         );
       },

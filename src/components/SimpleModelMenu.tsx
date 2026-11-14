@@ -157,35 +157,37 @@ function GroupBody({ group, props }: { group: MenuGroup; props: SimpleModelMenuP
 
 function Thinking({ thinking, labelId }: { thinking: SimpleThinking; labelId: string }) {
   if ("variants" in thinking) return <div data-simple-thinking>{thinking.variants}</div>;
-  const levels = thinking;
-  const tabStop = Math.max(0, levels.levels.findIndex((level) => level === levels.current));
+  const levels = thinking.levels ?? [];
+  if (levels.length === 0) return null;
+  const current = thinking.current;
+  const tabStop = Math.max(0, levels.findIndex((level) => level === current));
   return (
     <div data-simple-thinking className="flex flex-col">
       <div className="flex h-6 items-end justify-between gap-2 px-2 pb-0.5">
         <span id={labelId} className="text-[12px] font-medium leading-4 text-ink-tertiary">{t("botSettings.simple.thinking")}</span>
-        {(levels.current === undefined
+        {(current === undefined
           ? <span title={t("model.simple.thinkingDefault")} className="text-[12px] leading-4 text-ink-tertiary">{t("model.effort.default")}</span>
           : (
-            <button type="button" data-simple-effort-default onClick={levels.onReset} title={t("model.simple.thinkingDefault")}
+            <button type="button" data-simple-effort-default onClick={thinking.onReset} title={t("model.simple.thinkingDefault")}
               className="-mr-1 rounded-[5px] px-1 text-[12px] leading-4 text-ink-secondary hover:bg-ink/[0.06] hover:text-ink">
               {t("model.simple.useDefault")}
             </button>
           ))}
       </div>
       <div data-simple-effort role="group" aria-labelledby={labelId} className="m-1 grid rounded-full bg-ink/[0.05] p-[3px]"
-        style={{ gridTemplateColumns: `repeat(${levels.levels.length}, minmax(0, 1fr))` }}>
-        {levels.levels.map((level, index) => (
+        style={{ gridTemplateColumns: `repeat(${levels.length}, minmax(0, 1fr))` }}>
+        {levels.map((level, index) => (
           <button
             key={level}
             type="button"
             data-effort-pill
-            aria-pressed={levels.current === level}
+            aria-pressed={current === level}
             tabIndex={index === tabStop ? 0 : -1}
             title={t("model.simple.thinkingLevel", { level: effortLabel(level) })}
-            onClick={() => levels.onPick(level)}
+            onClick={() => thinking.onPick(level)}
             className={cn(
               "h-6 min-w-0 truncate rounded-full px-1 text-[12px] leading-4 transition-colors touch:h-8",
-              levels.current === level ? "bg-ink/[0.1] font-medium text-ink" : "text-ink-secondary hover:text-ink",
+              current === level ? "bg-ink/[0.1] font-medium text-ink" : "text-ink-secondary hover:text-ink",
             )}
           >
             {effortLabel(level)}

@@ -5,9 +5,10 @@ import { join } from "node:path";
 import { z } from "zod";
 
 import { writeFileAtomic } from "../atomic.ts";
+import { AccountPlans, type AccountChoice } from "./account-plan.ts";
 import type { PriceList } from "../prices.ts";
 import {
-  debitUsd, DEFAULT_RATION, hostedTier, outputTokensFor, parseRationProfile, rateFor, rationPreview, rationProblems, rationProfileSchema,
+  debitUsd, DEFAULT_RATION, hostedTier, outputTokensFor, parseRationProfile, rateFor, rationPreview, rationProblems, rationProfileSchema, rationWorkspace,
   type FreeIdentity, type RationPreview, type RationProfile, type TokenUse,
 } from "./ration.ts";
 
@@ -63,6 +64,51 @@ export interface WalletPublic {
   storePriceUsd: number;
 }
 
+const SEAT_PLANS = ["byo", "starter", "plus", "pro"] as const;
+export type SeatPlan = (typeof SEAT_PLANS)[number];
+
+const seatSchema = z.object({
+  email: z.string().min(3).max(320),
+  plan: z.enum(SEAT_PLANS).nullable(),
+  creditUsd: z.number(),
+  spentUsd: z.number(),
+  note: z.string().max(240),
+  at: z.number(),
+});
+type Seat = z.infer<typeof seatSchema>;
+
+const seatFileSchema = z.object({
+  version: z.literal(1),
+  seats: z.array(seatSchema).max(20_000),
+});
+
+export interface AccountSeatView {
+  email: string;
+  plan: SeatPlan | null;
+  creditUsd: number;
+  spentUsd: number;
+  allowanceUsd: number;
+  leftUsd: number;
+  note: string;
+  at: number;
+}
+
+export interface AccountGrantInput {
+  email: string;
+  plan?: string;
+  creditUsd?: number;
+  tokens?: number;
+  note?: string;
+  renew?: boolean;
+}
+
+function isSeatPlan(value: string): value is SeatPlan {
+  return (SEAT_PLANS as readonly string[]).includes(value);
+}
+
+const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,253}\.[^\s@]{2,}$/;
+const money6 = (value: number): number => Math.round(value * 1_000_000) / 1_000_000;
+
 export interface RationView {
   profile: RationProfile;
   preview: RationPreview;
@@ -84,18 +130,82 @@ export class RationService {
   private readonly profileFile: string;
   private readonly walletFile: string;
   private readonly poolFile: string;
+  private readonly seatFile: string;
   private profile: RationProfile = DEFAULT_RATION;
   private stored = false;
   private wallets = new Map<string, Wallet>();
+  private seats = new Map<string, Seat>();
   private claims: Claim[] = [];
   private poolKey = "";
+  private readonly accountPlans: AccountPlans;
 
   constructor(options: { dataDir: string }) {
     const dir = join(options.dataDir, "billing");
     this.profileFile = join(dir, "ration.json");
     this.walletFile = join(dir, "wallets.json");
     this.poolFile = join(dir, "pool-key.json");
+    this.seatFile = join(dir, "seats.json");
+    this.accountPlans = new AccountPlans(options.dataDir);
     this.load();
+  }
+
+  /** What this email already accepted, including a free grant opened on an earlier device. */
+  accountChoice(email: string): AccountChoice | null {
+    const saved = this.accountPlans.get(email);
+    if (saved) return saved;
+    const key = email.trim().toLowerCase();
+    if (!key) return null;
+    return this.claims.some((claim) => claim.kind === "email" && claim.value === key) ? "free" : null;
+  }
+
+  chooseAccount(email: string, choice: AccountChoice): AccountChoice {
+    return this.accountPlans.choose(email, choice);
+  }
+
+  /** Seats an admin opened for off-record payment. Empty until the first grant. */
+  listGrants(): AccountSeatView[] {
+    return [...this.seats.values()].map((seat) => this.seatView(seat)).sort((a, b) => a.email.localeCompare(b.email));
+  }
+
+  /**
+   * Admin-only credit or plan for one email. Credit stacks. A different plan,
+   * or the same plan with renew, starts a fresh month. The shared wallet stays put.
+   */
+  grantAccount(input: AccountGrantInput, now = new Date()): { ok: true; seat: AccountSeatView } | { ok: false; error: string } {
+    const email = input.email.trim().toLowerCase();
+    if (!EMAIL.test(email)) return { ok: false, error: "Enter the person's email address." };
+    let requested: SeatPlan | undefined;
+    if (input.plan !== undefined) {
+      if (!isSeatPlan(input.plan)) return { ok: false, error: "plan must be byo, starter, plus, or pro" };
+      requested = input.plan;
+    }
+    const credit = input.creditUsd ?? 0;
+    const tokens = input.tokens ?? 0;
+    if (!Number.isFinite(credit) || credit < 0 || credit > 1_000_000) return { ok: false, error: "credit must be a USD amount from 0 to 1000000" };
+    if (!Number.isInteger(tokens) || tokens < 0 || tokens > 1_000_000_000) return { ok: false, error: "tokens must be a whole number of Spark output tokens" };
+    if (requested === undefined && credit <= 0 && tokens <= 0) return { ok: false, error: "Add a plan, a credit amount, or a token amount." };
+    const note = (input.note ?? "").trim();
+    if (note.length > 240) return { ok: false, error: "note must be 240 characters or fewer" };
+    const tokenUsd = tokens === 0 ? 0 : this.usdForSparkTokens(tokens);
+    if (tokenUsd === null) return { ok: false, error: "Spark has no output rate, so tokens cannot be priced" };
+    const current = this.seats.get(email);
+    const nextCredit = money6((current?.creditUsd ?? 0) + credit + tokenUsd);
+    if (nextCredit > 1_000_000) return { ok: false, error: "credit must be a USD amount from 0 to 1000000" };
+    const plan = requested === undefined ? (current?.plan ?? null) : requested;
+    const reset = requested !== undefined && (input.renew === true || plan !== (current?.plan ?? null));
+    const seat: Seat = {
+      email,
+      plan,
+      creditUsd: nextCredit,
+      spentUsd: reset ? 0 : (current?.spentUsd ?? 0),
+      note: note || current?.note || "",
+      at: now.getTime(),
+    };
+    this.seats.set(email, seat);
+    this.saveSeats();
+    if (plan === "byo") this.chooseAccount(email, "byo");
+    else if (plan === "starter" || plan === "plus" || plan === "pro") this.chooseAccount(email, "muse");
+    return { ok: true, seat: this.seatView(seat) };
   }
 
   view(): RationView {
@@ -142,7 +252,13 @@ export class RationService {
   ensureFree(workspace: string, now = new Date(), identity?: FreeIdentity): Wallet {
     const current = this.wallets.get(workspace);
     if (current?.freeUsed || (current && current.tier !== "free")) {
-      if (this.noteIdentity(workspace, identity)) this.saveWallets();
+      let dirty = this.noteIdentity(workspace, identity);
+      if (current?.tier === "free" && this.profile.contributorFree && current.contributor === undefined) {
+        current.contributor = true;
+        this.wallets.set(workspace, current);
+        dirty = true;
+      }
+      if (dirty) this.saveWallets();
       return current ?? blankWallet(workspace, now);
     }
     const taken = this.identityTaken(workspace, identity);
@@ -153,6 +269,8 @@ export class RationService {
       spentUsd: 0,
       period: "free",
       freeUsed: true,
+      // Free Muse on the product path is Contributor Spark (cheaper; Meta may train).
+      ...(this.profile.contributorFree ? { contributor: true } : {}),
     };
     this.wallets.set(workspace, next);
     this.noteIdentity(workspace, identity);
@@ -170,8 +288,10 @@ export class RationService {
     return wallet;
   }
 
-  /** What Usage shows. Opens the free grant the first time this workspace is read. */
+  /** What Usage shows. A personal seat replaces the shared wallet. Extra credit sits on top of it. */
   walletView(workspace: string, now = new Date(), identity?: FreeIdentity): WalletPublic {
+    const personal = identity?.email ? this.seats.get(identity.email.trim().toLowerCase()) : undefined;
+    if (personal?.plan) return this.seatWallet(personal);
     const wallet = this.ensureFree(workspace, now, identity);
     const left = Math.max(0, Math.round((this.limit(wallet) - wallet.spentUsd) * 1_000_000) / 1_000_000);
     const sparkId = wallet.tier === "free" && wallet.contributor === true && this.profile.contributorFree
@@ -181,7 +301,7 @@ export class RationService {
     const hosted = hostedTier(this.profile, wallet.tier);
     const priceUsd = wallet.tier === "byo" ? this.profile.byoPriceUsd : hosted?.priceUsd ?? 0;
     const storePriceUsd = wallet.tier === "byo" ? this.profile.byoStorePriceUsd : hosted?.storePriceUsd ?? 0;
-    return {
+    const base: WalletPublic = {
       tier: wallet.tier,
       grantedUsd: wallet.grantedUsd,
       spentUsd: wallet.spentUsd,
@@ -191,6 +311,15 @@ export class RationService {
       contributorAccepted: wallet.contributor === true,
       priceUsd,
       storePriceUsd,
+    };
+    if (!personal || personal.creditUsd <= personal.spentUsd) return base;
+    const extra = money6(personal.creditUsd - personal.spentUsd);
+    const withCredit = money6(base.leftUsd + extra);
+    return {
+      ...base,
+      grantedUsd: money6(base.grantedUsd + extra),
+      leftUsd: withCredit,
+      sparkTokens: spark ? outputTokensFor(withCredit, spark.outputPerMillion) : base.sparkTokens,
     };
   }
 
@@ -283,6 +412,40 @@ export class RationService {
     return next;
   }
 
+  /**
+   * A signed-in chat on Free or Muse. Bring-your-own does not spend this wallet.
+   * An email with no saved plan is not charged, so a local owner and a test send stay put.
+   */
+  chargeChat(workspace: string, email: string, text: string, now = new Date()): RationRefusal | null {
+    const seat = this.seats.get(email.trim().toLowerCase());
+    if (seat?.plan === "byo") return null;
+    if (seat?.plan === "starter" || seat?.plan === "plus" || seat?.plan === "pro") return this.chargeSeat(seat, text, now);
+    if (seat && seat.creditUsd > seat.spentUsd) {
+      const fromCredit = this.chargeSeat(seat, text, now);
+      if (!fromCredit) return null;
+      if (fromCredit.code !== "spend_cap") return fromCredit;
+    }
+    if (!this.accountChoice(email)) return null;
+    const wallet = this.ensureFree(workspace, now);
+    if (wallet.tier === "byo") return null;
+    const model = this.meterModel(wallet);
+    const refusal = this.preflight(workspace, model, text, now);
+    if (refusal) return personFacing(refusal);
+    const inputTokens = Math.ceil(text.length / 4);
+    const rate = rateFor(this.profile, model, inputTokens);
+    if (!rate) return { status: 403, code: "model_locked", message: "This model is outside the current plan." };
+    const current = this.wallets.get(workspace);
+    if (!current) return null;
+    const left = Math.max(0, this.limit(current) - current.spentUsd);
+    const inputCost = debitUsd({ freshInput: inputTokens, cachedInput: 0, output: 0 }, rate);
+    const room = left - inputCost;
+    if (room <= 0) return personFacing(this.capRefusal(current));
+    const affordableOut = Math.max(1, Math.floor((room / rate.outputPerMillion) * 1_000_000));
+    const reserve = Math.min(this.profile.freeOutputReserve, affordableOut);
+    const charged = this.debit(workspace, model, { freshInput: inputTokens, cachedInput: 0, output: reserve }, now);
+    return charged ? personFacing(charged) : null;
+  }
+
   preflight(workspace: string, model: string, rawBody: string, now = new Date()): RationRefusal | null {
     const wallet = this.ensureFree(workspace, now);
     const allowed = this.allowedModel(wallet, model);
@@ -297,11 +460,16 @@ export class RationService {
     const inputTokens = Math.ceil(rawBody.length / 4);
     const rate = rateFor(this.profile, model, inputTokens);
     if (!rate) return { status: 403, code: "model_locked", message: "This model has no admin rate." };
-    const reserve = wallet.tier === "free" ? this.profile.freeOutputReserve : this.profile.freeOutputReserve;
+    // Reserve only what the remaining grant can still buy. A fixed 2k-token wall used to
+    // refuse free Muse turns that still had cents left once the system prompt was large.
+    const left = Math.max(0, this.limit(wallet) - wallet.spentUsd);
+    const inputCost = debitUsd({ freshInput: inputTokens, cachedInput: 0, output: 0 }, rate);
+    const room = left - inputCost;
+    if (room <= 0) return this.capRefusal(wallet);
+    const affordableOut = Math.max(1, Math.floor((room / rate.outputPerMillion) * 1_000_000));
+    const reserve = Math.min(this.profile.freeOutputReserve, affordableOut);
     const estimate = debitUsd({ freshInput: inputTokens, cachedInput: 0, output: reserve }, rate);
-    if (wallet.spentUsd + estimate > this.limit(wallet)) {
-      return this.capRefusal(wallet);
-    }
+    if (wallet.spentUsd + estimate > this.limit(wallet)) return this.capRefusal(wallet);
     return null;
   }
 
@@ -321,6 +489,15 @@ export class RationService {
     return null;
   }
 
+  private meterModel(wallet: Wallet): string {
+    if (wallet.tier === "free") {
+      return this.profile.contributorFree && wallet.contributor === true
+        ? "muse-spark-1.3-contributor"
+        : "muse-spark-1.3";
+    }
+    return hostedTier(this.profile, wallet.tier)?.models[0] ?? "muse-spark-1.3";
+  }
+
   private allowedModel(wallet: Wallet, model: string): boolean {
     if (wallet.tier === "byo") return false;
     if (wallet.tier === "free") {
@@ -335,6 +512,89 @@ export class RationService {
   private limit(wallet: Wallet): number {
     if (wallet.tier === "free" || wallet.tier === "byo" || !this.profile.overageEnabled) return wallet.grantedUsd;
     return wallet.grantedUsd * this.profile.overageCapMultiplier;
+  }
+
+  private chargeSeat(seat: Seat, text: string, now: Date): RationRefusal | null {
+    const model = seat.plan && seat.plan !== "byo" ? (hostedTier(this.profile, seat.plan)?.models[0] ?? "muse-spark-1.3") : "muse-spark-1.3";
+    const inputTokens = Math.ceil(text.length / 4);
+    const rate = rateFor(this.profile, model, inputTokens);
+    if (!rate) return { status: 403, code: "model_locked", message: "This model is outside the current plan." };
+    const allowance = this.seatAllowance(seat);
+    const left = Math.max(0, allowance - seat.spentUsd);
+    const inputCost = debitUsd({ freshInput: inputTokens, cachedInput: 0, output: 0 }, rate);
+    if (left - inputCost <= 0) return personFacing({ status: 409, code: "spend_cap", message: "allowance" });
+    const affordableOut = Math.max(1, Math.floor(((left - inputCost) / rate.outputPerMillion) * 1_000_000));
+    const reserve = Math.min(this.profile.freeOutputReserve, affordableOut);
+    const estimate = debitUsd({ freshInput: inputTokens, cachedInput: 0, output: reserve }, rate);
+    if (seat.spentUsd + estimate > allowance) return personFacing({ status: 409, code: "spend_cap", message: "allowance" });
+    seat.spentUsd = money6(seat.spentUsd + estimate);
+    seat.at = now.getTime();
+    this.seats.set(seat.email, seat);
+    this.saveSeats();
+    return null;
+  }
+
+  private seatAllowance(seat: Seat): number {
+    if (!seat.plan || seat.plan === "byo") return seat.creditUsd;
+    const included = hostedTier(this.profile, seat.plan)?.includedCostUsd ?? 0;
+    const cap = this.profile.overageEnabled ? included * this.profile.overageCapMultiplier : included;
+    return money6(cap + seat.creditUsd);
+  }
+
+  private seatWallet(seat: Seat): WalletPublic {
+    if (seat.plan === "byo") {
+      return {
+        tier: "byo",
+        grantedUsd: 0,
+        spentUsd: 0,
+        leftUsd: 0,
+        sparkTokens: 0,
+        contributorOffered: this.profile.contributorFree,
+        contributorAccepted: false,
+        priceUsd: this.profile.byoPriceUsd,
+        storePriceUsd: this.profile.byoStorePriceUsd,
+      };
+    }
+    const allowance = this.seatAllowance(seat);
+    const left = money6(Math.max(0, allowance - seat.spentUsd));
+    const spark = rateFor(this.profile, "muse-spark-1.3");
+    const hosted = seat.plan ? hostedTier(this.profile, seat.plan) : null;
+    const tier = seat.plan === "plus" || seat.plan === "pro" ? seat.plan : "starter";
+    return {
+      tier,
+      grantedUsd: allowance,
+      spentUsd: seat.spentUsd,
+      leftUsd: left,
+      sparkTokens: spark ? outputTokensFor(left, spark.outputPerMillion) : 0,
+      contributorOffered: this.profile.contributorFree,
+      contributorAccepted: false,
+      priceUsd: hosted?.priceUsd ?? 0,
+      storePriceUsd: hosted?.storePriceUsd ?? 0,
+    };
+  }
+
+  private seatView(seat: Seat): AccountSeatView {
+    const allowanceUsd = seat.plan === "byo" ? 0 : this.seatAllowance(seat);
+    return {
+      email: seat.email,
+      plan: seat.plan,
+      creditUsd: seat.creditUsd,
+      spentUsd: seat.spentUsd,
+      allowanceUsd,
+      leftUsd: money6(Math.max(0, allowanceUsd - seat.spentUsd)),
+      note: seat.note,
+      at: seat.at,
+    };
+  }
+
+  private usdForSparkTokens(tokens: number): number | null {
+    const rate = rateFor(this.profile, "muse-spark-1.3");
+    if (!rate || rate.outputPerMillion <= 0) return null;
+    return money6((tokens * rate.outputPerMillion) / 1_000_000);
+  }
+
+  private saveSeats(): void {
+    this.write(this.seatFile, JSON.stringify({ version: 1, seats: [...this.seats.values()] }), 0o600);
   }
 
   private capRefusal(wallet: Wallet): RationRefusal {
@@ -360,6 +620,10 @@ export class RationService {
     }
     const pool = poolSchema.safeParse(readJson(this.poolFile));
     if (pool.success) this.poolKey = pool.data.meta;
+    const seats = seatFileSchema.safeParse(readJson(this.seatFile));
+    if (seats.success) {
+      for (const seat of seats.data.seats) this.seats.set(seat.email, seat);
+    }
   }
 
   private saveWallets(): void {
@@ -411,6 +675,20 @@ export function bindLiveRation(service: RationService): void {
 
 export function liveRation(): RationService | null {
   return live;
+}
+
+function personFacing(refusal: RationRefusal): RationRefusal {
+  if (refusal.code !== "spend_cap") return refusal;
+  return { ...refusal, message: "This plan's Muse allowance is used up. Subscribe to keep going." };
+}
+
+/** The signed-in browser, desktop, or phone chat. No email, or no plan yet, is not a charge. */
+export function chatRationRefusal(email: string | undefined, text: string, now = new Date()): RationRefusal | null {
+  const ration = liveRation();
+  const who = email?.trim();
+  const body = text.trim();
+  if (!ration || !who || !body) return null;
+  return ration.chargeChat(rationWorkspace(), who, body, now);
 }
 
 function rationProfileSchemaSafe(raw: unknown): string | null {

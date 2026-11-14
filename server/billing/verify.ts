@@ -45,3 +45,15 @@ export function verifyPaystackSignature(rawBody: string, header: string | undefi
   const expected = signPaystackPayload(rawBody, secret);
   return /^[0-9a-f]{128}$/.test(header.trim()) && safeEqual(header.trim(), expected);
 }
+
+/** Bachs signs with HMAC-SHA256 hex over the raw body (`X-Bachs-Signature-V2`). */
+export function signBachsPayload(rawBody: string, secret: string): string {
+  return createHmac("sha256", secret).update(rawBody, "utf8").digest("hex");
+}
+
+export function verifyBachsSignature(rawBody: string, header: string | undefined, secret: string): boolean {
+  if (!secret || !header) return false;
+  const candidate = header.trim().replace(/^sha256=/i, "");
+  const expected = signBachsPayload(rawBody, secret);
+  return /^[0-9a-f]{64}$/.test(candidate) && safeEqual(candidate, expected);
+}

@@ -129,6 +129,9 @@ describe("what Max says first", () => {
     expect(followupLine({ ai: "own", apps: ["Gmail", "GitHub", "Slack", "Notion", "Linear"], bots: 0, routines: 0 })).toContain("Gmail, GitHub, Slack, and 2 more");
     expect(followupLine({ ai: "none", ...none })).toBe(t("helperIntro.followup.noAi"));
     expect(followupLine({ ai: "backup", ...none })).toContain("free backup model");
+    expect(followupLine({ ai: "own", museGrant: true, ...none })).toContain("free Muse grant");
+    expect(followupLine({ ai: "own", museGrant: true, ...none })).toContain("Your model");
+    expect(followupLine({ ai: "own", museGrant: true, ...none })).toContain("Plans");
     expect(whoConnectsAi(null), "off a team").toBeUndefined();
     expect(followupLine({ ai: "backup", ...none, connects: "" })).toBe(t("helperIntro.followup.backupTeamOwner"));
     expect(followupLine({ ai: "own", ...none, connects: "Olive" }), "with an AI there is nothing to connect").toContain("nothing's waiting");

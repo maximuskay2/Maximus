@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
+import '../api/client.dart';
 import '../api/models.dart';
 import '../theme/tokens.dart';
 import 'approval_card.dart';
+import 'connector_card.dart';
+import 'secret_card.dart';
+import 'sign_in_card.dart';
 import 'voice_note.dart';
+import 'widget_card.dart';
 
 /// Loads an attachment image. Injectable so tests avoid the network.
 typedef AttachmentImageLoader = Widget Function(
@@ -43,6 +48,13 @@ class MessageBubble extends StatefulWidget {
     this.onReply,
     this.replyToText,
     this.onAnswerCard,
+    this.client,
+    this.bot,
+    this.thread,
+    this.onSecretUpdated,
+    this.onSignInUpdated,
+    this.onConnectorUpdated,
+    this.onWidgetUpdated,
   });
 
   final ChatMessage message;
@@ -61,6 +73,15 @@ class MessageBubble extends StatefulWidget {
 
   /// Answer a live approval/question card on this message.
   final CardAnswerer? onAnswerCard;
+
+  /// Needed to save secret / sign-in cards from the phone.
+  final MaximusApi? client;
+  final BotSummary? bot;
+  final ThreadSummary? thread;
+  final ValueChanged<SecretRequest>? onSecretUpdated;
+  final ValueChanged<SignInRequest>? onSignInUpdated;
+  final ValueChanged<ConnectorRequest>? onConnectorUpdated;
+  final ValueChanged<ChatWidget>? onWidgetUpdated;
 
   @override
   State<MessageBubble> createState() => _MessageBubbleState();
@@ -274,8 +295,79 @@ class _MessageBubbleState extends State<MessageBubble> {
             ApprovalCard(
               card: message.card!,
               onAnswer: _mine ? null : widget.onAnswerCard,
-            )
-          else if (message.hasCard)
+            ),
+          if (message.secret != null &&
+              widget.client != null &&
+              widget.bot != null &&
+              widget.thread != null)
+            SecretCard(
+              client: widget.client!,
+              baseUrl: widget.baseUrl,
+              botId: widget.bot!.id,
+              threadId: widget.thread!.threadId,
+              messageId: message.id,
+              secret: message.secret!,
+              onUpdated: widget.onSecretUpdated,
+            ),
+          if (message.signIn != null &&
+              widget.client != null &&
+              widget.bot != null &&
+              widget.thread != null)
+            SignInCard(
+              client: widget.client!,
+              baseUrl: widget.baseUrl,
+              bot: widget.bot!,
+              thread: widget.thread!,
+              messageId: message.id,
+              signIn: message.signIn!,
+              onUpdated: widget.onSignInUpdated,
+            ),
+          if (message.connector != null &&
+              widget.client != null &&
+              widget.bot != null &&
+              widget.thread != null)
+            ConnectorCard(
+              client: widget.client!,
+              baseUrl: widget.baseUrl,
+              botId: widget.bot!.id,
+              threadId: widget.thread!.threadId,
+              messageId: message.id,
+              connector: message.connector!,
+              onUpdated: widget.onConnectorUpdated,
+            ),
+          if (message.widget != null &&
+              widget.client != null &&
+              widget.bot != null &&
+              widget.thread != null)
+            WidgetCard(
+              client: widget.client!,
+              baseUrl: widget.baseUrl,
+              botId: widget.bot!.id,
+              threadId: widget.thread!.threadId,
+              messageId: message.id,
+              widgetData: message.widget!,
+              onUpdated: widget.onWidgetUpdated,
+            ),
+          if (message.publishedPage != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                message.publishedPage!.state == 'live'
+                    ? 'Page · ${message.publishedPage!.title}'
+                    : 'Page · ${message.publishedPage!.title} (${message.publishedPage!.state})',
+                style: TextStyle(
+                  color: (_mine ? scheme.onPrimary : scheme.onSurface)
+                      .withValues(alpha: 0.85),
+                ),
+              ),
+            ),
+          if (message.hasCard &&
+              message.card == null &&
+              message.secret == null &&
+              message.signIn == null &&
+              message.connector == null &&
+              message.widget == null &&
+              message.publishedPage == null)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(

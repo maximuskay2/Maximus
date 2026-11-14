@@ -23,7 +23,12 @@ import 'fake_api.dart';
 Future<AuthState> authWith(FakeApi api) async {
   final store = MemorySessionStore();
   await store.saveServer(
-    const ServerRef(id: 'h', name: 'Home', baseUrl: 'https://h.example'),
+    const ServerRef(
+      id: 'h',
+      name: 'Home',
+      baseUrl: 'https://h.example',
+      companionToken: 'tok',
+    ),
   );
   final auth = AuthState(store: store, client: api);
   await auth.load();
@@ -343,7 +348,7 @@ void main() {
     expect(find.text('Max'), findsOneWidget);
   });
 
-  testWidgets('usage that needs a sign-in offers sign in', (tester) async {
+  testWidgets('usage that needs a sign-in offers session actions', (tester) async {
     final api = _UsageRefused();
     final auth = await authWith(api);
     await tester.pumpWidget(
@@ -358,8 +363,38 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.textContaining('sign in to use this Maximus'), findsOneWidget);
-    expect(find.text('Sign in'), findsOneWidget);
-    expect(find.text('Sign out'), findsNothing);
+    expect(find.text('Sign out'), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
+  });
+
+  testWidgets('chat-only usage shows owner-only, not the raw admin error', (
+    tester,
+  ) async {
+    final api = FakeApi()
+      ..sessionInfoPayload = const AuthSessionInfo(
+        kind: 'session',
+        scopes: ['client'],
+        id: 'sess-client',
+        label: 'Member phone',
+        email: 'member@example.test',
+      );
+    final auth = await authWith(api);
+    expect(auth.isChatOnly, isTrue);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: MaxTokens.light(),
+        home: UsagePage(
+          client: api,
+          baseUrl: 'https://h.example',
+          auth: auth,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Owner only'), findsOneWidget);
+    expect(find.text('Sign out'), findsOneWidget);
+    expect(find.text('Sign in as owner'), findsOneWidget);
+    expect(find.textContaining('admin scope'), findsNothing);
   });
 
   testWidgets('bot settings patches only changed fields', (tester) async {

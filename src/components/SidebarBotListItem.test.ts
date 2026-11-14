@@ -16,6 +16,7 @@ vi.mock("@/lib/interface-mode", async (original) => ({
 import { ConfirmDialogCard } from "./ConfirmDialog";
 import { BotDeleteMenuItem } from "./BotMenuDelete";
 import { BotListItem, botConfirmCopy, botRowProps, currentArchivableBot } from "./Sidebar";
+import { canSwipeDeleteBot, swipeDeleteAction, swipeDeleteTravel } from "./SwipeToDelete";
 import { endCall } from "@/lib/call";
 import { configureLiveMedia, resetLiveMedia, startLiveCall } from "@/lib/live-call-media";
 
@@ -410,6 +411,24 @@ describe("archive / delete confirmation", () => {
     expect(markup).toContain(">Cancel</button>");
     expect(markup).toContain(">Delete</button>");
     expect(markup).toContain("bg-danger");
+  });
+});
+
+describe("swipe to delete a bot", () => {
+  it("marks a row the person can remove, and leaves Max and a view-only bot alone", () => {
+    const ask = vi.fn();
+    const row = (candidate: Bot) => renderToStaticMarkup(createElement(BotListItem, botRowProps(initialState, vi.fn(), candidate, {
+      density: "comfortable", query: "", onMenu: vi.fn(), onRequestDelete: ask,
+    })));
+    expect(row(bot())).toContain("data-swipe-delete");
+    expect(row(bot())).toContain("--swipe-cover:var(--color-panel)");
+    expect(row(bot({ defaultBot: {} }))).not.toContain("data-swipe-delete");
+    expect(row(bot({ yourAccess: "view" }))).not.toContain("data-swipe-delete");
+    expect(canSwipeDeleteBot(bot())).toBe(true);
+    expect(swipeDeleteTravel(-80, false)).toBe(80);
+    expect(swipeDeleteTravel(80, true)).toBe(80);
+    expect(swipeDeleteAction(64)).toBe("delete");
+    expect(swipeDeleteAction(63)).toBe("stay");
   });
 });
 

@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api/client.dart';
 import '../api/models.dart';
 import '../auth/auth_state.dart';
+import '../engines/engines_page.dart';
 import 'account_page.dart';
 import 'bot_settings_page.dart';
 import 'computer_settings_page.dart';
@@ -62,13 +63,26 @@ class SettingsPage extends StatelessWidget {
               subtitle: 'Signed-in phones and browsers',
               page: DevicesPage(client: _client, baseUrl: baseUrl),
             ),
-            _row(
-              context,
-              icon: Icons.receipt_long_outlined,
-              title: 'Usage',
-              subtitle: 'Tokens and cost by bot',
-              page: UsagePage(client: _client, baseUrl: baseUrl, auth: auth),
-            ),
+            if (auth.isAdmin)
+              _row(
+                context,
+                icon: Icons.receipt_long_outlined,
+                title: 'Usage',
+                subtitle: 'Tokens and cost by bot',
+                page: UsagePage(client: _client, baseUrl: baseUrl, auth: auth),
+              ),
+            if (auth.isAdmin)
+              _row(
+                context,
+                icon: Icons.key_outlined,
+                title: 'Your AI',
+                subtitle: 'Connect your own LLM key or account',
+                page: EnginesPage(
+                  client: _client,
+                  baseUrl: baseUrl,
+                  auth: auth,
+                ),
+              ),
             _row(
               context,
               icon: Icons.computer_outlined,

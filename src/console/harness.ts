@@ -453,16 +453,40 @@ export function saveRationPoolKey(key: string, options?: HarnessCallOptions): Pr
   return call<{ pool: { configured: boolean; last4: string } }>("/api/admin/ration/pool-key", { ...options, method: "PUT", body: { key } });
 }
 
+export interface GatewaySecretStatusView {
+  configured: boolean;
+  last4: string;
+}
+
 export interface PaymentSettingsView {
   paystackEnabled: boolean;
+  bachsEnabled: boolean;
   ngnPerUsd: number;
+  bachsApiBase?: string;
+  secrets?: {
+    paystackSecretKey: GatewaySecretStatusView;
+    bachsApiKey: GatewaySecretStatusView;
+    bachsWebhookSecret: GatewaySecretStatusView;
+    stripeSecretKey: GatewaySecretStatusView;
+  };
 }
+
+export type PaymentSettingsSave = {
+  paystackEnabled: boolean;
+  bachsEnabled: boolean;
+  ngnPerUsd: number;
+  paystackSecretKey?: string;
+  bachsApiKey?: string;
+  bachsWebhookSecret?: string;
+  stripeSecretKey?: string;
+  bachsApiBase?: string;
+};
 
 export function adminPayments(options?: HarnessCallOptions): Promise<{ payments: PaymentSettingsView }> {
   return call<{ payments: PaymentSettingsView }>("/api/admin/payments", options ?? {});
 }
 
-export function savePayments(payments: PaymentSettingsView, options?: HarnessCallOptions): Promise<{ payments: PaymentSettingsView }> {
+export function savePayments(payments: PaymentSettingsSave, options?: HarnessCallOptions): Promise<{ payments: PaymentSettingsView }> {
   return call<{ payments: PaymentSettingsView }>("/api/admin/payments", { ...options, method: "PUT", body: payments });
 }
 

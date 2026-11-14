@@ -424,7 +424,7 @@ const fields = execFileSync(
 for (const expected of [
   "Package: maximus",
   "Architecture: amd64",
-  "Maintainer: Milind Soni",
+  "Maintainer: Akingbade Kayode",
   "Section: utils",
   "Priority: optional",
 ]) {

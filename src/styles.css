@@ -3202,6 +3202,103 @@ button:disabled.bg-danger {
 .site-auth input:focus,
 .site-auth select:focus,
 .site-auth textarea:focus { border-color: #c2410c; }
+@keyframes bull-blink {
+  0%, 86%, 100% { transform: scaleY(0); }
+  88%, 89.4% { transform: scaleY(1); }
+  90.2% { transform: scaleY(0.08); }
+  91.4%, 93% { transform: scaleY(1); }
+}
+@keyframes bull-aura {
+  0%, 100% { opacity: 0.45; transform: scale(0.92); }
+  50% { opacity: 0.9; transform: scale(1); }
+}
+@keyframes bull-dot {
+  0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-3px); }
+}
+@keyframes bull-caret {
+  0%, 45% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+@keyframes bull-status {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgb(127 182 133 / 0.65); }
+  70% { opacity: 0.7; box-shadow: 0 0 0 6px rgb(127 182 133 / 0); }
+}
+.bull-mark {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  line-height: 0;
+}
+.bull-mark img {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.bull-aura {
+  position: absolute;
+  z-index: 0;
+  inset: 6% 8% 16%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(232 106 58 / 0.7), transparent 68%);
+  filter: blur(16px);
+  animation: bull-aura 3.4s ease-in-out infinite;
+}
+.bull-mark-live { filter: drop-shadow(0 18px 28px rgb(0 0 0 / 0.45)); }
+.bull-lid {
+  position: absolute;
+  z-index: 2;
+  width: 11%;
+  height: 6.5%;
+  border-radius: 45% 45% 50% 50%;
+  background: #3d1006;
+  pointer-events: none;
+  transform: scaleY(0);
+  transform-origin: center top;
+  animation: bull-blink 5.2s ease-in-out infinite;
+}
+.bull-lid-left { left: 29.5%; top: 31.4%; }
+.bull-lid-right { left: 59.2%; top: 31%; }
+.bull-dots { display: inline-flex; gap: 4px; height: 14px; align-items: flex-end; }
+.bull-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #e86a3a;
+  animation: bull-dot 1.2s ease-in-out infinite;
+}
+.bull-dots i:nth-child(2) { animation-delay: 0.15s; }
+.bull-dots i:nth-child(3) { animation-delay: 0.3s; }
+.bull-caret {
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: #e86a3a;
+  animation: bull-caret 1s steps(1) infinite;
+}
+.bull-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #7fb685;
+  animation: bull-status 2.2s ease-out infinite;
+}
+.agent-grid {
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+.mind-log {
+  height: 11.5rem;
+}
 @media (prefers-reduced-motion: reduce) {
-  .site-glow, .site-rise, .site-float, .site-marquee, .site-menu { animation: none; }
+  .site-glow, .site-rise, .site-float, .site-marquee, .site-menu,
+  .bull-aura, .bull-lid, .bull-dots i, .bull-caret, .bull-status { animation: none; }
+  .bull-lid { transform: scaleY(0); }
 }

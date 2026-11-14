@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import '../api/models.dart';
 import '../theme/tokens.dart';
 import '../auth/auth_state.dart';
+import 'dart:io';
+
 import 'drivers.dart';
 import 'executor.dart';
+import 'native_phone_apps.dart';
 import 'policy.dart';
 import 'poller.dart';
 
@@ -15,10 +18,26 @@ abstract class CapabilityGate {
 }
 
 class SystemCapabilityGate implements CapabilityGate {
-  SystemCapabilityGate({SystemCalendarDriver? calendar})
-    : _calendar = calendar ?? SystemCalendarDriver();
+  SystemCapabilityGate({
+    SystemCalendarDriver? calendar,
+    SystemRemindersDriver? reminders,
+    SystemAlarmsDriver? alarms,
+    SystemHomeDriver? home,
+  })  : _calendar = calendar ?? SystemCalendarDriver(),
+        _reminders = reminders ?? SystemRemindersDriver(),
+        _alarms = alarms ?? SystemAlarmsDriver(),
+        _home = home ?? SystemHomeDriver();
 
   final SystemCalendarDriver _calendar;
+  final SystemRemindersDriver _reminders;
+  final SystemAlarmsDriver _alarms;
+  final SystemHomeDriver _home;
+
+  CapPermission _map(CapPermissionLike value) => switch (value) {
+        CapPermissionLike.granted => CapPermission.granted,
+        CapPermissionLike.denied => CapPermission.denied,
+        CapPermissionLike.notAsked => CapPermission.notAsked,
+      };
 
   @override
   Future<CapPermission> check(String capability) async {
@@ -26,7 +45,26 @@ class SystemCapabilityGate implements CapabilityGate {
       case 'calendar':
         return _calendar.permission();
       case 'reminders':
-        return CapPermission.denied; // native driver lands with iOS reminders
+        if (!Platform.isIOS) return CapPermission.denied;
+        return _map(await _reminders.permission());
+      case 'alarms':
+        if (Platform.isIOS) {
+          final status = await NativePhoneApps().alarmsPermission();
+          return status == 'granted'
+              ? CapPermission.granted
+              : status == 'denied'
+                  ? CapPermission.denied
+                  : CapPermission.notAsked;
+        }
+        return CapPermission.granted;
+      case 'home':
+        if (!Platform.isIOS) return CapPermission.denied;
+        final status = await NativePhoneApps().homePermission();
+        return status == 'granted'
+            ? CapPermission.granted
+            : status == 'denied'
+                ? CapPermission.denied
+                : CapPermission.notAsked;
       case 'contacts':
       case 'location':
         // Checked lazily at execution time; the request flow grants them.
@@ -43,6 +81,12 @@ class SystemCapabilityGate implements CapabilityGate {
     switch (capability) {
       case 'calendar':
         return _calendar.requestPermission();
+      case 'reminders':
+        return _reminders.requestPermission();
+      case 'alarms':
+        return _alarms.requestPermission();
+      case 'home':
+        return _home.requestPermission();
       case 'contacts':
         return SystemContactsDriver().search('').then(
           (_) => true,
@@ -93,11 +137,13 @@ class _PhonesPageState extends State<PhonesPage> {
   bool _loading = true;
   bool _busy = false;
 
-  static const _capabilities = [
+  static List<String> get _capabilities => [
     'calendar',
-    'reminders',
+    if (Platform.isIOS) 'reminders',
+    'alarms',
     'contacts',
     'location',
+    if (Platform.isIOS) 'home',
     'messages',
   ];
 
@@ -259,6 +305,7 @@ class _PhonesPageState extends State<PhonesPage> {
   static const _appMeta = <String, (String, IconData)>{
     'calendar': ('Calendar', Icons.calendar_today_outlined),
     'reminders': ('Reminders', Icons.checklist_outlined),
+    'alarms': ('Alarms', Icons.alarm_outlined),
     'contacts': ('Contacts', Icons.person_outline),
     'location': ('Location', Icons.location_on_outlined),
     'messages': ('Messages', Icons.chat_bubble_outline),

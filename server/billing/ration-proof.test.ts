@@ -47,7 +47,7 @@ function fixture(): ProofFixture {
   const env: NodeJS.ProcessEnv = {
     MAXIMUS_GATEWAY_TOKENS: JSON.stringify({ acme: TOKEN, "byo-acme": BYO_TOKEN }),
     MAXIMUS_WORKSPACE_PROVIDERS: JSON.stringify({
-      muse: { mode: "bundled", models: ["muse-spark-1.3", "muse-wonder-1.0"] },
+      muse: { mode: "bundled", models: ["muse-spark-1.3", "muse-spark-1.3-contributor", "muse-wonder-1.0"] },
     }),
   };
   return { dataDir, ration, store, plans, env };
@@ -90,6 +90,7 @@ async function gatewayTurn(
     headers?: Record<string, string>;
     usage?: Record<string, unknown>;
     upstreamStatus?: number;
+    rawBody?: string;
   } = {},
 ): Promise<TurnResult> {
   const upstream: UpstreamCall[] = [];
@@ -100,7 +101,8 @@ async function gatewayTurn(
       headers: { "content-type": "application/json" },
     });
   }) as unknown as typeof fetch;
-  const req = Object.assign(Readable.from([JSON.stringify({ model: options.model ?? "muse-spark-1.3" })]), {
+  const payload = options.rawBody ?? JSON.stringify({ model: options.model ?? "muse-spark-1.3" });
+  const req = Object.assign(Readable.from([payload]), {
     headers: { authorization: `Bearer ${options.token ?? TOKEN}`, ...options.headers },
   }) as unknown as IncomingMessage;
   let status = 0;
@@ -201,11 +203,14 @@ describe("ration proof on an isolated workspace", () => {
   it("refuses the turn at zero with spend_cap while Your model still runs", async () => {
     const fix = fixture();
     const tiny = structuredClone(DEFAULT_RATION);
-    tiny.freeGrantUsd = 0.0000001;
+    tiny.freeGrantUsd = 0.0001;
     expect(fix.ration.saveProfile(tiny)).toBeNull();
     fix.store.apply(paidEvent("acme", "starter", ["billing", "gateway"], "evt-proof-zero"));
     fix.ration.ensureFree("acme", new Date(NOW));
-    const refused = await gatewayTurn(fix);
+    const refused = await gatewayTurn(fix, {
+      model: "muse-spark-1.3-contributor",
+      rawBody: JSON.stringify({ model: "muse-spark-1.3-contributor", text: "x".repeat(50_000) }),
+    });
     expect(refused.status).toBe(409);
     expect(refused.body).toMatchObject({ code: "spend_cap" });
     expect(refused.upstream).toHaveLength(0);

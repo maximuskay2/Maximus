@@ -22,6 +22,30 @@ it("stays signed in when only one request was refused", async () => {
   expect(await refusedWith(200)).toBe(false);
 });
 
+it("leaves the chat when this window asks and the account session is gone", async () => {
+  vi.stubGlobal("window", {});
+  vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 })));
+  const { confirmOpenSession, sessionEnded } = await import("./session-ended");
+  await confirmOpenSession();
+  expect(sessionEnded()).toBe(true);
+});
+
+it("keeps the chat when the session check cannot reach the server", async () => {
+  vi.stubGlobal("window", {});
+  vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => { throw new Error("offline"); }));
+  const { confirmOpenSession, sessionEnded } = await import("./session-ended");
+  await confirmOpenSession();
+  expect(sessionEnded()).toBe(false);
+});
+
+it("leaves the chat when the server answers as the machine instead of this account", async () => {
+  vi.stubGlobal("window", {});
+  vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ kind: "loopback", trust: "service" }), { status: 200 })));
+  const { confirmOpenSession, sessionEnded } = await import("./session-ended");
+  await confirmOpenSession();
+  expect(sessionEnded()).toBe(true);
+});
+
 it("asks nothing when a request was refused only for lacking the admin scope", async () => {
   const requests = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ error: "forbidden: this session lacks the admin scope" }), { status: 403 }));
   vi.stubGlobal("window", {});

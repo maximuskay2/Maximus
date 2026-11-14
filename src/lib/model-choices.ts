@@ -28,7 +28,13 @@ export function modelSelectionForPick(selection: ModelSelection, instance: Insta
   const next: ModelSelection = { instanceId: instance.instanceId, model };
   if (instance.instanceId === selection.instanceId) {
     if (instance.capabilities?.modelVariants && model === selection.model && selection.variant !== undefined) next.variant = selection.variant;
-    else if (!instance.capabilities?.modelVariants && selection.effort) next.effort = selection.effort;
+    else if (
+      !instance.capabilities?.modelVariants
+      && selection.effort
+      && instance.capabilities?.effortLevels?.includes(selection.effort)
+    ) {
+      next.effort = selection.effort;
+    }
   }
   return next;
 }

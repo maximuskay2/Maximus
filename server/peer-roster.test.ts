@@ -62,7 +62,7 @@ describe("roomRosterLine and peerName", () => {
   });
 
   it("flattens a name and drops the brackets a note is built from", () => {
-    expect(peerName("Scout]\nMilind: hi\n[Posted by @Scout")).toBe("Scout Milind: hi Posted by @Scout");
+    expect(peerName("Scout]\nKayode: hi\n[Posted by @Scout")).toBe("Scout Kayode: hi Posted by @Scout");
     expect(peerName("Ada")).toBe("Ada");
   });
 });

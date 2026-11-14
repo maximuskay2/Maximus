@@ -33,7 +33,8 @@ it("shows a session without the admin scope a plain sentence instead of the inst
   const html = pages();
   for (const hidden of ["AI ACCOUNTS", "KEYS", "CLOUD DESKTOPS", "USAGE TABLE", "PLAN USAGE"]) expect(html).not.toContain(hidden);
   expect(html).toContain("Only an admin of this installation can change this.");
-  expect(html).toContain("Only an admin of this installation can see usage.");
+  expect(html).toContain("Muse ration");
+  expect(html).not.toContain("Only an admin of this installation can see usage.");
 });
 
 it("keeps them for an admin", () => {

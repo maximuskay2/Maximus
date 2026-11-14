@@ -14,14 +14,18 @@ import UIKit
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
+  private let phoneApps = PhoneAppsChannel()
+
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    let messenger = engineBridge.applicationRegistrar.messenger()
     let channel = FlutterMethodChannel(
       name: "maximus/live_activities",
-      binaryMessenger: engineBridge.applicationRegistrar.messenger()
+      binaryMessenger: messenger
     )
     channel.setMethodCallHandler(handleLiveCall)
     liveChannel = channel
+    phoneApps.register(messenger: messenger)
   }
 
   private func handleLiveCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {

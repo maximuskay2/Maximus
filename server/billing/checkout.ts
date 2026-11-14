@@ -26,6 +26,8 @@ export interface CheckoutRequest {
 export interface CheckoutSecrets {
   stripeSecretKey?: string;
   paystackSecretKey?: string;
+  bachsApiKey?: string;
+  bachsApiBase?: string;
 }
 
 export interface CheckoutResult {
@@ -62,7 +64,8 @@ function validateRequest(request: CheckoutRequest): string | null {
   if (!WORKSPACE.test(request.workspaceId)) return "workspaceId is invalid";
   const amount = request.amountMinor;
   const priced = Boolean(request.providerPriceRef)
-    || (request.provider === "paystack" && typeof amount === "number" && Number.isInteger(amount) && amount > 0);
+    || (request.provider === "paystack" && typeof amount === "number" && Number.isInteger(amount) && amount > 0)
+    || (request.provider === "bachs" && typeof amount === "number" && Number.isInteger(amount) && amount > 0);
   if (!request.plan || !priced) return "plan and providerPriceRef are required";
   if (!absoluteHttp(request.successUrl) || !absoluteHttp(request.cancelUrl)) return "successUrl and cancelUrl must be absolute URLs";
   if (request.entitlements.some((id) => !id)) return "entitlements must be non-empty ids";
@@ -74,7 +77,11 @@ function validateRequest(request: CheckoutRequest): string | null {
 
 /** Operator maps catalog plans to provider-side price refs: `{"pro":"price_…"}`, never in code. */
 export function providerPriceRefFromEnv(env: NodeJS.ProcessEnv, provider: BillingProvider, plan: string): string | null {
-  const raw = provider === "stripe" ? env.MAXIMUS_STRIPE_PRICES : env.MAXIMUS_PAYSTACK_PLANS;
+  const raw = provider === "stripe"
+    ? env.MAXIMUS_STRIPE_PRICES
+    : provider === "bachs"
+      ? env.MAXIMUS_BACHS_PRODUCTS
+      : env.MAXIMUS_PAYSTACK_PLANS;
   if (!raw) return null;
   try {
     const map: unknown = JSON.parse(raw);
@@ -89,6 +96,8 @@ export function checkoutSecretsFromEnv(env: NodeJS.ProcessEnv = process.env): Ch
   return {
     ...(env.STRIPE_SECRET_KEY ? { stripeSecretKey: env.STRIPE_SECRET_KEY } : {}),
     ...(env.PAYSTACK_SECRET_KEY ? { paystackSecretKey: env.PAYSTACK_SECRET_KEY } : {}),
+    ...(env.BACHS_API_KEY ? { bachsApiKey: env.BACHS_API_KEY } : {}),
+    ...(env.BACHS_API_BASE ? { bachsApiBase: env.BACHS_API_BASE } : {}),
   };
 }
 
@@ -156,6 +165,58 @@ async function createPaystackCheckout(request: CheckoutRequest, secret: string, 
   };
 }
 
+const bachsSessionSchema = z.object({
+  checkout_id: z.string(),
+  checkout_url: z.string(),
+});
+
+async function createBachsCheckout(request: CheckoutRequest, secret: string, apiBase: string, fetchImpl: typeof fetch): Promise<CheckoutResult> {
+  const metadata = {
+    workspace_id: request.workspaceId,
+    plan: request.plan,
+    entitlements: JSON.stringify(request.entitlements),
+    ...(request.allowanceMinor !== null ? { allowance: String(request.allowanceMinor) } : {}),
+  };
+  const body = request.providerPriceRef
+    ? {
+        product_cart: [{ product_id: request.providerPriceRef, quantity: 1 }],
+        success_url: request.successUrl,
+        cancel_url: request.cancelUrl,
+        metadata,
+        ...(request.customerEmail ? { customer: { email: request.customerEmail } } : {}),
+      }
+    : {
+        pricing: {
+          currency: "USD",
+          amount: (Number(request.amountMinor) / 100).toFixed(2),
+        },
+        success_url: request.successUrl,
+        cancel_url: request.cancelUrl,
+        metadata,
+        ...(request.customerEmail ? { customer: { email: request.customerEmail } } : {}),
+      };
+  const base = apiBase.replace(/\/$/, "");
+  const response = await fetchImpl(`${base}/v1/checkout-sessions`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload: unknown = await response.json().catch(() => null);
+  const parsed = bachsSessionSchema.safeParse(payload);
+  if (!response.ok || !parsed.success) {
+    const message = typeof (payload as { message?: unknown } | null)?.message === "string"
+      ? (payload as { message: string }).message
+      : `bachs answered ${response.status}`;
+    throw new Error(`checkout failed: ${message.slice(0, 200)}`);
+  }
+  return {
+    provider: "bachs",
+    url: parsed.data.checkout_url,
+    sessionId: parsed.data.checkout_id,
+    livemode: !secret.startsWith("sk_sandbox_"),
+  };
+}
+
 export async function createCheckoutSession(request: CheckoutRequest, deps: CheckoutDeps = {}): Promise<CheckoutResult> {
   const invalid = validateRequest(request);
   if (invalid) throw new Error(`checkout failed: ${invalid}`);
@@ -164,6 +225,12 @@ export async function createCheckoutSession(request: CheckoutRequest, deps: Chec
     const secret = deps.secrets?.stripeSecretKey;
     if (!secret) throw new Error("checkout failed: stripe is not configured");
     return createStripeCheckout(request, secret, fetchImpl);
+  }
+  if (request.provider === "bachs") {
+    const secret = deps.secrets?.bachsApiKey;
+    if (!secret) throw new Error("checkout failed: bachs is not configured");
+    const apiBase = deps.secrets?.bachsApiBase || "https://sandbox-api.bachs.io";
+    return createBachsCheckout(request, secret, apiBase, fetchImpl);
   }
   const secret = deps.secrets?.paystackSecretKey;
   if (!secret) throw new Error("checkout failed: paystack is not configured");

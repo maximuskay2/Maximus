@@ -11,6 +11,8 @@ import {
   adminOnlyBotSetting,
   botProfileSettings,
   clientBotPatchViolation,
+  clientCreateViolation,
+  clientMayDeleteBot,
   clientGroupPatchViolation,
   ipcPeer,
   isAllowedOrigin,
@@ -141,7 +143,10 @@ describe("scopes", () => {
       ["GET", "/api/bots"], ["GET", "/api/threads/t/messages"], ["GET", "/api/search"], ["GET", "/api/events"],
       ["GET", "/api/config"], ["GET", "/api/webhooks"], ["POST", "/api/tts/speak"],
       ["GET", "/api/auth/session"], ["POST", "/api/auth/stream-ticket"], ["POST", "/api/auth/logout"],
-      ["POST", "/api/bots"], ["GET", "/api/bot-defaults"], ["GET", "/api/ration"],
+      ["POST", "/api/bots"], ["DELETE", "/api/bots/x"], ["GET", "/api/bot-defaults"], ["GET", "/api/ration"],
+      ["POST", "/api/ration/contributor"],
+      ["GET", "/api/instances"], ["PUT", "/api/config"], ["PATCH", "/api/config"],
+      ["GET", "/api/account/plan"], ["POST", "/api/account/plan"],
       ["GET", "/api/bots/x/slack-management"],
       ["POST", "/api/bots/x/sign-in-cards/m/done"], ["POST", "/api/bots/x/sign-in-cards/m/cancel"], ["POST", "/api/bots/x/sign-in-cards/m/save-login"],
       ["GET", "/api/bots/x/sign-in-cards/m/save-login"],
@@ -150,7 +155,8 @@ describe("scopes", () => {
       ["POST", "/api/bots/x/queue/q/steer"], ["POST", "/api/groups/g/queue/q/steer"],
     ] as const) expect(requiredScope(method, path), `${method} ${path}`).toBe("client");
     for (const [method, path] of [
-      ["POST", "/api/cli-test"], ["GET", "/api/cli-candidates"], ["GET", "/api/instances"], ["PATCH", "/api/instances/claude"],
+      ["DELETE", "/api/bots"], ["PUT", "/api/bots/x"], ["DELETE", "/api/bots/x/skills/s"],
+      ["POST", "/api/cli-test"], ["GET", "/api/cli-candidates"], ["PATCH", "/api/instances/claude"],
       ["POST", "/api/bots/x/computer/exec"], ["POST", "/api/bots/x/computer/join"], ["POST", "/api/local-computer/run"],
       ["POST", "/api/bots/x/local-computer/join"], ["POST", "/api/bots/x/local-computer/screenshot"],
       ["GET", "/api/computers/boxes"], ["POST", "/api/computers/boxes/bx_23456789/delete"],
@@ -160,7 +166,7 @@ describe("scopes", () => {
       ["GET", "/api/bots/x/memory"], ["PUT", "/api/bots/x/memory"], ["PUT", "/api/section-context"], ["GET", "/api/threads/t/events"],
       ["GET", "/api/mcp/servers"], ["POST", "/api/mcp/servers"], ["GET", "/api/bots/x/mcp-servers"], ["POST", "/api/connectors/slack/authorize"],
       ["POST", "/api/bots/x/slack-management"], ["GET", "/api/bots/x/slack-management/extra"],
-      ["PUT", "/api/config"], ["POST", "/api/auth/pairing"], ["GET", "/api/auth/sessions"], ["DELETE", "/api/auth/sessions/abc"],
+      ["POST", "/api/auth/pairing"], ["GET", "/api/auth/sessions"], ["DELETE", "/api/auth/sessions/abc"],
       ["POST", "/api/live/session"], ["POST", "/api/live/call/end"], ["GET", "/api/live/call"], ["PATCH", "/api/live/settings"],
       ["POST", "/api/live/device-revoked"],
       ["POST", "/api/auth/pair"],
@@ -201,6 +207,13 @@ describe("scopes", () => {
     expect(clientBotPatchViolation({ pinned: true, color: "green" })).toBeNull();
     expect(clientBotPatchViolation({ avatarCrop: "mascot", avatarZoom: 1, avatarFocusX: 0.5, avatarFocusY: 0.5, avatarUrl: null })).toBeNull();
     expect(clientBotPatchViolation({ avatarCrop: "square", name: "Renamed" })).toBe("name");
+    expect(clientMayDeleteBot({ admin: false, seesBot: true, ownAccounts: true, edit: false })).toBe(true);
+    expect(clientMayDeleteBot({ admin: false, seesBot: true, ownAccounts: false, edit: true })).toBe(true);
+    expect(clientMayDeleteBot({ admin: true, seesBot: true, ownAccounts: false, edit: false })).toBe(true);
+    expect(clientMayDeleteBot({ admin: false, seesBot: true, ownAccounts: false, edit: false })).toBe(false);
+    expect(clientMayDeleteBot({ admin: true, seesBot: false, ownAccounts: true, edit: true })).toBe(false);
+    expect(clientCreateViolation({ name: "Jjuk", color: "pink" })).toBeNull();
+    expect(clientCreateViolation({ name: "Jjuk", approvalMode: "auto" })).toBe("approvalMode");
     expect(clientBotPatchViolation({ unread: true, autoApprove: true })).toBe("autoApprove");
     expect(clientBotPatchViolation({ cwd: "/" })).toBe("cwd");
     // X research counts against the Cloud plan's X calls: a paired phone may not switch it on.
@@ -345,7 +358,7 @@ describe("resolveRequestAuth", () => {
     const csrf = resolve({ host: "bots.example.com", cookie: `${cookieName}=${token}`, origin: "https://evil.example" }, "/api/bots", "POST");
     expect(csrf.error).toBe("forbidden: cross-origin request");
     expect(sessions.list()[0]?.expiresAt).toBe(session.expiresAt);
-    const overScope = resolve({ authorization: `Bearer ${token}` }, "/api/config", "PUT");
+    const overScope = resolve({ authorization: `Bearer ${token}` }, "/api/auth/pairing", "POST");
     expect(overScope.status).toBe(403);
     expect(sessions.list()[0]?.expiresAt).toBe(session.expiresAt);
     const { ticket } = sessions.issueStreamTicket(session.id);
@@ -717,9 +730,10 @@ describe("loopback trust: owner on one person's machine, service on a shared wor
     const member = sessions.issue({ label: "Phone", scopes: ["client"] });
     expect(check("PUT", "/api/config", { trust: "service", headers: { authorization: `Bearer ${admin.token}` } }).auth?.kind).toBe("session");
     expect(check("POST", "/api/bots/bot-1/messages", { trust: "service", headers: { authorization: `Bearer ${member.token}` } }).auth?.kind).toBe("session");
-    expect(check("PUT", "/api/config", { trust: "service", headers: { authorization: `Bearer ${member.token}` } }).status).toBe(403);
-    // PATCH too: a member cannot flip owner switches such as "Open sites on this server" (browserEngine.egress).
-    expect(check("PATCH", "/api/config", { trust: "service", headers: { authorization: `Bearer ${member.token}` } }).status).toBe(403);
+    expect(check("GET", "/api/instances", { trust: "service", headers: { authorization: `Bearer ${member.token}` } }).auth?.kind).toBe("session");
+    expect(check("PUT", "/api/config", { trust: "service", headers: { authorization: `Bearer ${member.token}` } }).auth?.kind).toBe("session");
+    expect(check("PATCH", "/api/config", { trust: "service", headers: { authorization: `Bearer ${member.token}` } }).auth?.kind).toBe("session");
+    expect(check("POST", "/api/auth/pairing", { trust: "service", headers: { authorization: `Bearer ${member.token}` } }).status).toBe(403);
     expect(check("PATCH", "/api/config", { trust: "service", headers: { authorization: `Bearer ${admin.token}` } }).auth?.kind).toBe("session");
   });
 

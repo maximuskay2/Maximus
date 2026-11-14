@@ -12,7 +12,7 @@ import { deliverRunner } from "./external-runners.ts";
 import { newBotComputer } from "./host/new-bot-computer.ts";
 import { deliverHandoff } from "./room-handoff.ts";
 import { recordSkill, replaySkill } from "./skill-replay.ts";
-import { interruptParkedTurns, parkTurn, readParkedTurns } from "./turn-resume.ts";
+import { acknowledgeInterruptedTurns, clearParkedTurn, interruptParkedTurns, parkTurn, readParkedTurns } from "./turn-resume.ts";
 
 const folders: string[] = [];
 afterEach(() => {
@@ -34,6 +34,18 @@ describe("release B", () => {
     expect(readParkedTurns(dir)).toEqual([{ botId: "bot-a", turnId: "turn-1", threadId: "thread-1", status: "running" }]);
     expect(interruptParkedTurns(dir)[0]).toMatchObject({ status: "interrupted", turnId: "turn-1" });
     expect(readFileSync(transcript, "utf8")).toBe("the turn so far");
+  });
+
+  it("drops a settled turn and announces an interrupted one once", () => {
+    const dir = temp();
+    parkTurn(dir, { botId: "bot-a", turnId: "turn-1", threadId: "thread-1" });
+    parkTurn(dir, { botId: "bot-a", turnId: "turn-2", threadId: "thread-2" });
+    clearParkedTurn(dir, "turn-1");
+    expect(readParkedTurns(dir).map((turn) => turn.turnId)).toEqual(["turn-2"]);
+    interruptParkedTurns(dir);
+    expect(acknowledgeInterruptedTurns(dir)).toEqual([{ botId: "bot-a", turnId: "turn-2", threadId: "thread-2", status: "interrupted" }]);
+    expect(acknowledgeInterruptedTurns(dir)).toEqual([]);
+    expect(readParkedTurns(dir)).toEqual([]);
   });
 
   it("gives a new bot its own computer and browser profile", () => {

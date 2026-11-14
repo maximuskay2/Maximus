@@ -42,11 +42,15 @@ class Composer extends StatefulWidget {
     this.liveBotName,
     this.hintText = 'Message…  (@ to mention)',
     this.onCall,
+    this.includeEveryone = false,
   });
 
   final String threadId;
   final DraftStore drafts;
   final List<String> botNames;
+
+  /// Room threads: offer `@everyone` in the mention picker.
+  final bool includeEveryone;
   final Future<void> Function(OutgoingMessage) onSend;
   final Future<void> Function() onStop;
   final bool sending;
@@ -173,6 +177,12 @@ class _ComposerState extends State<Composer> {
         if (draft != null && mounted) _controller.text = draft;
       });
     }
+    if (widget.replyTo != null &&
+        widget.replyTo!.id != oldWidget.replyTo?.id) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _focus.requestFocus();
+      });
+    }
   }
 
   @override
@@ -232,10 +242,12 @@ class _ComposerState extends State<Composer> {
 
   List<String> get _mentionMatches {
     final query = (_mentionQuery ?? '').toLowerCase();
-    return [
+    final names = <String>[
+      if (widget.includeEveryone && 'everyone'.startsWith(query)) 'everyone',
       for (final name in widget.botNames)
         if (name.toLowerCase().startsWith(query)) name,
-    ].take(5).toList();
+    ];
+    return names.take(5).toList();
   }
 
   void _insertMention(String name) {
@@ -258,202 +270,245 @@ class _ComposerState extends State<Composer> {
         (_controller.text.trim().isNotEmpty || _attachments.isNotEmpty) &&
         !widget.sending &&
         !_uploading;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (_mentionQuery != null && _mentionMatches.isNotEmpty)
-          Material(
-            color: scheme.surfaceContainerHighest,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(12),
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    return Material(
+      color: Colors.white,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Divider(height: 1, thickness: 0.5, color: Color(0xFFE5E5EA)),
+          if (_mentionQuery != null && _mentionMatches.isNotEmpty)
+            Material(
+              color: const Color(0xFFF2F2F7),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 180),
+                child: ListView(
+                  shrinkWrap: true,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  children: [
+                    for (final name in _mentionMatches)
+                      ListTile(
+                        dense: true,
+                        leading: CircleAvatar(
+                          radius: 14,
+                          backgroundColor: MaxTokens.ember.withValues(
+                            alpha: 0.12,
+                          ),
+                          foregroundColor: MaxTokens.ember,
+                          child: Text(name.isEmpty ? '?' : name[0]),
+                        ),
+                        title: Text(name),
+                        onTap: () => _insertMention(name),
+                      ),
+                  ],
+                ),
+              ),
             ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 180),
-              child: ListView(
-              shrinkWrap: true,
-              children: [
-                for (final name in _mentionMatches)
-                  ListTile(
-                    dense: true,
-                    leading: CircleAvatar(
-                      radius: 14,
-                      child: Text(name.isEmpty ? '?' : name[0]),
-                    ),
-                    title: Text(name),
-                    onTap: () => _insertMention(name),
+          if (widget.replyTo != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 4, 0),
+              child: Material(
+                color: const Color(0xFFF2F2F7),
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 3,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: MaxTokens.ember,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Replying',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: MaxTokens.ember,
+                              ),
+                            ),
+                            Text(
+                              widget.replyTo!.text ?? widget.replyTo!.kind,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        tooltip: 'Cancel reply',
+                        onPressed: widget.onClearReply,
+                      ),
+                    ],
                   ),
-              ],
+                ),
+              ),
+            ),
+          if (_attachments.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  for (final attachment in _attachments)
+                    Chip(
+                      label: Text(
+                        attachment.path.split('/').last,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onDeleted: () => setState(
+                        () => _attachments.remove(attachment),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          if (_dictation?.listening == true)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: scheme.error,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Listening… tap the mic to stop',
+                    style: TextStyle(color: scheme.error, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          if (_dictation?.error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                _dictation!.error!,
+                style: TextStyle(color: scheme.error, fontSize: 12),
+              ),
+            ),
+          SafeArea(
+            top: false,
+            minimum: EdgeInsets.only(bottom: keyboardOpen ? 6 : 0),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  _ComposerCircle(
+                    tooltip: 'Attach',
+                    onPressed: _uploading ? null : _pick,
+                    child: _uploading
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.add, size: 22),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      focusNode: _focus,
+                      minLines: 1,
+                      maxLines: 5,
+                      textInputAction: TextInputAction.send,
+                      textCapitalization: TextCapitalization.sentences,
+                      onSubmitted: (_) => _send(),
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        hintText: widget.hintText,
+                        filled: true,
+                        fillColor: const Color(0xFFF2F2F7),
+                        border: const OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(22)),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 11,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  if (_dictation != null)
+                    IconButton(
+                      onPressed: _uploading
+                          ? null
+                          : () => _dictation!.toggle(
+                                baseText: _controller.text,
+                              ),
+                      icon: Icon(
+                        _dictation!.listening
+                            ? Icons.mic_off_outlined
+                            : Icons.mic_none_outlined,
+                        color: _dictation!.listening ? scheme.error : null,
+                      ),
+                      tooltip: _dictation!.listening
+                          ? 'Stop dictation'
+                          : 'Dictate',
+                    ),
+                  if (widget.working)
+                    _ComposerCircle(
+                      filled: true,
+                      tooltip: 'Stop',
+                      onPressed: widget.onStop,
+                      child: const Icon(
+                        Icons.stop,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    )
+                  else if (canSend)
+                    _ComposerCircle(
+                      filled: true,
+                      tooltip: 'Send',
+                      onPressed: _send,
+                      child: const Icon(
+                        Icons.arrow_upward,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    )
+                  else
+                    _ComposerCircle(
+                      filled: true,
+                      tooltip: 'Voice call',
+                      onPressed: widget.onCall,
+                      child: const Icon(
+                        Icons.graphic_eq,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
-        if (widget.replyTo != null)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            color: scheme.surfaceContainerHighest,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Replying to: ${widget.replyTo!.text ?? widget.replyTo!.kind}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: scheme.onSurfaceVariant),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 18),
-                  onPressed: widget.onClearReply,
-                ),
-              ],
-            ),
-          ),
-        if (_attachments.isNotEmpty)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Wrap(
-              spacing: 8,
-              children: [
-                for (final attachment in _attachments)
-                  Chip(
-                    label: Text(
-                      attachment.path.split('/').last,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    onDeleted: () => setState(
-                      () => _attachments.remove(attachment),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        if (_dictation?.listening == true)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 2),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: scheme.error,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Listening… tap the mic to stop',
-                  style: TextStyle(
-                    color: scheme.error,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        if (_dictation?.error != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 2),
-            child: Text(
-              _dictation!.error!,
-              style: TextStyle(color: scheme.error, fontSize: 12),
-            ),
-          ),
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                _ComposerCircle(
-                  tooltip: 'Attach',
-                  onPressed: _uploading ? null : _pick,
-                  child: _uploading
-                      ? const SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.add, size: 22),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    focusNode: _focus,
-                    minLines: 1,
-                    maxLines: 5,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _send(),
-                    onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                      hintText: widget.hintText,
-                      filled: true,
-                      fillColor: const Color(0xFFF2F2F7),
-                      border: const OutlineInputBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(24)),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                if (_dictation != null)
-                  IconButton(
-                    onPressed: _uploading
-                        ? null
-                        : () => _dictation!.toggle(
-                              baseText: _controller.text,
-                            ),
-                    icon: Icon(
-                      _dictation!.listening
-                          ? Icons.mic_off_outlined
-                          : Icons.mic_none_outlined,
-                      color: _dictation!.listening ? scheme.error : null,
-                    ),
-                    tooltip: _dictation!.listening
-                        ? 'Stop dictation'
-                        : 'Dictate',
-                  ),
-                if (widget.working)
-                  _ComposerCircle(
-                    filled: true,
-                    tooltip: 'Stop',
-                    onPressed: widget.onStop,
-                    child: const Icon(Icons.stop, color: Colors.white, size: 20),
-                  )
-                else if (canSend)
-                  _ComposerCircle(
-                    filled: true,
-                    tooltip: 'Send',
-                    onPressed: _send,
-                    child: const Icon(
-                      Icons.arrow_upward,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  )
-                else
-                  _ComposerCircle(
-                    filled: true,
-                    tooltip: 'Voice call',
-                    onPressed: widget.onCall,
-                    child: const Icon(
-                      Icons.graphic_eq,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

@@ -1,3 +1,4 @@
+import { RationNotice } from "./AccountRation";
 import { directMessageSent, roomMessageSent } from "@/lib/product-events";
 import { useComposerDictation } from "@/lib/use-composer-dictation";
 import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
@@ -680,6 +681,7 @@ export function Composer({
         </div>
       )}
       <div className="pointer-events-auto relative w-full">
+        <RationNotice />
         {failedSends.map((failed) => (
           <div
             key={failed.id}

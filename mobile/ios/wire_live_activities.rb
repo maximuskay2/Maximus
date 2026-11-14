@@ -45,7 +45,7 @@ unless ext
   ext.build_configurations.each do |config|
     settings = config.build_settings
     settings['PRODUCT_NAME'] = '$(TARGET_NAME)'
-    settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'com.maximus.app.LiveActivities'
+    settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'com.maximusbot.app.LiveActivities'
     settings['INFOPLIST_FILE'] = 'LiveActivities/Info.plist'
     settings['CODE_SIGN_ENTITLEMENTS'] = 'LiveActivities/LiveActivities.entitlements'
     settings['CODE_SIGN_STYLE'] = 'Automatic'

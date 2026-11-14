@@ -583,8 +583,8 @@ describe("Store", () => {
     const greeting = (name: string) => store.messagesFor(store.createBot({ name }).threadId)[0]?.text;
 
     expect(greeting("Ivy")).toBe("Hi, I'm Ivy. What would you like me to do?");
-    person = "Milind Soni";
-    expect(greeting("Scout")).toBe("Hi Milind, I'm Scout. What would you like me to do?");
+    person = "Akingbade Kayode";
+    expect(greeting("Scout")).toBe("Hi Kayode, I'm Scout. What would you like me to do?");
   });
 
   it("clears provider-owned voice ids as one durable mutation", () => {

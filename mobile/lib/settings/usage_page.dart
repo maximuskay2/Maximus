@@ -31,10 +31,23 @@ class _UsagePageState extends State<UsagePage> {
   @override
   void initState() {
     super.initState();
-    _load();
+    if (widget.auth.isChatOnly) {
+      _loading = false;
+    } else {
+      _load();
+    }
   }
 
   Future<void> _load() async {
+    if (widget.auth.isChatOnly) {
+      setState(() {
+        _loading = false;
+        _error = null;
+        _report = null;
+        _wallet = null;
+      });
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -76,7 +89,14 @@ class _UsagePageState extends State<UsagePage> {
     final total = report?.total;
     return Scaffold(
       appBar: AppBar(title: const Text('Usage')),
-      body: _loading
+      body: widget.auth.isChatOnly
+          ? OwnerOnlyBody(
+              auth: widget.auth,
+              baseUrl: widget.baseUrl,
+              detail:
+                  'Usage is for the home owner. Sign out, then sign in with the owner account.',
+            )
+          : _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
           ? Center(

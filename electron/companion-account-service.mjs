@@ -12,10 +12,11 @@ import {
   withoutManagedCompanionTunnelAccess,
 } from "./managed-companion-tunnel.mjs";
 import { MANAGED_ENDPOINT_PHONES_UNUSED } from "./companion-endpoint-need.mjs";
+import { PRODUCT_ACCOUNTS_ORIGIN } from "../shared/product-origin.ts";
 
 export { managedEndpointNeed, PHONE_UNUSED_RELEASE_MS } from "./companion-endpoint-need.mjs";
 
-export const DEFAULT_COMPANION_CONTROL_PLANE_URL = "https://accounts.maximus.com";
+export const DEFAULT_COMPANION_CONTROL_PLANE_URL = PRODUCT_ACCOUNTS_ORIGIN;
 
 /** The stock local worker (`wrangler dev --port 8787`); offered as the "local" preset, never assumed. */
 export const LOCAL_CONTROL_PLANE_URL = "http://127.0.0.1:8787";

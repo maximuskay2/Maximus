@@ -35,7 +35,12 @@ void main() {
 
     // Simulate a completed pairing through the real load path.
     await store.saveServer(
-      const ServerRef(id: 'h', name: 'Home', baseUrl: 'https://h.example'),
+      const ServerRef(
+        id: 'h',
+        name: 'Home',
+        baseUrl: 'https://h.example',
+        companionToken: 'tok',
+      ),
     );
     await auth.load();
     await tester.pump();
@@ -68,5 +73,21 @@ void main() {
     await tester.pumpWidget(MaximusApp(auth: auth));
     await tester.pumpAndSettle();
     expect(find.text('Your proactive AI teammate.'), findsOneWidget);
+  });
+
+  testWidgets('load refreshes scopes from the live session', (tester) async {
+    final store = MemorySessionStore();
+    await store.saveServer(
+      const ServerRef(
+        id: 'h',
+        name: 'Home',
+        baseUrl: 'https://h.example',
+        companionToken: 'tok',
+      ),
+    );
+    final auth = AuthState(store: store, client: FakeApi());
+    await auth.load();
+    expect(auth.isAdmin, isTrue);
+    expect(auth.scopes, containsAll(['admin', 'client']));
   });
 }

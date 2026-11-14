@@ -45,7 +45,8 @@ export function createVisibilityHost(deps: VisibilityHostDeps) {
     return owner ?? undefined;
   }
   function visibleTo(viewer: Viewer): VisibleSet {
-    const key = viewer.kind === "all" ? (viewer.email === undefined ? "*" : `admin:${viewer.email.trim().toLowerCase()}`) : `member:${viewer.email?.trim().toLowerCase() ?? ""}`;
+    const own = viewer.kind === "member" && viewer.onlyOwn ? ":own" : "";
+    const key = viewer.kind === "all" ? (viewer.email === undefined ? "*" : `admin:${viewer.email.trim().toLowerCase()}`) : `member:${viewer.email?.trim().toLowerCase() ?? ""}${own}`;
     let set = visibleSets.get(key);
     if (!set) {
       set = new VisibleSet(store.bots, store.groups, viewer, threadOwner, deps.audiencesFor(viewer));

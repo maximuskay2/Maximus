@@ -31,11 +31,11 @@ describe("control-plane endpoint", () => {
     expect(endpointState({ env: {}, isPackaged: true, readSettings: () => "http://127.0.0.1:8787" }))
       .toMatchObject({ url: "http://127.0.0.1:8787", source: "settings", managedByEnv: false });
     expect(endpointState({ env: {}, isPackaged: true, readSettings: () => "" }))
-      .toMatchObject({ url: "https://accounts.maximus.com", source: "production" });
+      .toMatchObject({ url: "https://accounts.meetnote.cc", source: "production" });
     expect(endpointState({ env: {}, isPackaged: false, readSettings: () => "" }))
       .toMatchObject({ url: "", source: "none" });
     expect(endpointState({ env: {}, isPackaged: true, readSettings: () => "notaurl" }))
-      .toMatchObject({ url: "https://accounts.maximus.com", source: "production" });
+      .toMatchObject({ url: "https://accounts.meetnote.cc", source: "production" });
   });
 
   it("serves the current endpoint and declines other paths", async () => {

@@ -134,13 +134,55 @@ export function normalizePaystackEvent(payload: unknown): BillingEvent | null {
   });
 }
 
+const BACHS_TYPES: Record<string, BillingEventType> = {
+  "checkout.completed": "billing.checkout_completed",
+  "collection.succeeded": "billing.checkout_completed",
+  "customer.subscription.updated": "billing.subscription_updated",
+  "customer.subscription.deleted": "billing.subscription_cancelled",
+  "invoice.payment_failed": "billing.payment_failed",
+  "invoice.paid": "billing.payment_recovered",
+};
+
+/** Bachs webhooks carry checkout metadata we set at session create. */
+export function normalizeBachsEvent(payload: unknown): BillingEvent | null {
+  const root = asRecord(payload);
+  const type = BACHS_TYPES[asString(root.type) ?? ""];
+  const event_id = asString(root.id);
+  const created_at = asString(root.created_at);
+  if (!type || !event_id || !created_at || !Number.isFinite(Date.parse(created_at))) return null;
+  const data = asRecord(root.data);
+  const meta = metadataOf(data.metadata ?? root.metadata);
+  const grant = grantFromMetadata(meta);
+  if (!grant) return null;
+  const customer_id = asString(data.customer_id)
+    ?? asString(asRecord(data.customer).customer_id)
+    ?? asString(asRecord(data.customer_details).email)
+    ?? asString(data.checkout_id)
+    ?? event_id;
+  return parseBillingEvent({
+    event_id,
+    type,
+    created_at: new Date(created_at).toISOString(),
+    provider: "bachs",
+    livemode: !String(asString(root.organization_id) ?? "").includes("sandbox"),
+    workspace_id: grant.workspace_id,
+    customer_id,
+    plan: grant.plan,
+    entitlements: grant.entitlements,
+    allowance: grant.allowance,
+  });
+}
+
 export function normalizeBillingEvent(provider: BillingProvider, payload: unknown): BillingEvent | null {
-  return provider === "stripe" ? normalizeStripeEvent(payload) : normalizePaystackEvent(payload);
+  if (provider === "stripe") return normalizeStripeEvent(payload);
+  if (provider === "bachs") return normalizeBachsEvent(payload);
+  return normalizePaystackEvent(payload);
 }
 
 /** True for event types we act on, even when this delivery lacks the metadata to apply. */
 export function isKnownProviderEvent(provider: BillingProvider, payload: unknown): boolean {
   const root = asRecord(payload);
   if (provider === "stripe") return (asString(root.type) ?? "") in STRIPE_TYPES;
+  if (provider === "bachs") return (asString(root.type) ?? "") in BACHS_TYPES;
   return (asString(root.event) ?? "") in PAYSTACK_TYPES;
 }

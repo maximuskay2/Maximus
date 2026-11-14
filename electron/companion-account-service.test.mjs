@@ -113,7 +113,7 @@ function signedCredentials(overrides = {}) {
 describe("Companion account service", () => {
   it("uses the packaged hosted default and only explicit safe development origins", () => {
     expect(resolveCompanionControlPlaneURL({ isPackaged: true, environment: {} })).toBe(
-      "https://accounts.maximus.com",
+      "https://accounts.meetnote.cc",
     );
     expect(resolveCompanionControlPlaneURL({
       isPackaged: false,
@@ -141,7 +141,7 @@ describe("Companion account service", () => {
     })).toBe("https://svc.example");
     expect(resolveCompanionControlPlaneURL({
       isPackaged: true, environment: {}, configuredURL: "notaurl",
-    })).toBe("https://accounts.maximus.com");
+    })).toBe("https://accounts.meetnote.cc");
     expect(resolveCompanionControlPlaneURL({
       isPackaged: false, environment: {}, configuredURL: "",
     })).toBe("");

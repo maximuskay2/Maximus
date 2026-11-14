@@ -50,3 +50,18 @@ export function interruptParkedTurns(dir: string): ParkedTurn[] {
   writeTurns(dir, turns);
   return turns;
 }
+
+export function clearParkedTurn(dir: string, turnId: string): void {
+  writeTurns(dir, readTurns(dir).filter((turn) => turn.turnId !== turnId));
+}
+
+export function clearParkedThread(dir: string, threadId: string): void {
+  writeTurns(dir, readTurns(dir).filter((turn) => turn.threadId !== threadId));
+}
+
+/** Mark interrupted rows as noticed after boot so they are not re-announced. */
+export function acknowledgeInterruptedTurns(dir: string): ParkedTurn[] {
+  const interrupted = readTurns(dir).filter((turn) => turn.status === "interrupted");
+  writeTurns(dir, readTurns(dir).filter((turn) => turn.status !== "interrupted"));
+  return interrupted;
+}

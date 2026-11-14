@@ -2,47 +2,29 @@
 
 # Maximus
 
-**The open-source Grok Bot alternative: your own team of AI bots, in a chat app.**
+**One account. A team of AI coworkers. The browser, your computer, and your phone.**
 
-[**maximus.com**](https://www.maximus.com) &nbsp;·&nbsp; [Download](https://www.maximus.com/download) &nbsp;·&nbsp; [Open source Grok Bot alternative, compared](https://www.maximus.com/blog/grok-bot-vs-maximus)
+[**app.meetnote.cc**](https://app.meetnote.cc) &nbsp;·&nbsp; [Download](https://app.meetnote.cc/welcome#download)
 
-<sub>Maximus is an open-source Grok Bot alternative: an independent project inspired by **Grok Bot**, and the open-source alternative to **Meta Muse**, **OpenAI dots** and **Cue by Manus** — bring-your-own-agent, local-first, on the models you already have. Also known as **Max**; formerly **OpenGrokBot**. Not affiliated with xAI, Meta, OpenAI or Manus.</sub>
+<sub>Maximus is a chat where every conversation is an AI coworker with its own job, its own model, and its own thread. Sign up once at <a href="https://app.meetnote.cc">app.meetnote.cc</a>. That account opens in the browser, the desktop app, and the phone. Also known as <strong>Max</strong>; formerly <strong>OpenGrokBot</strong>. An independent project. Not affiliated with xAI, Meta, OpenAI or Manus.</sub>
 
-Every bot in the sidebar is a real agent — Claude or Codex running locally under the hood — with its own
-personality, its own model, its own cloud computer, and its own connected apps.
-Talk to them like contacts. Watch them work. Approve what matters.
+You choose how the models are paid for, once: **free** to start, **your own key** if you already pay for Claude, ChatGPT, Grok, or another model, or **Muse** when you want Maximus to provide the model. The next browser, computer, or phone continues with that choice.
+
+Talk to the bots like contacts. Watch them work. Approve what matters.
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![Electron](https://img.shields.io/badge/Electron-macOS%20%C2%B7%20Windows%20%C2%B7%20Ubuntu-2B2E3A?logo=electron&logoColor=9FEAF9)
 ![Agents](https://img.shields.io/badge/agents-Claude%20·%20Codex-d97757)
-[![Release](https://img.shields.io/github/v/release/RELEASE_OWNER/Maximus?label=release&color=1084fe&cacheSeconds=300)](https://github.com/RELEASE_OWNER/Maximus/releases/latest)
-![PRs](https://img.shields.io/badge/PRs-welcome-38d591)
 
 <br>
 
-<a href="https://github.com/RELEASE_OWNER/Maximus/releases/latest/download/Maximus.dmg">
-  <img src="https://img.shields.io/github/v/release/RELEASE_OWNER/Maximus?style=for-the-badge&label=%E2%AC%87%EF%B8%8F%20%20Download%20for%20Mac%20%28Apple%20silicon%29&labelColor=070707&color=1084fe&cacheSeconds=300" alt="Download the latest Maximus for Mac with Apple silicon (.dmg)" height="40">
+<a href="https://app.meetnote.cc">
+  <img src="https://img.shields.io/badge/%E2%86%97%EF%B8%8F%20%20Open%20app.meetnote.cc-1084fe?style=for-the-badge&labelColor=070707" alt="Open Maximus at app.meetnote.cc" height="40">
 </a>
 &nbsp;
-<a href="https://github.com/RELEASE_OWNER/Maximus/releases/latest/download/Maximus-intel.dmg">
-  <img src="https://img.shields.io/github/v/release/RELEASE_OWNER/Maximus?style=for-the-badge&label=%E2%AC%87%EF%B8%8F%20%20Download%20for%20Mac%20%28Intel%29&labelColor=070707&color=2a9d8f&cacheSeconds=300" alt="Download the latest Maximus for Intel Macs (.dmg)" height="40">
-</a>
-&nbsp;
-<a href="https://github.com/RELEASE_OWNER/Maximus/releases/latest/download/Maximus-setup.exe">
-  <img src="https://img.shields.io/github/v/release/RELEASE_OWNER/Maximus?style=for-the-badge&label=%E2%AC%87%EF%B8%8F%20%20Download%20for%20Windows&labelColor=070707&color=4cc2ff&cacheSeconds=300" alt="Download the latest Maximus for Windows (.exe)" height="40">
-</a>
-&nbsp;
-<a href="https://github.com/RELEASE_OWNER/Maximus/releases/latest/download/Maximus-amd64.deb">
-  <img src="https://img.shields.io/github/v/release/RELEASE_OWNER/Maximus?style=for-the-badge&label=%E2%AC%87%EF%B8%8F%20%20Download%20for%20Ubuntu&labelColor=070707&color=e95420&cacheSeconds=300" alt="Download the latest Maximus for Ubuntu (.deb)" height="40">
-</a>
-
-<sub>[latest release](https://github.com/RELEASE_OWNER/Maximus/releases/latest) &nbsp;·&nbsp; macOS: Apple silicon & Intel · signed & notarized .dmg &nbsp;·&nbsp; Windows: x64 installer &nbsp;·&nbsp; Ubuntu 24.04 x64: .deb or AppImage beta &nbsp;·&nbsp; [all releases](https://github.com/RELEASE_OWNER/Maximus/releases)</sub>
-
-<br>
-
-<a href="https://github.com/sponsors/RELEASE_OWNER">
-  <img src="https://img.shields.io/badge/%E2%9D%A4%EF%B8%8F%20%20Support%20Maximus-GitHub%20Sponsors-38d591?style=for-the-badge&labelColor=070707" alt="Support Maximus via GitHub Sponsors" height="40">
+<a href="https://app.meetnote.cc/welcome#download">
+  <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20%20Desktop%20%26%20phone-2a9d8f?style=for-the-badge&labelColor=070707" alt="Desktop and phone download on meetnote" height="40">
 </a>
 
 <br>
@@ -70,16 +52,11 @@ Talk to them like contacts. Watch them work. Approve what matters.
 
 ## Why
 
-One assistant in one box is the wrong shape for agents. Maximus is an independent, open-source project inspired by **Grok Bot** —
-it keeps the idea (AI as a *messaging app*: a roster of bots you chat with, each with its own personality,
-memory of its thread, model, computer, and apps) and rebuilds it open, local-first, and on the agents you
-already have:
+Maximus keeps each coworker in its own conversation: its own personality, its memory of that thread, its model, and the apps it can use. The hosted app is [app.meetnote.cc](https://app.meetnote.cc). The same code also runs on your own machine.
 
-- **Bring your own agents.** Bots run on the `claude`, `codex`, and `grok` CLIs installed on your own machine
-  — your existing logins and subscriptions, no new accounts, no proxy in the middle. Point any engine at a
-  custom CLI binary (a versioned build or wrapper) in **Settings → Engines**.
-- **Local first.** One small harness server on `127.0.0.1` owns every agent process. Transcripts, keys, and
-  events live in `~/.maximus`, not a cloud.
+- **One account.** The browser, the desktop app, and the phone share the sign-in, the threads, and the plan you already chose: free, your own key, or Muse.
+- **Bring your own agents.** On your own machine, bots can run on the `claude`, `codex`, and `grok` CLIs you already have. Point any engine at a custom CLI binary in **Settings → Engines**.
+- **Yours to run.** A self-hosted server keeps transcripts, keys, and events in `~/.maximus`.
 - **Agents with hands.** Each bot can use a cloud Linux desktop, an isolated Local VM, or—where the platform
   safety boundary is currently certified—your own computer, plus 500+ apps through Composio. Host control is
   available on macOS and Ubuntu Xorg after explicit opt-in. Ubuntu Wayland host control remains disabled while
@@ -95,14 +72,14 @@ apps, running on your machine under Apache 2.0. If you searched for an *open Mus
 
 | Looking for | What it is | How Maximus differs | Read more |
 | --- | --- | --- | --- |
-| **Open source Grok Bot** | xAI's roster of bots on one shared cloud computer, Grok only, from a SuperGrok or Cursor plan | Same roster shape; any model per bot; your own machine; approval cards | [Grok Bot vs Maximus](https://www.maximus.com/blog/grok-bot-vs-maximus) |
-| **Open Muse** | Meta's single personal agent in a Meta cloud VM, US and Canada only | A team instead of one agent; runs anywhere; data in `~/.maximus` | [Meta Muse alternative](https://www.maximus.com/blog/open-source-alternative-to-meta-muse) |
-| **Open dots** | OpenAI's always-on agent inside ChatGPT, GPT only, Pro and Business Premium plans | Several agents; your Claude, ChatGPT or Grok login; no plan required | [OpenAI dots alternative](https://www.maximus.com/blog/openai-dots-alternative) |
-| **Open Cue** | Manus's invite-only agents with their own phone, email and wallet | No invite; OAuth instead of passwords; open source | [Cue by Manus alternative](https://www.maximus.com/blog/open-source-alternative-to-cue-by-manus) |
-| **Open Instinct** | Spear Street's invite-only agent that holds your passwords on a cloud computer | Ask for approval when you want it; signs in over OAuth; your machine | [Instinct AI alternative](https://www.maximus.com/blog/instinct-ai-alternative) |
+| **Open source Grok Bot** | xAI's roster of bots on one shared cloud computer, Grok only, from a SuperGrok or Cursor plan | Same roster shape; any model per bot; your own machine; approval cards | [Grok Bot vs Maximus](https://app.meetnote.cc) |
+| **Open Muse** | Meta's single personal agent in a Meta cloud VM, US and Canada only | A team instead of one agent; runs anywhere; data in `~/.maximus` | [Meta Muse alternative](https://app.meetnote.cc) |
+| **Open dots** | OpenAI's always-on agent inside ChatGPT, GPT only, Pro and Business Premium plans | Several agents; your Claude, ChatGPT or Grok login; no plan required | [OpenAI dots alternative](https://app.meetnote.cc) |
+| **Open Cue** | Manus's invite-only agents with their own phone, email and wallet | No invite; OAuth instead of passwords; open source | [Cue by Manus alternative](https://app.meetnote.cc) |
+| **Open Instinct** | Spear Street's invite-only agent that holds your passwords on a cloud computer | Ask for approval when you want it; signs in over OAuth; your machine | [Instinct AI alternative](https://app.meetnote.cc) |
 
-All five side by side: [Muse vs Grok Bot vs Dots vs Cue](https://www.maximus.com/blog/muse-vs-grok-bot-vs-dots-vs-cue),
-and a decision guide in five questions: [Which AI agent should I use?](https://www.maximus.com/blog/which-ai-agent-should-i-use)
+All five side by side: [Muse vs Grok Bot vs Dots vs Cue](https://app.meetnote.cc),
+and a decision guide in five questions: [Which AI agent should I use?](https://app.meetnote.cc)
 
 ## Features
 
@@ -197,9 +174,7 @@ in **Teams → Import**.
 The format stays portable: Maximus reads the structured YAML frontmatter for a reliable one-click
 install, while Grok, Claude, ChatGPT, and people can follow the ordinary Markdown playbook. Connections
 remain off until you approve them, routines arrive paused, and packages never carry credentials,
-conversations, permissions, memory, or computer access. Browse the
-[open-source playbook repository](https://github.com/RELEASE_OWNER/maximus-teams) or read its
-[portable format](https://github.com/RELEASE_OWNER/maximus-teams/blob/main/FORMAT.md).
+conversations, permissions, memory, or computer access. Browse portable team playbooks on [BotMRR](https://botmrr.io) (Markdown + YAML frontmatter).
 
 ### 🤝 Share a whole department
 
@@ -250,8 +225,6 @@ expressions · screenshots of the bot's work folded into the transcript.
 ![Cua](https://img.shields.io/badge/Cua%20Driver-1f2937)
 ![ElevenLabs](https://img.shields.io/badge/ElevenLabs-000000?logo=elevenlabs&logoColor=white)
 ![Fish Audio](https://img.shields.io/badge/Fish%20Audio-2563eb)
-![GitHub Sponsors](https://img.shields.io/badge/GitHub%20Sponsors-ea4aaa)
-
 </div>
 
 | Service | Purpose |
@@ -263,7 +236,6 @@ expressions · screenshots of the bot's work folded into the transcript.
 | **Composio** | Connected apps — Gmail, Slack, GitHub, and more |
 | **Cua Driver** | Native computer use on your own machine |
 | **ElevenLabs · Fish Audio** | Hosted voices for bots that talk back |
-| **GitHub Sponsors** | One-time and monthly project support |
 
 ## How it works
 
@@ -325,32 +297,44 @@ maximus run "Room Lead" "Rehearse the launch of https://example.com" --export ./
 
 See [Run Maximus from scripts and CI](docs/headless-cli.md).
 
+## Documentation
+
+The technical manual lives under [`docs/`](docs/README.md):
+
+| | |
+|---|---|
+| [Documentation hub](docs/README.md) | Index of every guide |
+| [Architecture](docs/architecture.md) | Harness, clients, Coolify stack, auth scopes |
+| [Coolify / meetnote deploy](deploy/coolify/README.md) | Full product on one VPS · `pnpm deploy:vps` |
+| [Self-hosting](docs/self-hosting.md) · [VPS guide](docs/deploy-vps.md) | Pair, tunnel, Tailscale, Docker+Caddy |
+| [Verification](docs/verification/README.md) | Isolated fixtures before claiming a fix |
+| [Mobile](mobile/README.md) | Flutter companion |
+| [Releasing](docs/releasing.md) | Desktop installers |
+
 ## Quick start
 
-**Released builds ([latest release](https://github.com/RELEASE_OWNER/Maximus/releases/latest)):** the harness server is embedded, so no separate server setup is required.
+**Hosted:** open [app.meetnote.cc](https://app.meetnote.cc). Desktop and phone
+installers (when published) are linked from
+[welcome → download](https://app.meetnote.cc/welcome#download). There is no
+public GitHub Releases page for this product line.
 
-| | Download | Install |
-|---|---|---|
-| **macOS** (Apple silicon) | [Maximus.dmg](https://github.com/RELEASE_OWNER/Maximus/releases/latest/download/Maximus.dmg) | Drag it to Applications, open it. Signed & notarized. |
-| **macOS** (Intel) | [Maximus-intel.dmg](https://github.com/RELEASE_OWNER/Maximus/releases/latest/download/Maximus-intel.dmg) | Same app, built for Intel Macs. Signed & notarized. |
-| **Windows** (x64) | [Maximus-setup.exe](https://github.com/RELEASE_OWNER/Maximus/releases/latest/download/Maximus-setup.exe) | Run it — one-click, per-user, no admin rights. The installer isn't code-signed yet, so SmartScreen shows "unknown publisher": **More info → Run anyway**. |
-| **Ubuntu 24.04** (x64) | [Maximus-amd64.deb](https://github.com/RELEASE_OWNER/Maximus/releases/latest/download/Maximus-amd64.deb) · [Maximus.AppImage](https://github.com/RELEASE_OWNER/Maximus/releases/latest/download/Maximus.AppImage) | Install the `.deb` with APT (recommended), or make the AppImage executable and run it. Beta; GNOME is the supported desktop. |
+Platform notes for local desktop builds: [macOS](docs/mac-desktop.md),
+[Windows](docs/windows-desktop.md), [Ubuntu](docs/linux-desktop.md). A desktop
+build can also pair as a client to another host over Tailscale; see
+[desktop-to-desktop companion mode](docs/desktop-companion.md).
 
-See the per-platform guides — [macOS](docs/mac-desktop.md), [Windows](docs/windows-desktop.md),
-[Ubuntu](docs/linux-desktop.md) — for installation, capabilities, and troubleshooting.
-Any desktop build can also pair as a client to another Windows, macOS, or Ubuntu host over Tailscale; see [desktop-to-desktop companion mode](docs/desktop-companion.md).
-
-
-**From source:**
+**From this repo (source):**
 
 ```sh
-git clone https://github.com/RELEASE_OWNER/Maximus && cd Maximus
 pnpm install
 
 pnpm dev:server    # harness server → 127.0.0.1:8799
 pnpm dev           # app → http://127.0.0.1:5199
 pnpm dev:desktop   # Electron shell; keep the two commands above running
 ```
+
+Deploy the Coolify VPS stack from a laptop: `pnpm deploy:vps`
+([Coolify README](deploy/coolify/README.md)).
 
 Requirements: **macOS, Windows, or Ubuntu 24.04 x64**, **Node 24+**, **pnpm**, and at least one agent CLI — [`claude`](https://claude.com/claude-code),
 [`codex`](https://github.com/openai/codex), or [`grok`](https://x.ai/cli) — installed and logged in. They appear
@@ -378,10 +362,7 @@ pnpm package:linux    # Ubuntu x64: .deb + AppImage + verified CUA runtime
 The Linux preview is user-initiated and never enables local bot control or Auto routing. On Xorg, the reviewed Cua
 Driver 0.19.3 runtime starts only after explicit opt-in and without its full-screen cursor overlay. On Wayland the
 app never starts it and clears legacy opt-ins while that real-seat safety gate remains unresolved. Chat, preview,
-Cloud, and Local VM remain available on both sessions. See the [Ubuntu Desktop guide](docs/linux-desktop.md) and tracking
-issues [#29](https://github.com/RELEASE_OWNER/Maximus/issues/29),
-[#345](https://github.com/RELEASE_OWNER/Maximus/issues/345), and
-[#113](https://github.com/RELEASE_OWNER/Maximus/issues/113).
+Cloud, and Local VM remain available on both sessions. See the [Ubuntu Desktop guide](docs/linux-desktop.md).
 
 The Linux packager downloads only the tag-pinned upstream archive during the build, verifies its size, SHA-256,
 complete member allowlist, and inner executable hashes, then packages only the CLI and cursor-theme sidecar. The
@@ -449,8 +430,9 @@ dedicated receiver through a hosted relay or a tool such as Tailscale Funnel.
 
 Early but real — the loop works end to end: message → agent → streamed reply → tools → approvals →
 computer use. macOS, Windows, and Ubuntu 24.04 x64 have released builds; Ubuntu remains a beta with the
-capability limits above. Rough edges to expect: hosted/mobile connectivity is still being built, and webhook
-triggers currently use the local receiver rather than an always-on hosted relay.
+capability limits above. A hosted full-product stack (accounts + chat + billing) runs at
+[app.meetnote.cc](https://app.meetnote.cc); the Flutter app pairs to that origin by default. Webhook
+triggers still use the local receiver rather than an always-on hosted relay.
 Hosted voice needs an ElevenLabs, Fish Audio, or xAI key; built-in Mac and local Chatterbox voices need no cloud key. Take-turns calls and the composer mic listen on-device on macOS and through Fish Audio speech-to-text on Windows and Linux (the same Fish Audio key as voices). See [`docs/voice-mode.md`](docs/voice-mode.md) for the design and the known gaps.
 
 Contributions welcome — the driver SPI in [`server/contracts.ts`](server/contracts.ts) is deliberately
@@ -467,27 +449,20 @@ Usage analytics are optional and anonymous: product events and a once-a-day coun
 names, addresses or conversations. Turn them off in Settings → General → Usage analytics;
 [`docs/analytics.md`](docs/analytics.md) lists every event and property.
 
-## Support the project
-
-Maximus is free and open source. If it does real work for you, you can
-[support its development through GitHub Sponsors](https://github.com/sponsors/RELEASE_OWNER)
-with a one-time contribution or a monthly sponsorship. Your support helps fund ongoing development
-and maintenance; Maximus remains free and open source.
-
 ## Run from a terminal or on a server
 
-With Node 24 or newer, install once and run:
+From this repo with Node 24+ and pnpm:
 
 ```sh
-npm install -g maximus
-maximus
+pnpm maximus
+# or: node --experimental-strip-types server/maximus.ts
 ```
 
-Or use `npx maximus` without a global install. First launch guides you with
-arrow-key choices: choose AI access, sign in or paste a hidden API key, choose
-a model, and optionally connect a phone. Next time, the same command reuses your
-saved setup and opens Maximus on this computer. Keep the terminal open; Ctrl-C stops
-the server, not your saved work. Use `--no-open` to skip opening the browser.
+First launch guides you with arrow-key choices: choose AI access, sign in or paste
+a hidden API key, choose a model, and optionally connect a phone. Next time, the
+same command reuses your saved setup and opens Maximus on this computer. Keep the
+terminal open; Ctrl-C stops the server, not your saved work. Use `--no-open` to
+skip opening the browser.
 
 Phone access is optional and defaults to skipping. Choose an explicitly
 approved managed public HTTPS endpoint protected by pairing, an existing
@@ -510,16 +485,15 @@ See the [short setup guide](docs/cli-onboarding.md) for account differences,
 phone choices, credential storage, and cancellation.
 
 For a background service on a VPS or an always-on computer, use
-`npx maximus serve` with explicit remote options: `--tunnel` after
-`npx maximus login` for a managed public address, `--tailscale` for your
-tailnet, or the Docker stack for your own domain. These are separate from
-AI-provider sign-in. Devices pair once with a short code. The deployment guide is
-[docs/deploy-vps.md](docs/deploy-vps.md); the reference is
+`pnpm maximus serve` (or the Coolify stack: [deploy/coolify/README.md](deploy/coolify/README.md))
+with remote options such as `--tunnel` after login, `--tailscale`, or your own
+domain. These are separate from AI-provider sign-in. Devices pair once with a
+short code. Guides: [docs/deploy-vps.md](docs/deploy-vps.md),
 [docs/self-hosting.md](docs/self-hosting.md).
 
 ## License
 
-[Apache License 2.0](LICENSE) © 2026 Milind Soni and Maximus contributors,
+[Apache License 2.0](LICENSE) © 2026 Akingbade Kayode and Maximus contributors,
 except `maximus-enterprise/`, which is source-available under its
 [own license](maximus-enterprise/LICENSE); delete that folder and what remains is the
 open-source edition. Details, including how contributions are signed off, are

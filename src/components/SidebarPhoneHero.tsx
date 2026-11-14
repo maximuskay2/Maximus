@@ -4,12 +4,13 @@ import { stateForBot } from "@/lib/mascot";
 import type { Bot } from "@/state/store";
 import { BotAvatar } from "./Avatar";
 import { openBotContextMenu, useVisibleMessages, type MenuState } from "./Sidebar";
+import { canSwipeDeleteBot, SwipeToDelete } from "./SwipeToDelete";
 
 /** The phone's home leads with the chief of staff, large and centred, instead of a row. */
-export function PhoneHero({ bot, selected, onOpen, onMenu }: { bot: Bot; selected: boolean; onOpen: () => void; onMenu: (menu: MenuState) => void }) {
+export function PhoneHero({ bot, selected, onOpen, onMenu, onDelete }: { bot: Bot; selected: boolean; onOpen: () => void; onMenu: (menu: MenuState) => void; onDelete: () => void }) {
   const visible = useVisibleMessages(bot);
   return (
-    <div className="relative mb-2 flex flex-col items-center pb-2 pt-1">
+    <SwipeToDelete enabled={canSwipeDeleteBot(bot)} label={t("common.delete")} onDelete={onDelete} className="relative mb-2 flex flex-col items-center pb-2 pt-1 [--swipe-cover:var(--color-panel)] max-md:[--swipe-cover:var(--color-app)]">
       <button
         type="button"
         data-sidebar-hero={bot.id}
@@ -31,6 +32,6 @@ export function PhoneHero({ bot, selected, onOpen, onMenu }: { bot: Bot; selecte
       <button type="button" data-bot-actions={bot.id} aria-label={t("sidebar.bot.actions", { name: bot.name })} title={t("sidebar.bot.actions", { name: bot.name })} aria-haspopup="menu"
         onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); onMenu({ botId: bot.id, x: rect.left, y: rect.bottom }); }}
         className="absolute right-1 top-1 flex size-8 items-center justify-center rounded-full text-ink-secondary hover:bg-raised hover:text-ink"><MoreHorizontal size={16} /></button>
-    </div>
+    </SwipeToDelete>
   );
 }

@@ -84,7 +84,14 @@ class BillingService extends ChangeNotifier {
       }
       final response = await _store.queryProductDetails(BillingProducts.all);
       if (response.error != null) {
-        _fail(_storeError(response.error!));
+        final message = _storeError(response.error!);
+        if (_platformSilent(message)) {
+          _available = false;
+          _products = const [];
+          _error = null;
+          return;
+        }
+        _fail(message);
         return;
       }
       _products = [...response.productDetails]
@@ -229,6 +236,13 @@ class BillingService extends ChangeNotifier {
     final message = error.message;
     if (message.isNotEmpty) return message;
     return 'The store reported an error.';
+  }
+
+  /// StoreKit on a simulator, or a phone with no App Store products, answers
+  /// with this instead of a product list. Bachs is the checkout in that case.
+  bool _platformSilent(String message) {
+    final text = message.toLowerCase();
+    return text.contains('failed to get response from platform') || text.contains('storekit');
   }
 
   @override

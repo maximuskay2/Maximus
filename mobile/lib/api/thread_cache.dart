@@ -172,6 +172,12 @@ class ThreadCache {
         ttl: botsTtl,
       );
 
+  /// The session that saved this list is gone. The next sign-in must not show it.
+  Future<void> forgetServer(String serverId) async {
+    await disk.invalidate(botsKey(serverId));
+    await disk.invalidate(groupsKey(serverId));
+  }
+
   Future<List<GroupSummary>?> readGroups(String serverId) async {
     final raw = await disk.readJson(groupsKey(serverId));
     if (raw is! List) return null;

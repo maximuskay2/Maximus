@@ -399,6 +399,11 @@ describe("isImageFile", () => {
     expect(isImageFile({ type: "image/webp", size: 10 })).toBe(true);
     expect(isImageFile({ type: "image/svg+xml", size: 10 })).toBe(false);
     expect(isImageFile({ type: "text/plain", size: 10 })).toBe(false);
+    expect(isImageFile({ type: "", name: "ios logo-1.png" })).toBe(true);
+    expect(isImageFile({ type: "application/octet-stream", name: "ios logo-1.png" })).toBe(true);
+    expect(isImageFile({ type: "", name: "C:\\Users\\me\\ios logo-1.PNG" })).toBe(true);
+    expect(isImageFile({ type: "application/x-download", name: "/Users/me/ios logo-1.png." })).toBe(true);
+    expect(isImageFile({ type: "image/svg+xml", name: "ios logo-1.png" })).toBe(false);
   });
 });
 
@@ -525,6 +530,7 @@ describe("private document intake", () => {
   it("recognises supported documents by declared mime or filename", () => {
     expect(documentMime({ name: "notes.bin", type: "text/markdown; charset=utf-8" })).toBe("text/markdown");
     expect(documentMime({ name: "REPORT.PDF", type: "" })).toBe("application/pdf");
+    expect(documentMime({ name: "D:\\docs\\Quarterly plan.pdf", type: "application/octet-stream" })).toBe("application/pdf");
     expect(documentMime({ name: "archive.zip", type: "application/zip" })).toBeNull();
   });
 

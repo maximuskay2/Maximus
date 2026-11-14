@@ -146,8 +146,53 @@ describe("Meta provider", () => {
     try {
       await instance.adapter.sendTurn({ threadId: "rejected", text: "Hello" });
       expect(await recorder.until(event => event.type === "turn.completed")).toMatchObject({ ok: false });
+      expect(recorder.events.filter(event => event.type === "turn.retrying")).toHaveLength(0);
+      expect(requests.filter(request => request.path.endsWith("/chat/completions"))).toHaveLength(1);
       expect(JSON.stringify(recorder.events)).not.toContain(fixtureKey);
       expect(await instance.snapshot()).toMatchObject({ authenticated: false });
+    } finally { recorder.stop(); }
+  });
+
+  it("retries one 529 and then completes", async () => {
+    vi.stubEnv("FAKE_META_RETRY_SCALE", "0.01");
+    let failed = false;
+    reply = (_body, res) => {
+      if (!failed) {
+        failed = true;
+        res.writeHead(529, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: { message: "unavailable" } }));
+        return;
+      }
+      stream(res, [{ choices: [{ delta: { content: "Hello." }, finish_reason: "stop" }] }]);
+    };
+    const instance = await create({ url: base });
+    const recorder = recordEvents(instance.adapter);
+    try {
+      await instance.adapter.sendTurn({ threadId: "retry", text: "Hello" });
+      expect(await recorder.until(event => event.type === "turn.completed")).toMatchObject({ ok: true });
+      expect(recorder.events.filter(event => event.type === "turn.retrying")).toEqual([
+        expect.objectContaining({ attempt: 1, reason: "server_error" }),
+      ]);
+      expect(requests.filter(request => request.path.endsWith("/chat/completions"))).toHaveLength(2);
+    } finally { recorder.stop(); }
+  });
+
+  it("does not send again after an interrupt during the retry wait", async () => {
+    vi.stubEnv("FAKE_META_RETRY_SCALE", "30");
+    reply = (_body, res) => {
+      res.writeHead(503, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: { message: "unavailable" } }));
+    };
+    const instance = await create({ url: base });
+    const recorder = recordEvents(instance.adapter);
+    try {
+      const pending = instance.adapter.sendTurn({ threadId: "stop", text: "Hello" });
+      await recorder.until(event => event.type === "turn.retrying");
+      await instance.adapter.interruptTurn("stop");
+      await pending;
+      expect(recorder.events.filter(event => event.type === "turn.retrying")).toHaveLength(1);
+      expect(requests.filter(request => request.path.endsWith("/chat/completions"))).toHaveLength(1);
+      expect(recorder.events.at(-1)).toMatchObject({ type: "turn.completed", ok: false, stopReason: "interrupted" });
     } finally { recorder.stop(); }
   });
 });

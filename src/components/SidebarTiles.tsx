@@ -15,6 +15,7 @@ import { liveBadgeFor } from "./LiveCallPill";
 import { pinnedCircleDragClass, pinnedCircleDragHandlers, usePinnedCircleDrag, type PinnedCircleDragProps } from "./PinnedCircleThreads";
 import { RenameTitle } from "./RenameTitle";
 import { openBotContextMenu, useVisibleMessages, type BotRowProps } from "./Sidebar";
+import { canSwipeDeleteBot, SwipeToDelete } from "./SwipeToDelete";
 import { sidebarBotStatus } from "./SidebarBotActivity";
 import { SIMPLE_ROW_FOCUS } from "./SidebarSimpleTop";
 import { useBotUnread } from "./unread-notice";
@@ -24,7 +25,7 @@ const RING = "ring-2 ring-[var(--tile)]";
 type TileProps = BotRowProps & PinnedCircleDragProps & { primary?: boolean };
 
 export const SidebarBotTile = memo(function SidebarBotTile({ primary = false, drag, dragging, drop, prevId, nextId, ...row }: TileProps) {
-  const { bot, selected, deleting, mascotMotion, pendingQueued, instances, liveCall, dispatch, onMenu, renameRequest } = row;
+  const { bot, selected, deleting, mascotMotion, pendingQueued, instances, liveCall, dispatch, onMenu, renameRequest, onRequestDelete } = row;
   const showThreads = useShowThreads();
   const liveMedia = useLiveMedia();
   const remoteClient = typeof window !== "undefined" && window.ogb?.remoteClient?.active === true;
@@ -80,6 +81,7 @@ export const SidebarBotTile = memo(function SidebarBotTile({ primary = false, dr
         pinnedCircleDragClass({ drag, dragging, drop }),
       )}
     >
+      <SwipeToDelete enabled={!deleting && !renaming && canSwipeDeleteBot(bot) && Boolean(onRequestDelete)} label={t("common.delete")} onDelete={() => onRequestDelete?.(bot)} className="flex w-full flex-col items-center">
       <span className="relative flex">
         <BotAvatar
           bot={bot}
@@ -122,6 +124,7 @@ export const SidebarBotTile = memo(function SidebarBotTile({ primary = false, dr
           inputClassName="w-full rounded bg-inset px-1 text-center text-[13px] font-medium leading-4"
         />
       </span>
+      </SwipeToDelete>
     </div>
   );
 });

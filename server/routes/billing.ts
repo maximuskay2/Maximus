@@ -33,12 +33,17 @@ export interface BillingRouteDeps {
   plans?: ReadonlyMap<string, BundledPlan>;
   knownEntitlements?: readonly string[];
   prices?: () => PriceList | null;
-  secrets?: CheckoutSecrets;
+  secrets?: CheckoutSecrets | (() => CheckoutSecrets);
   payments?: () => PaymentSettings;
   fetchImpl?: typeof fetch;
   env?: NodeJS.ProcessEnv;
   workspace?: () => string | null;
   now?: () => number;
+}
+
+function resolveCheckoutSecrets(secrets: BillingRouteDeps["secrets"]): CheckoutSecrets | undefined {
+  if (!secrets) return undefined;
+  return typeof secrets === "function" ? secrets() : secrets;
 }
 
 const WORKSPACE = /^[a-z][a-z0-9-]{1,30}$/;
@@ -70,7 +75,9 @@ export function createBillingRoutes(deps: BillingRouteDeps): RouteHandler {
         return json(res, 400, { error: "expected a small JSON body" });
       }
       const value = (typeof body === "object" && body !== null ? body : {}) as Record<string, unknown>;
-      const provider = value.provider === "stripe" || value.provider === "paystack" ? value.provider as BillingProvider : null;
+      const provider = value.provider === "stripe" || value.provider === "paystack" || value.provider === "bachs"
+        ? value.provider as BillingProvider
+        : null;
       const plan = typeof value.plan === "string" ? value.plan : "";
       const customerEmail = typeof value.customerEmail === "string" ? value.customerEmail : undefined;
       const successUrl = typeof value.successUrl === "string" ? value.successUrl : "";
@@ -85,7 +92,7 @@ export function createBillingRoutes(deps: BillingRouteDeps): RouteHandler {
       const providerPriceRef = providerPriceRefFromEnv(env, provider, plan);
       let amountMinor: number | undefined;
       if (provider === "paystack") {
-        const settings = deps.payments?.() ?? { paystackEnabled: false, ngnPerUsd: 0 };
+        const settings = deps.payments?.() ?? { paystackEnabled: false, bachsEnabled: false, ngnPerUsd: 0 };
         if (!settings.paystackEnabled) return json(res, 403, { error: "Paystack is turned off." });
         if (!nigeriaFromSignals({ countryHeader: headerText(req, "cf-ipcountry"), timeZone })) {
           return json(res, 403, { error: "Paystack is available in Nigeria." });
@@ -94,6 +101,12 @@ export function createBillingRoutes(deps: BillingRouteDeps): RouteHandler {
         if (!customerEmail) return json(res, 400, { error: "Paystack needs the account email." });
         amountMinor = koboFromUsd(catalogPlan.baseUsd, settings.ngnPerUsd);
         if (!providerPriceRef && amountMinor <= 0) return json(res, 503, { error: `paystack has no price configured for plan "${plan}"` });
+      } else if (provider === "bachs") {
+        const settings = deps.payments?.() ?? { paystackEnabled: false, bachsEnabled: false, ngnPerUsd: 0 };
+        if (!settings.bachsEnabled) return json(res, 403, { error: "Bachs is turned off." });
+        if (!catalogPlan || !(catalogPlan.baseUsd > 0)) return json(res, 400, { error: "That plan is not for sale." });
+        amountMinor = Math.round(catalogPlan.baseUsd * 100);
+        if (!providerPriceRef && amountMinor <= 0) return json(res, 503, { error: `bachs has no price configured for plan "${plan}"` });
       } else if (!providerPriceRef) {
         return json(res, 503, { error: `${provider} has no price configured for plan "${plan}"` });
       }
@@ -109,7 +122,7 @@ export function createBillingRoutes(deps: BillingRouteDeps): RouteHandler {
           allowanceMinor,
           ...(providerPriceRef ? { providerPriceRef } : {}),
           ...(amountMinor ? { amountMinor } : {}),
-        }, { fetchImpl: deps.fetchImpl, secrets: deps.secrets });
+        }, { fetchImpl: deps.fetchImpl, secrets: resolveCheckoutSecrets(deps.secrets) });
         res.setHeader("cache-control", "no-store");
         return json(res, 200, { checkout: { provider: session.provider, url: session.url, sessionId: session.sessionId, livemode: session.livemode } });
       } catch (error) {
@@ -150,6 +163,7 @@ export interface BillingWebhookRouteDeps {
   env?: NodeJS.ProcessEnv;
   now?: () => number;
   onApplied?: (event: import("../billing/events.ts").BillingEvent) => void;
+  webhookSecrets?: () => import("../billing/http.ts").BillingWebhookSecrets;
 }
 
 export const MAX_GATEWAY_BODY_BYTES = 10 * 1024 * 1024;
@@ -193,7 +207,10 @@ export async function billingGatewayRoute(
     return true;
   }
   const store = deps.store ?? new BillingStore({ dataDir: deps.dataDir, plans: deps.plans, knownEntitlements: deps.knownEntitlements, now: deps.now });
-  if (!store.granted(workspace).includes("gateway")) {
+  // Free Muse wallets never pass checkout; opening the ration wallet is the gateway seat until they buy BYO.
+  const at = deps.now ? new Date(deps.now()) : new Date();
+  const rationBundled = Boolean(deps.ration && deps.ration.ensureFree(workspace, at).tier !== "byo");
+  if (!store.granted(workspace).includes("gateway") && !rationBundled) {
     json(res, 403, { error: "LLM-included routing needs the gateway entitlement. Upgrade to route this provider through the managed gateway." });
     return true;
   }
@@ -285,7 +302,7 @@ export async function billingGatewayRoute(
   return true;
 }
 
-/** Pre-auth entry for POST /api/billing/webhook/{stripe,paystack}. True when the request was answered. */
+/** Pre-auth entry for POST /api/billing/webhook/{stripe,paystack,bachs}. True when the request was answered. */
 export async function billingWebhookRoute(
   req: IncomingMessage,
   res: ServerResponse,
@@ -293,7 +310,13 @@ export async function billingWebhookRoute(
   json: (res: ServerResponse, status: number, body: unknown) => void,
   deps: BillingWebhookRouteDeps,
 ): Promise<boolean> {
-  const provider = path === "/api/billing/webhook/stripe" ? "stripe" : path === "/api/billing/webhook/paystack" ? "paystack" : null;
+  const provider = path === "/api/billing/webhook/stripe"
+    ? "stripe"
+    : path === "/api/billing/webhook/paystack"
+      ? "paystack"
+      : path === "/api/billing/webhook/bachs"
+        ? "bachs"
+        : null;
   if (!provider) return false;
   const env = deps.env ?? process.env;
   const store = deps.store ?? new BillingStore({ dataDir: deps.dataDir, plans: deps.plans, knownEntitlements: deps.knownEntitlements, now: deps.now });
@@ -307,7 +330,7 @@ export async function billingWebhookRoute(
   }
   const result = handleBillingWebhook(provider, req.headers as Record<string, string | string[] | undefined>, raw, {
     store,
-    secrets: billingWebhookSecretsFromEnv(env),
+    secrets: deps.webhookSecrets?.() ?? billingWebhookSecretsFromEnv(env),
     onApplied: deps.onApplied,
   });
   res.setHeader("cache-control", "no-store");

@@ -102,6 +102,23 @@ describe("Max, every person's helper", () => {
     expect(boot(store)).toMatchObject({ id: seeded.id, color: "blue" });
   });
 
+  it("adopts a seeded Max with only its greeting by promoting that line, never a second welcome", () => {
+    const store = new Store(selection);
+    const seeded = seededBefore(store);
+    expect(store.messagesFor(seeded.threadId)).toHaveLength(1);
+    expect(store.messagesFor(seeded.threadId)[0]?.helperIntro).toBeUndefined();
+    const adopted = boot(store)!;
+    expect(adopted.id).toBe(seeded.id);
+    const thread = store.messagesFor(seeded.threadId);
+    expect(thread).toHaveLength(1);
+    expect(thread[0]?.helperIntro).toBe(true);
+    expect(thread[0]?.text).toContain("I'm Max");
+    expect(intros(store, adopted)).toHaveLength(1);
+    boot(store);
+    expect(store.messagesFor(seeded.threadId)).toHaveLength(1);
+    expect(intros(store, adopted)).toHaveLength(1);
+  });
+
   it("makes Max the Chief of a place that has none, so the brief has someone to come from", () => {
     const store = new Store(selection);
     store.createBot({ name: "Pixel" });

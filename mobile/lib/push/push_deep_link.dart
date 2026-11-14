@@ -16,6 +16,7 @@ class PushDeepLinkPage extends StatelessWidget {
     required this.tap,
     this.cache,
     this.serverId,
+    this.onSessionEnded,
   });
 
   final MaximusApi client;
@@ -23,6 +24,7 @@ class PushDeepLinkPage extends StatelessWidget {
   final PushTap tap;
   final ThreadCache? cache;
   final String? serverId;
+  final Future<void> Function()? onSessionEnded;
 
   Future<Widget> _resolve() async {
     final threadId = tap.threadId;
@@ -62,6 +64,7 @@ class PushDeepLinkPage extends StatelessWidget {
             groupId: group.id,
             cache: cache,
             serverId: serverId,
+            onSessionEnded: onSessionEnded,
           );
         }
       }
@@ -78,6 +81,7 @@ class PushDeepLinkPage extends StatelessWidget {
     thread: thread,
     cache: cache,
     serverId: serverId,
+    onSessionEnded: onSessionEnded,
   );
 
   Widget _gone(String detail) => Scaffold(

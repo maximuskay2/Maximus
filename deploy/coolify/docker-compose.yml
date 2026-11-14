@@ -1,0 +1,166 @@
+# Maximus full product on one VPS behind Coolify's Traefik (coolify network).
+# Public origins:
+#   app:      https://app.meetnote.cc
+#   accounts: https://accounts.meetnote.cc
+#
+#   cd /opt/maximus && docker compose --env-file .env.production up -d --build
+name: maximus
+
+networks:
+  coolify:
+    external: true
+
+volumes:
+  accounts_pg:
+  chat_data:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: maximus
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: accounts
+    volumes:
+      - accounts_pg:/var/lib/postgresql/data
+    networks:
+      - coolify
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maximus -d accounts"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  accounts:
+    build:
+      context: ../..
+      dockerfile: accounts/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: "8791"
+      NODE_ENV: ${ACCOUNTS_NODE_ENV:-production}
+      DATABASE_URL: postgres://maximus:${POSTGRES_PASSWORD}@postgres:5432/accounts
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      EMAIL_FROM: ${EMAIL_FROM}
+      SMTP_URL: ${SMTP_URL:-}
+      DEV_OTP_LOG: ${DEV_OTP_LOG:-}
+      CRON_SECRET: ${CRON_SECRET}
+      MAXIMUS_OPERATOR_TOKEN: ${MAXIMUS_OPERATOR_TOKEN}
+      RELAY_DISABLED: "1"
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
+      APPLE_CLIENT_SECRET: ${APPLE_CLIENT_SECRET:-}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
+    networks:
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.maximus-accounts.rule=Host(`${ACCOUNTS_HOST}`)
+      - traefik.http.routers.maximus-accounts.entrypoints=https
+      - traefik.http.routers.maximus-accounts.tls=true
+      - traefik.http.routers.maximus-accounts.tls.certresolver=letsencrypt
+      - traefik.http.routers.maximus-accounts.service=maximus-accounts
+      - traefik.http.services.maximus-accounts.loadbalancer.server.port=8791
+      - traefik.http.routers.maximus-accounts-http.rule=Host(`${ACCOUNTS_HOST}`)
+      - traefik.http.routers.maximus-accounts-http.entrypoints=http
+      - traefik.http.routers.maximus-accounts-http.middlewares=maximus-accounts-https
+      - traefik.http.middlewares.maximus-accounts-https.redirectscheme.scheme=https
+
+  accounts-cron:
+    build:
+      context: ../..
+      dockerfile: accounts/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - accounts
+    # Same image as accounts, but this process never binds :8791 — override the
+    # image HEALTHCHECK so Docker does not probe localhost on the cron container.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch((process.env.ACCOUNTS_URL||'http://accounts:8791')+'/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    entrypoint: ["node", "-e"]
+    command:
+      - |
+        const url = (process.env.ACCOUNTS_URL || 'http://accounts:8791') + '/internal/cron';
+        const run = () => fetch(url, { method: 'POST', headers: { authorization: 'Bearer ' + process.env.CRON_SECRET } })
+          .then((r) => { if (!r.ok) throw new Error(String(r.status)); })
+          .catch((e) => { console.error(e); process.exitCode = 1; });
+        run();
+        setInterval(run, 5 * 60 * 1000);
+    environment:
+      ACCOUNTS_URL: http://accounts:8791
+      CRON_SECRET: ${CRON_SECRET}
+    networks:
+      - coolify
+
+  chat:
+    build:
+      context: ../..
+      dockerfile: deploy/coolify/Dockerfile.chat
+    restart: unless-stopped
+    depends_on:
+      - accounts
+    environment:
+      HOME: /data
+      MAXIMUS_DATA_DIR: /data
+      MAXIMUS_STATIC_DIR: /app/dist
+      MAXIMUS_PORT: "8799"
+      MAXIMUS_WEBHOOK_PORT: "8800"
+      MAXIMUS_LISTEN_HOST: "0.0.0.0"
+      MAXIMUS_PUBLIC_URL: ${MAXIMUS_PUBLIC_URL}
+      MAXIMUS_CONTROL_PLANE_URL: ${MAXIMUS_CONTROL_PLANE_URL}
+      MAXIMUS_LICENSE_KEY: ${MAXIMUS_LICENSE_KEY}
+      MAXIMUS_SIGNIN_ADMINS: ${MAXIMUS_SIGNIN_ADMINS:-}
+      MAXIMUS_SIGNIN_MEMBERS: ${MAXIMUS_SIGNIN_MEMBERS:-}
+      MAXIMUS_SIGNIN_SMTP_URL: ${MAXIMUS_SIGNIN_SMTP_URL:-}
+      MAXIMUS_SIGNIN_SMTP_FROM: ${MAXIMUS_SIGNIN_SMTP_FROM:-}
+      MAXIMUS_OAUTH_GOOGLE_CLIENT_ID: ${MAXIMUS_OAUTH_GOOGLE_CLIENT_ID:-}
+      MAXIMUS_OAUTH_GOOGLE_CLIENT_SECRET: ${MAXIMUS_OAUTH_GOOGLE_CLIENT_SECRET:-}
+      MAXIMUS_OAUTH_GITHUB_CLIENT_ID: ${MAXIMUS_OAUTH_GITHUB_CLIENT_ID:-}
+      MAXIMUS_OAUTH_GITHUB_CLIENT_SECRET: ${MAXIMUS_OAUTH_GITHUB_CLIENT_SECRET:-}
+      MAXIMUS_OAUTH_APPLE_CLIENT_ID: ${MAXIMUS_OAUTH_APPLE_CLIENT_ID:-}
+      MAXIMUS_OAUTH_APPLE_CLIENT_SECRET: ${MAXIMUS_OAUTH_APPLE_CLIENT_SECRET:-}
+      MAXIMUS_OAUTH_MICROSOFT_CLIENT_ID: ${MAXIMUS_OAUTH_MICROSOFT_CLIENT_ID:-}
+      MAXIMUS_OAUTH_MICROSOFT_CLIENT_SECRET: ${MAXIMUS_OAUTH_MICROSOFT_CLIENT_SECRET:-}
+      MAXIMUS_WORKSPACE_PROVIDERS: ${MAXIMUS_WORKSPACE_PROVIDERS}
+      MAXIMUS_GATEWAY_TOKENS: ${MAXIMUS_GATEWAY_TOKENS}
+      MAXIMUS_META_API_KEY: ${MAXIMUS_META_API_KEY}
+      MAXIMUS_META_API_URL: ${MAXIMUS_META_API_URL:-http://127.0.0.1:8799/api/gateway/local/muse}
+      PATH: /usr/local/bin:/usr/bin:/bin
+    volumes:
+      - chat_data:/data
+    networks:
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.maximus-chat.rule=Host(`${APP_HOST}`)
+      - traefik.http.routers.maximus-chat.entrypoints=https
+      - traefik.http.routers.maximus-chat.tls=true
+      - traefik.http.routers.maximus-chat.tls.certresolver=letsencrypt
+      - traefik.http.routers.maximus-chat.service=maximus-chat
+      - traefik.http.services.maximus-chat.loadbalancer.server.port=8799
+      - traefik.http.routers.maximus-chat-http.rule=Host(`${APP_HOST}`)
+      - traefik.http.routers.maximus-chat-http.entrypoints=http
+      - traefik.http.routers.maximus-chat-http.middlewares=maximus-chat-https
+      - traefik.http.middlewares.maximus-chat-https.redirectscheme.scheme=https

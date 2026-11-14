@@ -15,7 +15,9 @@ import {
   verifyOtp,
   type ConsolePlanView,
   type ConsoleWorkspace,
+  type SignInMethod,
 } from "./account";
+import { accountChoiceFromPlan, rememberPendingPlan } from "../lib/pending-plan";
 import { defaultDeviceLabel, signUpWithPassword } from "../lib/session";
 import { SiteShell } from "../site/SiteShell";
 import { ConsoleError as ErrorBox, ConsoleShell, fieldInput, fieldLabel, ghostButton, primaryButton } from "./shell";
@@ -44,6 +46,8 @@ export interface SignupViewProps {
   onVerifyCode: () => void;
   onCreate: () => void;
   onBackToEmail: () => void;
+  providers?: SignInMethod[];
+  onProvider?: (id: string) => void;
 }
 
 export function SignupView(props: SignupViewProps) {
@@ -90,9 +94,27 @@ export function SignupView(props: SignupViewProps) {
             disabled={props.busy}
             onChange={(event) => props.onPassword?.(event.target.value)}
           />
+          {props.plan && props.plans.length > 0 && (
+            <p className="mt-3 rounded-md border border-hairline/40 bg-inset px-3 py-2 text-[13px] text-ink-secondary">
+              {t("console.signup.chosenPlan", {
+                plan: props.plans.find((listed) => listed.id === props.plan)?.name ?? props.plan,
+              })}
+            </p>
+          )}
           <button type="submit" className={primaryButton} disabled={props.busy || !validConsoleEmail(props.email) || (props.password ?? "").length < 8}>
             {props.busy ? t("console.signup.creating") : t("account.create")}
           </button>
+          {(props.providers ?? []).filter((method) => method.id !== "email").map((method) => (
+            <button
+              key={method.id}
+              type="button"
+              className={ghostButton}
+              disabled={props.busy}
+              onClick={() => props.onProvider?.(method.id)}
+            >
+              {t("console.signin.continueWith", { provider: method.label })}
+            </button>
+          ))}
         </form>
       )}
       {props.step === "code" && (
@@ -196,6 +218,7 @@ export function SignupPage() {
   const [created, setCreated] = useState<ConsoleWorkspace | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [providers, setProviders] = useState<SignInMethod[]>([]);
 
   useEffect(() => {
     let live = true;
@@ -208,10 +231,31 @@ export function SignupPage() {
       .catch(() => {
         if (live) setPlans([{ id: "free", name: "Free", blurb: "", baseUsd: 0, allowanceUsd: 0, hardCapUsd: null, entitlements: [], features: [] }]);
       });
+    void fetch("/api/auth/methods")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: { methods?: SignInMethod[] } | null) => {
+        const methods = Array.isArray(body?.methods) ? body.methods.filter((method) => method.id !== "email") : [];
+        if (live) setProviders(methods);
+      })
+      .catch(() => {
+        if (live) setProviders([]);
+      });
     return () => {
       live = false;
     };
   }, []);
+
+  const finishSignup = async (): Promise<void> => {
+    rememberPendingPlan(plan);
+    const choice = accountChoiceFromPlan(plan);
+    await fetch("/api/account/plan", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ choice }),
+    }).catch(() => undefined);
+    window.location.assign(plan === "free" ? "/" : `/?plan=${encodeURIComponent(plan)}`);
+  };
 
   const fail = (thrown: unknown): void => {
     setError(thrown instanceof ConsoleError ? thrown.message : t("console.somethingWrong"));
@@ -267,13 +311,13 @@ export function SignupPage() {
         }
         setBusy(true);
         setError(null);
-        void signUpWithPassword({ email: normalized, password, label: defaultDeviceLabel() }).then((result) => {
-          setBusy(false);
+        void signUpWithPassword({ email: normalized, password, label: defaultDeviceLabel() }).then(async (result) => {
           if (!result.ok) {
+            setBusy(false);
             setError(result.error);
             return;
           }
-          window.location.assign("/");
+          await finishSignup();
         });
       }}
       onVerifyCode={() => {
@@ -315,6 +359,11 @@ export function SignupPage() {
             setBusy(false);
           })
           .catch(fail);
+      }}
+      providers={providers}
+      onProvider={(provider) => {
+        rememberPendingPlan(plan);
+        window.location.assign(`/api/auth/oauth/${provider}/start`);
       }}
     />
     </SiteShell>

@@ -1,77 +1,119 @@
-import { useEffect, useState } from "react";
-import {
-  Bot,
-  CalendarClock,
-  Check,
-  Download,
-  KeyRound,
-  Mic,
-  Phone,
-  ShieldCheck,
-  Users,
-  Workflow,
-} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Download } from "lucide-react";
 
 import { productName } from "../lib/brand";
 import { t } from "../lib/i18n";
+import { MaximusMark } from "./MaximusMark";
 import { SiteShell, site } from "./SiteShell";
 
-const wrap = "mx-auto w-full max-w-[1120px] px-5";
+const wrap = "mx-auto w-full max-w-[1180px] px-5";
 const h2 = "text-[26px] font-semibold tracking-tight sm:text-[32px]";
 const lede = `mt-3 max-w-[640px] text-[16px] leading-relaxed ${site.muted}`;
-function Feature({ index, icon, title, children }: { index: string; icon: React.ReactNode; title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-      <div className="flex items-center gap-3">
-        <span aria-hidden className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 text-[#E86A3A]">{icon}</span>
-        <span aria-hidden className={`font-mono text-[12px] ${site.faint}`}>{index}</span>
-      </div>
-      <h3 className="mt-4 text-[17px] font-semibold tracking-tight">{title}</h3>
-      <div className={`mt-1.5 text-[15px] leading-relaxed ${site.muted}`}>{children}</div>
-    </div>
-  );
+const glass = "rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_0_0_1px_rgb(255_255_255/0.03)] backdrop-blur-xl";
+
+type MindKind = "think" | "tool" | "say";
+type MindStep = { kind: MindKind; text: string };
+
+const DEMO_MIND: MindStep[] = [
+  { kind: "think", text: "Reading the request" },
+  { kind: "tool", text: "Browsing" },
+  { kind: "tool", text: "Drafting the reply" },
+  { kind: "say", text: "Two findings are ready. Say the word and I open the change." },
+];
+
+function mindForAsk(ask: string): MindStep[] {
+  const clipped = ask.trim().slice(0, 80);
+  return [
+    { kind: "think", text: `Taking “${clipped}”` },
+    { kind: "tool", text: "Choosing a bot" },
+    { kind: "tool", text: "Checking before anything risky" },
+    { kind: "say", text: "That run is sketched. Create your account and I will do it for real." },
+  ];
 }
 
-const AGENTS = [
-  { name: "console.site.mockBot1", state: "console.site.mockTool", detail: "console.site.mockUser", mark: "bg-[#E86A3A]" },
-  { name: "console.site.mockBot2", state: "console.site.mockTool", detail: "console.site.mockToolDetail", mark: "bg-[#7FB685]" },
-  { name: "console.site.mockBot3", state: "console.site.mockBotSub", detail: "console.site.mockComposer", mark: "bg-[#C9A227]" },
-] as const;
-
-/** Agents at work, held still. No entrance slide and no floating frame. */
-function AppMock() {
+function MindStream({ steps }: { steps: MindStep[] }) {
+  const [index, setIndex] = useState(0);
+  const [count, setCount] = useState(steps[0]?.text.length ?? 0);
+  const [done, setDone] = useState<MindStep[]>([]);
+  useEffect(() => {
+    setIndex(0);
+    setDone([]);
+    setCount(steps[0]?.text.length ?? 0);
+  }, [steps]);
+  useEffect(() => {
+    const text = steps[index]?.text ?? "";
+    const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) {
+      setCount(text.length);
+      const hold = window.setTimeout(() => {
+        setDone((prev) => [...prev, steps[index]!].slice(-4));
+        setIndex((n) => (n + 1) % steps.length);
+      }, 1600);
+      return () => window.clearTimeout(hold);
+    }
+    setCount(0);
+    let i = 0;
+    let hold = 0;
+    const timer = window.setInterval(() => {
+      i += 1;
+      setCount(i);
+      if (i >= text.length) {
+        window.clearInterval(timer);
+        hold = window.setTimeout(() => {
+          setDone((prev) => [...prev, steps[index]!].slice(-4));
+          setIndex((n) => (n + 1) % steps.length);
+        }, 700);
+      }
+    }, 16);
+    return () => {
+      window.clearInterval(timer);
+      window.clearTimeout(hold);
+    };
+  }, [index, steps]);
+  const current = steps[index];
+  const shown = (current?.text ?? "").slice(0, count);
   return (
-    <figure className="m-0">
-      <div className={`overflow-hidden rounded-2xl border ${site.darkHairline} bg-[#14120F]`}>
-        <div className={`flex items-center justify-between gap-3 border-b ${site.darkHairline} px-4 py-3`}>
-          <span className={`text-[13px] font-medium ${site.darkInk}`}>{t("console.site.fAgentsTitle")}</span>
-          <span className={`text-[12px] ${site.darkMuted}`}>{t("console.site.mockTitle", { app: productName() })}</span>
-        </div>
-        <ul className="divide-y divide-white/10">
-          {AGENTS.map((agent) => (
-            <li key={agent.name} className="grid grid-cols-[auto_1fr] gap-3 px-4 py-3.5">
-              <span aria-hidden className={`mt-1.5 h-2 w-2 rounded-full ${agent.mark}`} />
-              <div className="min-w-0">
-                <p className={`flex flex-wrap items-baseline gap-x-2 text-[14px] font-medium ${site.darkInk}`}>
-                  {t(agent.name)}
-                  <span className={`text-[12px] font-normal ${site.darkMuted}`}>{t(agent.state)}</span>
-                </p>
-                <p className={`mt-1 text-[13px] leading-relaxed ${site.darkMuted}`}>{t(agent.detail)}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-        <div className={`border-t ${site.darkHairline} px-4 py-3.5`}>
-          <p className={`flex items-start gap-2 text-[13px] leading-relaxed ${site.darkInk}`}>
-            <Check size={14} aria-hidden className="mt-0.5 shrink-0 text-[#7FB685]" />
-            <span>{t("console.site.mockBot")}</span>
+    <figure className={`m-0 overflow-hidden ${glass}`}>
+      <figcaption className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
+        <MaximusMark size={28} live />
+        <span className="text-[13px] font-medium">{t("console.site.mindTitle")}</span>
+        <span className="ml-auto inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#7FB685]">
+          <span className="bull-status" aria-hidden />
+          {t("console.site.liveStatus")}
+        </span>
+      </figcaption>
+      <div className="mind-log overflow-hidden px-4 py-3 font-mono text-[13px] leading-6">
+        {done.map((step, i) => (
+          <p key={`${step.text}-${i}`} className="truncate text-[#A39E93]">
+            <MindBadge kind={step.kind} /> {step.text}
           </p>
-        </div>
+        ))}
+        {current && (
+          <p className="truncate text-[#F4F1EA]">
+            <MindBadge kind={current.kind} /> {shown}
+            <span className="bull-caret" aria-hidden />
+          </p>
+        )}
       </div>
-      <figcaption className={`mt-3 text-[12px] ${site.faint}`}>{t("console.site.mockCaption")}</figcaption>
+      <div className="flex items-center gap-2 border-t border-white/10 px-4 py-3">
+        <span className="bull-dots" aria-hidden><i /><i /><i /></span>
+        <span className={`font-mono text-[12px] ${site.muted}`}>{current?.kind === "say" ? t("console.site.mindSay") : t("console.site.mindThink")}</span>
+      </div>
     </figure>
   );
 }
+
+function MindBadge({ kind }: { kind: MindKind }) {
+  const label = kind === "think" ? "think" : kind === "tool" ? "tool" : "say";
+  return <span className="text-[#E86A3A]">[{label}]</span>;
+}
+
+const BENTO = [
+  { title: "console.site.bentoBrowser", body: "console.site.bentoBrowserBody", span: "md:col-span-2 md:row-span-2" },
+  { title: "console.site.bentoBots", body: "console.site.bentoBotsBody", span: "md:col-span-2" },
+  { title: "console.site.bentoAsk", body: "console.site.bentoAskBody", span: "" },
+  { title: "console.site.bentoPlan", body: "console.site.bentoPlanBody", span: "" },
+] as const;
 
 const FAQS: { q: "console.site.faq1q" | "console.site.faq2q" | "console.site.faq3q" | "console.site.faq4q" | "console.site.faq5q"; a: "console.site.faq1a" | "console.site.faq2a" | "console.site.faq3a" | "console.site.faq4a" | "console.site.faq5a" }[] = [
   { q: "console.site.faq1q", a: "console.site.faq1a" },
@@ -136,7 +178,12 @@ export function DownloadCard({ os, label, note, files, suggested }: { os: Downlo
           <p className={`text-[14px] ${site.faint}`}>{t("console.site.dlChecking")}</p>
         )}
         {files !== null && primary === null && (
-          <p className={`text-[14px] ${site.faint}`}>{t("console.site.dlSoon")}</p>
+          <div>
+            <p className={`text-[14px] ${site.faint}`}>{t("console.site.dlSoon")}</p>
+            <a href="/signup" className={`mt-4 inline-flex items-center rounded-md ${site.accent} ${site.accentHover} px-5 py-2.5 text-[14px] font-medium text-white no-underline`}>
+              {t("console.site.dlUseWeb")}
+            </a>
+          </div>
         )}
         {primary !== null && (
           <a
@@ -199,70 +246,93 @@ function DownloadSection() {
 
 export function WelcomeView() {
   const app = productName();
+  const [draft, setDraft] = useState("");
+  const [ask, setAsk] = useState("");
+  const [card, setCard] = useState(0);
+  const steps = useMemo(() => (ask ? mindForAsk(ask) : DEMO_MIND), [ask]);
   return (
     <SiteShell>
       <main>
-        <section className={`${wrap} pb-16 pt-10 sm:pt-14`}>
-          <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-12">
+        <div className="border-b border-white/10 bg-black/40">
+          <div className={`${wrap} flex h-9 items-center gap-6 overflow-hidden font-mono text-[11px] uppercase tracking-[0.16em] text-[#A39E93]`}>
+            <span className="inline-flex items-center gap-2 text-[#7FB685]"><span className="bull-status" aria-hidden />{t("console.site.telemetryDemo")}</span>
+            <span className="hidden sm:inline">{t("console.site.telemetryRunners")}</span>
+            <span className="hidden md:inline">{t("console.site.telemetryAccount")}</span>
+          </div>
+        </div>
+
+        <section className={`agent-grid ${wrap} pb-12 pt-8 sm:pt-12`}>
+          <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-10">
             <div className="min-w-0">
-              <h1 className="max-w-[16ch] text-[32px] font-semibold leading-[1.15] tracking-tight sm:text-[40px]">
+              <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[12px] font-medium tracking-wide text-[#E86A3A] backdrop-blur">
+                <span className="bull-status" aria-hidden />
+                {t("console.site.liveBadge")}
+              </p>
+              <h1 className="max-w-[14ch] text-[34px] font-semibold leading-[1.08] tracking-tight sm:text-[48px]">
                 {t("console.site.heroTitle", { app })}
               </h1>
-              <p className={`mt-5 max-w-[38ch] text-[16px] leading-relaxed ${site.muted}`}>{t("console.site.heroBody")}</p>
-              <div className="mt-7 flex flex-wrap items-center gap-3">
+              <p className={`mt-5 max-w-[42ch] text-[16px] leading-relaxed ${site.muted}`}>{t("console.site.heroBody")}</p>
+              <form
+                className={`mt-7 flex items-center gap-2 p-2 ${glass}`}
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const next = draft.trim();
+                  if (next) setAsk(next);
+                }}
+              >
+                <label className="sr-only" htmlFor="welcome-ask">{t("console.site.promptPlaceholder")}</label>
+                <input
+                  id="welcome-ask"
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  placeholder={t("console.site.promptPlaceholder")}
+                  className="min-w-0 flex-1 bg-transparent px-3 py-2 text-[15px] text-[#F4F1EA] outline-none placeholder:text-[#6F685E]"
+                />
+                <button type="submit" className={`rounded-full ${site.accent} ${site.accentHover} px-4 py-2 text-[14px] font-medium text-white`}>
+                  {t("console.site.promptRun")}
+                </button>
+              </form>
+              <div className="mt-5 flex flex-wrap items-center gap-3">
                 <a href="/signup" className={`rounded-full ${site.accent} ${site.accentHover} px-6 py-3 text-[15px] font-medium text-white no-underline`}>
                   {t("console.site.heroCta")}
                 </a>
-                <a href="#tour" className="rounded-full border border-white/15 px-6 py-3 text-[15px] text-[#F4F1EA] no-underline hover:border-white/40 hover:bg-white/5">
+                <a href="#features" className="rounded-full border border-white/15 px-6 py-3 text-[15px] text-[#F4F1EA] no-underline hover:border-white/40 hover:bg-white/5">
                   {t("console.site.heroTour")}
                 </a>
               </div>
               <p className={`mt-4 text-[13px] ${site.faint}`}>{t("console.site.heroNote")}</p>
             </div>
-            <div className="min-w-0"><AppMock /></div>
+            <MindStream key={ask || "demo"} steps={steps} />
           </div>
+          <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 font-mono text-[13px] text-[#C9C2B2]">
+            {MODELS.map((model) => (
+              <li key={model} className="rounded-full border border-white/10 bg-black/30 px-3 py-1">{model}</li>
+            ))}
+          </ul>
         </section>
 
-        <section className={site.dark}>
-          <div className={`${wrap} py-14`}>
-            <p className={`text-[13px] font-medium uppercase tracking-wider ${site.darkMuted}`}>{t("console.site.modelsTitle")}</p>
-            <ul className={`mt-4 flex flex-wrap gap-x-8 gap-y-2 text-[18px] font-semibold ${site.darkInk}`}>
-              {MODELS.map((model) => (
-                <li key={model}>{model}</li>
-              ))}
-            </ul>
-            <p className={`mt-3 max-w-[600px] text-[14px] leading-relaxed ${site.darkMuted}`}>{t("console.site.modelsBody")}</p>
-          </div>
-        </section>
-
-        <section id="features" className={`${wrap} scroll-mt-20 py-16`}>
+        <section id="features" className={`${wrap} scroll-mt-20 py-14`}>
           <h2 className={h2}>{t("console.site.featuresTitle")}</h2>
           <p className={lede}>{t("console.site.featuresLede")}</p>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
-            <Feature index="01" icon={<Bot size={18} />} title={t("console.site.fAgentsTitle")}>
-              <p>{t("console.site.fAgentsBody")}</p>
-            </Feature>
-            <Feature index="02" icon={<KeyRound size={18} />} title={t("console.site.fModelsTitle")}>
-              <p>{t("console.site.fModelsBody")}</p>
-            </Feature>
-            <Feature index="03" icon={<Users size={18} />} title={t("console.site.fTeamsTitle")}>
-              <p>{t("console.site.fTeamsBody")}</p>
-            </Feature>
-            <Feature index="04" icon={<CalendarClock size={18} />} title={t("console.site.fAutoTitle")}>
-              <p>{t("console.site.fAutoBody")}</p>
-            </Feature>
-            <Feature index="05" icon={<Workflow size={18} />} title={t("console.site.fToolsTitle")}>
-              <p>{t("console.site.fToolsBody")}</p>
-            </Feature>
-            <Feature index="06" icon={<Mic size={18} />} title={t("console.site.fVoiceTitle")}>
-              <p>{t("console.site.fVoiceBody")}</p>
-            </Feature>
-            <Feature index="07" icon={<Phone size={18} />} title={t("console.site.fDevicesTitle")}>
-              <p>{t("console.site.fDevicesBody")}</p>
-            </Feature>
-            <Feature index="08" icon={<ShieldCheck size={18} />} title={t("console.site.fAdminTitle")}>
-              <p>{t("console.site.fAdminBody")}</p>
-            </Feature>
+          <div className="mt-8 grid gap-3 md:grid-cols-4">
+            {BENTO.map((item, index) => {
+              const open = card === index;
+              return (
+                <button
+                  key={item.title}
+                  type="button"
+                  aria-expanded={open}
+                  onClick={() => setCard(index)}
+                  className={`${glass} ${item.span} p-5 text-left transition duration-300 hover:border-[#E86A3A]/50 ${open ? "border-[#E86A3A]/60" : ""}`}
+                >
+                  <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-[#E86A3A]">0{index + 1}</span>
+                  <span className="mt-3 block text-[18px] font-semibold tracking-tight">{t(item.title)}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className={`mt-3 h-24 overflow-hidden px-5 py-4 ${glass}`} aria-live="polite">
+            <p className="text-[15px] leading-relaxed text-[#C9C2B2]">{t(BENTO[card]!.body)}</p>
           </div>
         </section>
 
@@ -328,8 +398,9 @@ export function WelcomeView() {
 
         <section className={site.dark}>
           <div className={`${wrap} py-16`}>
-            <h2 className={`max-w-[640px] text-[28px] font-semibold tracking-tight ${site.darkInk} sm:text-[36px]`}>
-              {t("console.site.finalTitle", { app })}
+            <h2 className={`flex max-w-[640px] items-center gap-4 text-[28px] font-semibold tracking-tight ${site.darkInk} sm:text-[36px]`}>
+              <MaximusMark size={56} live />
+              <span>{t("console.site.finalTitle", { app })}</span>
             </h2>
             <p className={`mt-3 max-w-[560px] text-[16px] leading-relaxed ${site.darkMuted}`}>{t("console.site.finalBody")}</p>
             <div className="mt-8 flex flex-wrap items-center gap-4">

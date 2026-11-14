@@ -18,8 +18,8 @@ Nothing here is code — Track 2/3/4 implement from it.
 | `omb1.` (license prefix) | `max1.` | See section 3 |
 | `omb_workspace_` (token prefix) | `maximus_workspace_` | See section 7 |
 | `omb-managed-*` (model tags) | `maximus-managed-*` | Managed-model model-id prefixes |
-| Updater `milind-soni/OpenMausBot` | `<RELEASE_OWNER>/Maximus` | Owner confirms; `latest-mac.yml` + `latest.yml` ship every release |
-| `ghcr.io/milind-soni/openmausbot` | `ghcr.io/<RELEASE_OWNER>/maximus` | Prod image; `maximus-local:latest` for compose dev |
+| Updater `Kayode-soni/OpenMausBot` | `<RELEASE_OWNER>/Maximus` | Owner confirms; `latest-mac.yml` + `latest.yml` ship every release |
+| `ghcr.io/Kayode-soni/openmausbot` | `ghcr.io/<RELEASE_OWNER>/maximus` | Prod image; `maximus-local:latest` for compose dev |
 | `openmausbot-podman` | `maximus-podman` | Podman overlay |
 | `OpenMausBot-domain-check` (UA) | `Maximus-domain-check` | Custom-domain check User-Agent |
 | `OpenMausBot-packager` (UA) | `Maximus-packager` | Packager User-Agent |

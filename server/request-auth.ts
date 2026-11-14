@@ -326,12 +326,21 @@ export const CLIENT_ALLOW: ReadonlyArray<{ methods: readonly string[]; path: Reg
   { methods: ["GET"], path: /^\/api\/health$/ },
   // A signed-in person makes their own agent. The route still refuses admin-only settings.
   { methods: ["POST"], path: /^\/api\/bots$/ },
+  // The same person deletes an agent they can see. The handler still refuses one they cannot edit, and the place's Max.
+  { methods: ["DELETE"], path: /^\/api\/bots\/[\w-]+$/ },
   { methods: ["GET"], path: /^\/api\/bot-defaults$/ },
   // The person's own Muse wallet. Choosing Free opens the one grant; the pooled key is not in this response.
   { methods: ["GET"], path: /^\/api\/ration$/ },
+  { methods: ["POST"], path: /^\/api\/ration\/contributor$/ },
+  // The plan this email already accepted. The same account keeps it on every browser, desktop, and phone.
+  { methods: ["GET", "POST"], path: /^\/api\/account\/plan$/ },
   // Nigeria sees Naira when Paystack is on; checkout starts that charge.
   { methods: ["GET"], path: /^\/api\/billing\/offer$/ },
   { methods: ["POST"], path: /^\/api\/billing\/checkout$/ },
+  // Which engines exist. The handler omits executable paths for an account that is not an admin.
+  { methods: ["GET"], path: /^\/api\/instances$/ },
+  // A provider key only. The handler refuses every other config field for an account that is not an admin.
+  { methods: ["PUT", "PATCH"], path: /^\/api\/config$/ },
   { methods: ["GET"], path: /^\/api\/edition$/ },
   { methods: ["GET"], path: /^\/api\/brand$/ },
   { methods: ["GET"], path: /^\/api\/events$/ },
@@ -487,6 +496,21 @@ export function clientBotPatchViolation(body: unknown, ownMax = false, teamMembe
     if (!CLIENT_BOT_PATCH_FIELDS.has(key) || (teamMember && !ownMax && SHARED_LOOK_FIELDS.has(key))) return key;
   }
   return null;
+}
+
+/** A person deletes a bot they can see on their own account, or one they can edit on a team.
+ * An admin of a shared installation deletes any bot they can see. A bot they cannot see is refused here; the place's Max is refused by deletion itself. */
+export function clientMayDeleteBot(input: { admin: boolean; seesBot: boolean; ownAccounts: boolean; edit: boolean }): boolean {
+  if (!input.seesBot) return false;
+  if (input.ownAccounts || input.admin) return true;
+  return input.edit;
+}
+
+/** A person making a bot may give it the name they will know it by. Renaming one that already exists stays refused. */
+export function clientCreateViolation(settings: object): string | null {
+  const rest = { ...settings } as Record<string, unknown>;
+  delete rest.name;
+  return clientBotPatchViolation(rest);
 }
 
 /** All a paired device or a Team Cloud move-in may give a bot it makes or brings in: who the bot is, how it looks, its

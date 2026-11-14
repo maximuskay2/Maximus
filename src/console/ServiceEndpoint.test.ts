@@ -8,7 +8,7 @@ const editable: EndpointInfo = {
   url: "http://127.0.0.1:8787",
   source: "settings",
   managedByEnv: false,
-  defaultUrl: "https://accounts.maximus.com",
+  defaultUrl: "https://accounts.meetnote.cc",
   localUrl: "http://127.0.0.1:8787",
 };
 

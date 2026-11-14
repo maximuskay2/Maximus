@@ -277,8 +277,18 @@ export function RatesPage() {
   );
 }
 
+function secretHint(status: { configured: boolean; last4: string } | undefined): string {
+  if (!status?.configured) return "Not set";
+  return `Saved · ends in ${status.last4}`;
+}
+
 function PaystackCard() {
   const [settings, setSettings] = useState<PaymentSettingsView | null>(null);
+  const [paystackSecretKey, setPaystackSecretKey] = useState("");
+  const [bachsApiKey, setBachsApiKey] = useState("");
+  const [bachsWebhookSecret, setBachsWebhookSecret] = useState("");
+  const [stripeSecretKey, setStripeSecretKey] = useState("");
+  const [bachsApiBase, setBachsApiBase] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -286,7 +296,9 @@ function PaystackCard() {
   useEffect(() => {
     let live = true;
     adminPayments().then((answer) => {
-      if (live) setSettings(answer.payments);
+      if (!live) return;
+      setSettings(answer.payments);
+      setBachsApiBase(answer.payments.bachsApiBase ?? "");
     }).catch((thrown: unknown) => {
       if (live) setError(thrown instanceof HarnessError ? thrown.message : t("console.somethingWrong"));
     });
@@ -298,8 +310,22 @@ function PaystackCard() {
     setBusy(true);
     setSaved(false);
     setError(null);
-    savePayments(settings).then((answer) => {
+    savePayments({
+      paystackEnabled: settings.paystackEnabled,
+      bachsEnabled: settings.bachsEnabled === true,
+      ngnPerUsd: settings.ngnPerUsd,
+      ...(paystackSecretKey.trim() ? { paystackSecretKey: paystackSecretKey.trim() } : {}),
+      ...(bachsApiKey.trim() ? { bachsApiKey: bachsApiKey.trim() } : {}),
+      ...(bachsWebhookSecret.trim() ? { bachsWebhookSecret: bachsWebhookSecret.trim() } : {}),
+      ...(stripeSecretKey.trim() ? { stripeSecretKey: stripeSecretKey.trim() } : {}),
+      bachsApiBase: bachsApiBase.trim(),
+    }).then((answer) => {
       setSettings(answer.payments);
+      setBachsApiBase(answer.payments.bachsApiBase ?? "");
+      setPaystackSecretKey("");
+      setBachsApiKey("");
+      setBachsWebhookSecret("");
+      setStripeSecretKey("");
       setSaved(true);
       setBusy(false);
     }, (thrown: unknown) => {
@@ -310,8 +336,8 @@ function PaystackCard() {
 
   return (
     <section className="mt-4 rounded-lg border border-hairline/40 p-4">
-      <h2 className="text-[15px] font-semibold">Paystack for Nigeria</h2>
-      <p className="mt-1 text-[12px] text-ink-secondary">When this is on, people in Nigeria see the Naira price and pay with Paystack. Everyone else keeps the dollar price. The server still needs PAYSTACK_SECRET_KEY. A plan code in MAXIMUS_PAYSTACK_PLANS is optional; without one, Paystack charges this Naira amount.</p>
+      <h2 className="text-[15px] font-semibold">Payment gateways</h2>
+      <p className="mt-1 text-[12px] text-ink-secondary">Bachs (<a className="underline" href="https://bachs.io/" target="_blank" rel="noreferrer">bachs.io</a>) is the primary checkout when enabled. Paystack is Naira-only and used only while Bachs is off. Flip either switch any time. Keys stay on this server; leave a key field blank to keep the saved value.</p>
       {settings ? (
         <>
           <label className="mt-3 flex items-center gap-2 text-[14px]">
@@ -320,7 +346,15 @@ function PaystackCard() {
               checked={settings.paystackEnabled}
               onChange={(event) => setSettings({ ...settings, paystackEnabled: event.target.checked })}
             />
-            Accept Paystack
+            Accept Paystack (Nigeria)
+          </label>
+          <label className="mt-3 flex items-center gap-2 text-[14px]">
+            <input
+              type="checkbox"
+              checked={settings.bachsEnabled === true}
+              onChange={(event) => setSettings({ ...settings, bachsEnabled: event.target.checked })}
+            />
+            Accept Bachs (primary)
           </label>
           <label className="mt-3 block max-w-[240px] text-[13px] font-medium">
             Naira per dollar
@@ -335,13 +369,37 @@ function PaystackCard() {
             />
           </label>
           <p className="mt-1 text-[12px] text-ink-secondary">The rate you charge. 1600 means $19 is ₦30,400.</p>
-          <button type="button" className="mt-3 rounded-md bg-accent px-4 py-2 text-[14px] font-medium text-accent-ink disabled:opacity-50" disabled={busy} onClick={save}>
-            Save Paystack
+
+          <h3 className="mt-5 text-[14px] font-semibold">Gateway keys</h3>
+          <label className="mt-3 block max-w-[420px] text-[13px] font-medium">
+            Paystack secret key
+            <input className={field} type="password" autoComplete="off" value={paystackSecretKey} placeholder={secretHint(settings.secrets?.paystackSecretKey)} onChange={(event) => setPaystackSecretKey(event.target.value)} />
+          </label>
+          <label className="mt-3 block max-w-[420px] text-[13px] font-medium">
+            Bachs API key
+            <input className={field} type="password" autoComplete="off" value={bachsApiKey} placeholder={secretHint(settings.secrets?.bachsApiKey)} onChange={(event) => setBachsApiKey(event.target.value)} />
+          </label>
+          <label className="mt-3 block max-w-[420px] text-[13px] font-medium">
+            Bachs webhook signing secret
+            <input className={field} type="password" autoComplete="off" value={bachsWebhookSecret} placeholder={secretHint(settings.secrets?.bachsWebhookSecret)} onChange={(event) => setBachsWebhookSecret(event.target.value)} />
+          </label>
+          <label className="mt-3 block max-w-[420px] text-[13px] font-medium">
+            Bachs API base
+            <input className={field} value={bachsApiBase} placeholder="https://sandbox-api.bachs.io" onChange={(event) => setBachsApiBase(event.target.value)} />
+          </label>
+          <p className="mt-1 text-[12px] text-ink-secondary">Sandbox: https://sandbox-api.bachs.io · Live: https://api.bachs.io</p>
+          <label className="mt-3 block max-w-[420px] text-[13px] font-medium">
+            Stripe secret key (optional)
+            <input className={field} type="password" autoComplete="off" value={stripeSecretKey} placeholder={secretHint(settings.secrets?.stripeSecretKey)} onChange={(event) => setStripeSecretKey(event.target.value)} />
+          </label>
+
+          <button type="button" className="mt-4 rounded-md bg-accent px-4 py-2 text-[14px] font-medium text-accent-ink disabled:opacity-50" disabled={busy} onClick={save}>
+            Save gateways
           </button>
         </>
       ) : null}
       <ErrorBox message={error} />
-      {saved ? <p className="mt-3 text-[14px]">Paystack settings saved.</p> : null}
+      {saved ? <p className="mt-3 text-[14px]">Gateway settings saved.</p> : null}
     </section>
   );
 }

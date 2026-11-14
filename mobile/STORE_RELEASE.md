@@ -1,7 +1,7 @@
 # Maximus mobile — store release guide (Phase 10)
 
 Companion app to a Maximus server (self-hosted or Maximus-hosted). Bundle
-`com.maximus.app` on both stores. Versioning: `mobile/pubspec.yaml` tracks
+`com.maximusbot.app` on both stores. Versioning: `mobile/pubspec.yaml` tracks
 the root `package.json` (`dart tool/sync_version.dart`, `--check` in CI);
 the release lane stamps `+<run number>` as the build.
 
@@ -21,8 +21,8 @@ in the repo. Local release builds fall back to debug keys when
 
 ## Owner checklist before the first tag
 
-- [ ] Apple Developer (paid): app record, `com.maximus.app.LiveActivities`
-      extension id, App Group `group.com.maximus.app`, Siri + Live
+- [ ] Apple Developer (paid): app record, `com.maximusbot.app.LiveActivities`
+      extension id, App Group `group.com.maximusbot.app`, Siri + Live
       Activities capabilities, distribution cert + both provisioning
       profiles in secrets.
 - [ ] Play Console: app record, upload key + service account in secrets.

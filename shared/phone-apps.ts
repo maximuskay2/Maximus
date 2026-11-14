@@ -2,7 +2,7 @@
 // per-bot grants, and the PHONE_* tool names served by the `device` MCP server.
 import { isReadOnlyAction } from "./connector-scopes.ts";
 
-export const PHONE_CAPABILITIES = ["calendar", "reminders", "contacts", "location", "home", "messages"] as const;
+export const PHONE_CAPABILITIES = ["calendar", "reminders", "contacts", "location", "home", "messages", "alarms"] as const;
 export type PhoneCapability = (typeof PHONE_CAPABILITIES)[number];
 export type PhoneGrant = "read" | "write";
 /** Per-bot grant; an absent key is off. */
@@ -19,6 +19,7 @@ export const PHONE_TOOL_NAMES = [
   "PHONE_SEARCH_CONTACTS", "PHONE_GET_CONTACT", "PHONE_CREATE_CONTACT", "PHONE_UPDATE_CONTACT",
   "PHONE_GET_LOCATION", "PHONE_FIND_PLACES_NEARBY",
   "PHONE_LIST_HOME", "PHONE_SET_ACCESSORY", "PHONE_RUN_SCENE",
+  "PHONE_LIST_ALARMS", "PHONE_CREATE_ALARM", "PHONE_DELETE_ALARM",
   "PHONE_SEND_MESSAGE", "PHONE_SEND_WHATSAPP",
 ] as const;
 export type PhoneToolName = (typeof PHONE_TOOL_NAMES)[number];
@@ -31,6 +32,7 @@ const TOOL_CAPABILITY: Record<PhoneToolName, PhoneCapability> = {
   PHONE_SEARCH_CONTACTS: "contacts", PHONE_GET_CONTACT: "contacts", PHONE_CREATE_CONTACT: "contacts", PHONE_UPDATE_CONTACT: "contacts",
   PHONE_GET_LOCATION: "location", PHONE_FIND_PLACES_NEARBY: "location",
   PHONE_LIST_HOME: "home", PHONE_SET_ACCESSORY: "home", PHONE_RUN_SCENE: "home",
+  PHONE_LIST_ALARMS: "alarms", PHONE_CREATE_ALARM: "alarms", PHONE_DELETE_ALARM: "alarms",
   PHONE_SEND_MESSAGE: "messages", PHONE_SEND_WHATSAPP: "messages",
 };
 

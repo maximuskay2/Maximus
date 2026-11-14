@@ -7,6 +7,25 @@ it("keeps compaction reachable below small model windows", () => {
   expect(compactBudget(100_000, 0.7, 50_000)).toBe(45_000);
 });
 
+it("folds huge Muse-sized windows at a latency budget, not at 80% of 1M", () => {
+  expect(compactBudget(1_048_576)).toBe(32_000);
+  expect(compactBudget(1_048_576, 20_000)).toBe(20_000);
+  expect(compactBudget(1_048_576, 0.05)).toBe(52_428);
+  expect(compactBudget(1_000_000, undefined, 200_000)).toBe(32_000);
+  expect(shouldCompact({
+    contextTokens: 32_000,
+    estimatedBytes: 0,
+    budget: compactBudget(1_048_576),
+    window: 1_048_576,
+  })).toBe(true);
+  expect(shouldCompact({
+    contextTokens: 31_999,
+    estimatedBytes: 0,
+    budget: compactBudget(1_048_576),
+    window: 1_048_576,
+  })).toBe(false);
+});
+
 it("rejects invalid window values and ignores invalid provider readings", () => {
   for (const value of [NaN, Infinity, 0, -1]) {
     expect(() => compactBudget(value)).toThrow();
@@ -24,10 +43,10 @@ it("does not let the regrowth floor defer compaction past window headroom", () =
   expect(shouldCompact({ contextTokens: 8_600, estimatedBytes: 0, budget: 8_000, floor: 8_500, window: 10_000 })).toBe(false);
 });
 
-it("does not let the regrowth floor outrun a known native compaction threshold", () => {
+it("does not let an explicit compactAt outrun a known native compaction threshold", () => {
   const window = 1_000_000;
   const nativeCompactAt = 200_000;
-  const budget = compactBudget(window, undefined, nativeCompactAt);
+  const budget = compactBudget(window, 500_000, nativeCompactAt);
   expect(budget).toBe(180_000);
   expect(shouldCompact({ contextTokens: 180_000, estimatedBytes: 0, budget, floor: 175_000, window, nativeCompactAt })).toBe(true);
   expect(shouldCompact({ contextTokens: 179_999, estimatedBytes: 0, budget, floor: 175_000, window, nativeCompactAt })).toBe(false);

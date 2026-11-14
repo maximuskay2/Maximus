@@ -121,6 +121,8 @@ void main() {
     expect(readBots, hasLength(1));
     expect(readBots!.first.name, 'Chief');
     expect(readBots.first.unread, isTrue);
+    await cache.forgetServer('s1');
+    expect(await cache.readBots('s1'), isNull);
 
     const groups = [
       GroupSummary(id: 'g1', name: 'Room', threadId: 'tg1'),

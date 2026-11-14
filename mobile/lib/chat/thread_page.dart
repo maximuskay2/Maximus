@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../api/client.dart';
+import '../api/live_events.dart';
 import '../api/models.dart';
 import '../api/thread_cache.dart';
 import '../bots/bot_pages.dart';
@@ -14,6 +15,7 @@ import '../settings/preferences.dart';
 import '../theme/blobs.dart';
 import 'approval_card.dart';
 import '../system/live_activities.dart';
+import 'attachment_kind.dart';
 import 'composer.dart';
 import 'dictation.dart';
 import 'drafts.dart';
@@ -34,6 +36,7 @@ class ThreadPage extends StatefulWidget {
     this.eventStream,
     this.cache,
     this.serverId,
+    this.onSessionEnded,
     this.speech,
     this.initialText,
     this.autoDictate = false,
@@ -60,6 +63,9 @@ class ThreadPage extends StatefulWidget {
   final ThreadCache? cache;
   final String? serverId;
 
+  /// A 401 or 403 on the live stream. The app drops the saved sign-in.
+  final Future<void> Function()? onSessionEnded;
+
   /// Prefilled composer text (Siri links); a saved draft wins over this.
   final String? initialText;
 
@@ -76,7 +82,7 @@ class ThreadPage extends StatefulWidget {
   State<ThreadPage> createState() => _ThreadPageState();
 }
 
-class _ThreadPageState extends State<ThreadPage> {
+class _ThreadPageState extends State<ThreadPage> with WidgetsBindingObserver {
   final List<ChatMessage> _messages = [];
   bool _hasMore = false;
   bool _loading = true;
@@ -85,19 +91,29 @@ class _ThreadPageState extends State<ThreadPage> {
   bool _working = false;
   bool _finding = false;
   final _find = TextEditingController();
+  final _findFocus = FocusNode();
   String? _error;
   String? _sendError;
   ChatMessage? _replyTo;
   final _scroll = ScrollController();
   StreamSubscription<LiveEvent>? _events;
+  Timer? _liveRetry;
+  int _liveGeneration = 0;
+  int _liveAttempt = 0;
+  bool _liveStopped = false;
+  bool _liveOpening = false;
+  String? _cursor;
+  String? _openedSince;
   late final DraftStore _drafts = widget.drafts ?? DraftStore();
   final SpeechDriver _speech = SystemSpeechDriver();
+  double _keyboardInset = 0;
 
   static const _emojis = ['👍', '❤️', '😂', '🎉', '👀', '🙏'];
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
     _subscribe();
     _scroll.addListener(() {
@@ -109,10 +125,31 @@ class _ThreadPageState extends State<ThreadPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _liveStopped = true;
+    _liveRetry?.cancel();
     _events?.cancel();
     _scroll.dispose();
     _find.dispose();
+    _findFocus.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    if (!mounted) return;
+    final view = View.of(context);
+    final inset = view.viewInsets.bottom / view.devicePixelRatio;
+    if (inset > _keyboardInset + 8) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _scrollToBottom();
+      });
+    }
+    _keyboardInset = inset;
+  }
+
+  void _dismissKeyboard() {
+    FocusManager.instance.primaryFocus?.unfocus();
   }
 
   Future<void> _subscribe() async {
@@ -120,14 +157,81 @@ class _ThreadPageState extends State<ThreadPage> {
       _events = widget.eventStream!.listen(_onEvent);
       return;
     }
+    await _openLive();
+  }
+
+  Future<void> _openLive() async {
+    if (_liveStopped || _liveOpening || !mounted) return;
+    if (widget.eventStream != null) return;
+    _liveOpening = true;
+    final generation = ++_liveGeneration;
+    final since = _cursor;
+    _openedSince = since;
     try {
-      _events = await widget.client.events(widget.baseUrl, _onEvent);
+      _events = await widget.client.events(
+        widget.baseUrl,
+        _onEvent,
+        since: since,
+        onError: (error) {
+          if (generation != _liveGeneration || _liveStopped) return;
+          _failLive(error);
+        },
+        onDone: () {
+          if (generation != _liveGeneration || _liveStopped) return;
+          _scheduleLiveRetry();
+        },
+      );
+    } on ApiError catch (error) {
+      if (generation != _liveGeneration || _liveStopped) return;
+      _failLive(error);
     } catch (_) {
-      // Live updates are best-effort; pull-to-refresh still works.
+      if (generation != _liveGeneration || _liveStopped) return;
+      _scheduleLiveRetry();
+    } finally {
+      _liveOpening = false;
     }
   }
 
+  void _failLive(Object error) {
+    if (liveEventsEndSession(error)) {
+      _endSession();
+      return;
+    }
+    if (liveEventsShouldReconnect(error)) _scheduleLiveRetry();
+  }
+
+  void _scheduleLiveRetry() {
+    if (_liveStopped || _liveRetry != null) return;
+    final wait = Duration(milliseconds: liveRetryDelayMs(_liveAttempt));
+    _liveAttempt += 1;
+    _liveRetry = Timer(wait, () {
+      _liveRetry = null;
+      _openLive();
+    });
+  }
+
+  void _endSession() {
+    _liveStopped = true;
+    _liveRetry?.cancel();
+    final ended = widget.onSessionEnded;
+    if (!mounted) {
+      ended?.call();
+      return;
+    }
+    final navigator = Navigator.of(context);
+    ended?.call();
+    navigator.popUntil((route) => route.isFirst);
+  }
+
   void _onEvent(LiveEvent event) {
+    _cursor = liveEventCursor(event, _cursor);
+    if (event.kind == 'ping' || event.kind == 'hello') _liveAttempt = 0;
+    if (event.kind == 'hello') {
+      if (liveEventsNeedSnapshot(_openedSince, event.data['resumed'])) {
+        unawaited(_load());
+      }
+      return;
+    }
     final threadId = event.data['threadId'] as String?;
     if (threadId != null && threadId != widget.thread.threadId) return;
     final raw = event.data['message'];
@@ -310,15 +414,23 @@ class _ThreadPageState extends State<ThreadPage> {
   }
 
   Future<List<UploadedAttachment>> _attach() async {
-    final files = await FilePicker.pickFiles();
+    final picked = await FilePicker.pickFiles();
     final uploaded = <UploadedAttachment>[];
-    for (final file in files) {
+    for (final file in picked) {
+      final kind = attachmentKind(name: file.name, path: file.path, extension: file.extension);
+      if (kind == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Unable to attach ${file.name}. Choose a supported image, document, or audio file.')),
+          );
+        }
+        continue;
+      }
       try {
         final bytes = await file.readAsBytes();
-        final mime = _mimeOf(file.name);
-        uploaded.add(
-          await widget.client.uploadAttachment(widget.baseUrl, bytes, mime),
-        );
+        uploaded.add(kind.image
+            ? await widget.client.uploadAttachment(widget.baseUrl, bytes, kind.mime)
+            : await widget.client.uploadFile(widget.baseUrl, bytes, kind.mime, kind.leaf));
       } on ApiError catch (error) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -328,20 +440,6 @@ class _ThreadPageState extends State<ThreadPage> {
       }
     }
     return uploaded;
-  }
-
-  static String _mimeOf(String name) {
-    final lower = name.toLowerCase();
-    if (lower.endsWith('.png')) return 'image/png';
-    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
-    if (lower.endsWith('.gif')) return 'image/gif';
-    if (lower.endsWith('.webp')) return 'image/webp';
-    if (lower.endsWith('.mp3')) return 'audio/mpeg';
-    if (lower.endsWith('.m4a')) return 'audio/mp4';
-    if (lower.endsWith('.wav')) return 'audio/wav';
-    if (lower.endsWith('.pdf')) return 'application/pdf';
-    if (lower.endsWith('.txt')) return 'text/plain';
-    return 'application/octet-stream';
   }
 
   Future<void> _react(ChatMessage message) async {
@@ -440,17 +538,7 @@ class _ThreadPageState extends State<ThreadPage> {
                   answered: behavior == 'allow' ? 'Allowed' : null,
                   answeredText: answer,
                 );
-          _messages[index] = ChatMessage(
-            id: message.id,
-            role: message.role,
-            kind: message.kind,
-            text: message.text,
-            attachments: message.attachments,
-            reactions: message.reactions,
-            hasCard: true,
-            card: settled,
-            replyToId: message.replyToId,
-          );
+          _messages[index] = message.copyWith(card: settled);
         });
       }
     } on ApiError catch (error) {
@@ -485,6 +573,7 @@ class _ThreadPageState extends State<ThreadPage> {
     final query = _find.text.trim().toLowerCase();
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
@@ -509,7 +598,10 @@ class _ThreadPageState extends State<ThreadPage> {
           IconButton(
             icon: const Icon(Icons.more_horiz),
             tooltip: 'Chat menu',
-            onPressed: _openMenu,
+            onPressed: () {
+              _dismissKeyboard();
+              _openMenu();
+            },
           ),
         ],
       ),
@@ -520,7 +612,9 @@ class _ThreadPageState extends State<ThreadPage> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: TextField(
                 controller: _find,
+                focusNode: _findFocus,
                 autofocus: true,
+                textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
                   hintText: 'Find in chat',
                   isDense: true,
@@ -532,16 +626,25 @@ class _ThreadPageState extends State<ThreadPage> {
                   ),
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.close),
-                    onPressed: () => setState(() {
-                      _finding = false;
-                      _find.clear();
-                    }),
+                    onPressed: () {
+                      _dismissKeyboard();
+                      setState(() {
+                        _finding = false;
+                        _find.clear();
+                      });
+                    },
                   ),
                 ),
                 onChanged: (_) => setState(() {}),
               ),
             ),
-          Expanded(child: _transcript(query)),
+          Expanded(
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (_) => _dismissKeyboard(),
+              child: _transcript(query),
+            ),
+          ),
           if (_sendError != null)
             Container(
               width: double.infinity,
@@ -561,6 +664,7 @@ class _ThreadPageState extends State<ThreadPage> {
             threadId: widget.thread.threadId,
             drafts: _drafts,
             botNames: widget.botNames,
+            includeEveryone: widget.groupId != null,
             speech: widget.speech ?? _speech,
             onSend: _send,
             onStop: _stop,
@@ -596,6 +700,7 @@ class _ThreadPageState extends State<ThreadPage> {
   }
 
   Future<void> _openMenu() async {
+    _dismissKeyboard();
     final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.white,
@@ -647,11 +752,16 @@ class _ThreadPageState extends State<ThreadPage> {
               bot: widget.bot,
               cache: widget.cache,
               serverId: widget.serverId,
+              onSessionEnded: widget.onSessionEnded,
             ),
           ),
         );
       case 'find':
+        _dismissKeyboard();
         setState(() => _finding = true);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _findFocus.requestFocus();
+        });
       case 'template':
         final lines = [
           '# ${widget.bot.name}',
@@ -701,7 +811,8 @@ class _ThreadPageState extends State<ThreadPage> {
       onRefresh: _load,
       child: ListView.builder(
         controller: _scroll,
-        padding: const EdgeInsets.all(12),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
         itemCount: visible.length + (thinking ? 1 : 0) + (_loadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (_loadingMore && index == 0) {
@@ -720,10 +831,50 @@ class _ThreadPageState extends State<ThreadPage> {
             baseUrl: widget.baseUrl,
             headers: widget.client.authedHeaders(),
             imageLoader: widget.imageLoader,
+            client: widget.client,
+            bot: widget.bot,
+            thread: widget.thread,
             onReact: _react,
-            onReply: (m) => setState(() => _replyTo = m),
+            onReply: (m) {
+              setState(() => _replyTo = m);
+              _scrollToBottom();
+            },
             replyToText: _replyText(message.replyToId),
             onAnswerCard: _cardAnswerer(message),
+            onSecretUpdated: (secret) {
+              setState(() {
+                final index = _messages.indexWhere((m) => m.id == message.id);
+                if (index >= 0) {
+                  _messages[index] = _messages[index].copyWith(secret: secret);
+                }
+              });
+            },
+            onSignInUpdated: (signIn) {
+              setState(() {
+                final index = _messages.indexWhere((m) => m.id == message.id);
+                if (index >= 0) {
+                  _messages[index] = _messages[index].copyWith(signIn: signIn);
+                }
+              });
+            },
+            onConnectorUpdated: (connector) {
+              setState(() {
+                final index = _messages.indexWhere((m) => m.id == message.id);
+                if (index >= 0) {
+                  _messages[index] =
+                      _messages[index].copyWith(connector: connector);
+                }
+              });
+            },
+            onWidgetUpdated: (widgetData) {
+              setState(() {
+                final index = _messages.indexWhere((m) => m.id == message.id);
+                if (index >= 0) {
+                  _messages[index] =
+                      _messages[index].copyWith(widget: widgetData);
+                }
+              });
+            },
           );
         },
       ),

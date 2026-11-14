@@ -64,10 +64,11 @@ class FakeSecureStoragePlatform extends FlutterSecureStoragePlatform {
 }
 
 class FakeApi implements MaximusApi {
-  FakeApi({this.failBots = false, this.unauthorizedBots = false});
+  FakeApi({this.failBots = false, this.unauthorizedBots = false, this.forbiddenBots = false});
 
   final bool failBots;
   final bool unauthorizedBots;
+  final bool forbiddenBots;
   final List<Map<String, Object?>> patches = [];
 
   static final botsPayload = [
@@ -110,6 +111,9 @@ class FakeApi implements MaximusApi {
   Future<List<BotSummary>> bots(String baseUrl, {int messages = 0}) async {
     if (unauthorizedBots) {
       throw const ApiError(401, 'unauthorized: this session has expired or was revoked; pair this device again');
+    }
+    if (forbiddenBots) {
+      throw const ApiError(403, 'forbidden: this request came through a proxy (pair this device to use the server remotely)');
     }
     if (failBots) throw const ApiError(500, 'down');
     return botsPayload;
@@ -208,6 +212,18 @@ class FakeApi implements MaximusApi {
   );
 
   @override
+  Future<UploadedAttachment> uploadFile(
+    String baseUrl,
+    List<int> bytes,
+    String mime,
+    String name,
+  ) async => UploadedAttachment(
+    path: '/api/files/fake',
+    mime: mime,
+    bytes: bytes.length,
+  );
+
+  @override
   Future<ChatMessage?> react(
     String baseUrl,
     String threadId,
@@ -242,12 +258,24 @@ class FakeApi implements MaximusApi {
     return 'answered';
   }
 
+  String? createdName;
+  bool createdBot = false;
+  String? deletedBotId;
+
   @override
-  Future<BotSummary> createBot(String baseUrl, {String? name}) async =>
-      BotSummary.fromJson({
-        'id': 'b9', 'name': name ?? 'New bot', 'title': '',
-        'description': '', 'threadId': 't9',
-      });
+  Future<void> deleteBot(String baseUrl, String botId) async {
+    deletedBotId = botId;
+  }
+
+  @override
+  Future<BotSummary> createBot(String baseUrl, {String? name}) async {
+    createdBot = true;
+    createdName = name;
+    return BotSummary.fromJson({
+      'id': 'b9', 'name': name ?? 'Maple', 'title': '',
+      'description': '', 'threadId': 't9',
+    });
+  }
 
   Map<String, Object?>? lastBotPatch;
 
@@ -848,6 +876,7 @@ class FakeApi implements MaximusApi {
   @override
   Future<BillingCheckout> billingCheckout(
     String baseUrl, {
+    required String provider,
     required String plan,
     required String customerEmail,
     required String successUrl,
@@ -855,6 +884,7 @@ class FakeApi implements MaximusApi {
     required String timeZone,
   }) async {
     checkoutWrites.add({
+      'provider': provider,
       'plan': plan,
       'customerEmail': customerEmail,
       'timeZone': timeZone,
@@ -950,8 +980,15 @@ class FakeApi implements MaximusApi {
   final List<String> computerActions = [];
 
   @override
-  Future<AuthSessionInfo> authSession(String baseUrl) async =>
-      sessionInfoPayload;
+  Future<AuthSessionInfo> authSession(String baseUrl) async {
+    if (unauthorizedBots) {
+      throw const ApiError(
+        401,
+        'unauthorized: this session has expired or was revoked; pair this device again',
+      );
+    }
+    return sessionInfoPayload;
+  }
 
   @override
   Future<void> logout(String baseUrl) async {
@@ -1013,6 +1050,17 @@ class FakeApi implements MaximusApi {
     return rationPayload;
   }
 
+  /// Default muse so home refresh does not open the paywall in widget tests.
+  String? accountChoice = 'muse';
+
+  @override
+  Future<String?> accountPlan(String baseUrl) async => accountChoice;
+
+  @override
+  Future<void> chooseAccountPlan(String baseUrl, String choice) async {
+    accountChoice = choice;
+  }
+
   @override
   Future<void> presenceActive(
     String baseUrl, {
@@ -1057,13 +1105,257 @@ class FakeApi implements MaximusApi {
     desktopInputs.add(action);
   }
 
+  List<EngineInstance> instancesPayload = const [];
+  final List<Map<String, Object?>> configWrites = [];
+  final List<Map<String, Object?>> openaiCompatWrites = [];
+  EngineAuthFlow authStartPayload = const EngineAuthFlow(
+    phase: 'waiting',
+    flowId: 'flow-1',
+    authorizationUrl: 'https://example.test/device',
+    userCode: 'ABCD-EFGH',
+  );
+
+  @override
+  Future<List<EngineInstance>> listInstances(
+    String baseUrl, {
+    bool fresh = false,
+  }) async =>
+      instancesPayload;
+
+  @override
+  Future<EngineAuthFlow> startInstanceAuth(
+    String baseUrl,
+    String instanceId,
+  ) async =>
+      authStartPayload;
+
+  @override
+  Future<EngineAuthFlow> instanceAuthStatus(
+    String baseUrl,
+    String instanceId, {
+    required String flowId,
+  }) async =>
+      authStartPayload;
+
+  @override
+  Future<void> completeInstanceAuth(
+    String baseUrl,
+    String instanceId, {
+    required String flowId,
+    required String code,
+  }) async {}
+
+  @override
+  Future<void> cancelInstanceAuth(String baseUrl, String instanceId) async {}
+
+  @override
+  Future<String> addOpenaiCompat(
+    String baseUrl, {
+    required String displayName,
+    required String url,
+    required String key,
+  }) async {
+    openaiCompatWrites.add({
+      'displayName': displayName,
+      'url': url,
+      'key': key,
+    });
+    return 'openai-compat-test';
+  }
+
+  @override
+  Future<void> putConfig(String baseUrl, Map<String, Object?> patch) async {
+    configWrites.add(patch);
+  }
+
+  final List<Map<String, Object?>> secretCardWrites = [];
+  final List<Map<String, Object?>> signInCardWrites = [];
+
+  @override
+  Future<void> saveSecretCard(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+    required String value,
+    String? address,
+    Map<String, Object?>? server,
+  }) async {
+    secretCardWrites.add({
+      'botId': botId,
+      'messageId': messageId,
+      'threadId': threadId,
+      'value': value,
+      if (address != null) 'address': address,
+      ...?server,
+    });
+  }
+
+  @override
+  Future<void> settleSecretCard(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+    required String action,
+  }) async {
+    secretCardWrites.add({
+      'botId': botId,
+      'messageId': messageId,
+      'threadId': threadId,
+      'action': action,
+    });
+  }
+
+  @override
+  Future<void> saveOnePasswordToken(String baseUrl, String token) async {
+    configWrites.add({'onePasswordToken': token});
+  }
+
+  @override
+  Future<void> settleSignInCard(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+    required String action,
+  }) async {
+    signInCardWrites.add({
+      'botId': botId,
+      'messageId': messageId,
+      'threadId': threadId,
+      'action': action,
+    });
+  }
+
+  @override
+  Future<void> saveSignInLogin(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+    required String username,
+    required String password,
+    String? totp,
+    String? signInHost,
+  }) async {
+    signInCardWrites.add({
+      'botId': botId,
+      'messageId': messageId,
+      'threadId': threadId,
+      'action': 'save-login',
+      'username': username,
+      'password': password,
+      if (totp != null) 'totp': totp,
+      if (signInHost != null) 'signInHost': signInHost,
+    });
+  }
+
+  final List<Map<String, Object?>> connectorCardWrites = [];
+  final List<Map<String, Object?>> widgetActionWrites = [];
+  List<NeedsYouItem> needsYouItems = const [];
+  bool connectorConnected = false;
+  String connectorAuthorizeUrl = 'https://connect.example/auth';
+
+  @override
+  Future<String> authorizeConnectorCard(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+    String? alias,
+  }) async {
+    connectorCardWrites.add({
+      'action': 'authorize',
+      'botId': botId,
+      'messageId': messageId,
+      'threadId': threadId,
+      if (alias != null) 'alias': alias,
+    });
+    return connectorAuthorizeUrl;
+  }
+
+  @override
+  Future<bool> connectorCardStatus(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+  }) async {
+    connectorCardWrites.add({
+      'action': 'status',
+      'botId': botId,
+      'messageId': messageId,
+      'threadId': threadId,
+    });
+    return connectorConnected;
+  }
+
+  @override
+  Future<void> resumeConnectorCard(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+  }) async {
+    connectorCardWrites.add({
+      'action': 'resume',
+      'botId': botId,
+      'messageId': messageId,
+      'threadId': threadId,
+    });
+  }
+
+  @override
+  Future<void> dismissConnectorCard(
+    String baseUrl,
+    String botId,
+    String messageId, {
+    required String threadId,
+  }) async {
+    connectorCardWrites.add({
+      'action': 'dismiss',
+      'botId': botId,
+      'messageId': messageId,
+      'threadId': threadId,
+    });
+  }
+
+  @override
+  Future<void> sendWidgetAction(
+    String baseUrl,
+    String botId, {
+    required String threadId,
+    required String messageId,
+    required String ref,
+    required int rev,
+    Map<String, Object?>? values,
+  }) async {
+    widgetActionWrites.add({
+      'botId': botId,
+      'threadId': threadId,
+      'messageId': messageId,
+      'ref': ref,
+      'rev': rev,
+      ...?values,
+    });
+  }
+
+  @override
+  Future<List<NeedsYouItem>> needsYou(String baseUrl) async => needsYouItems;
+
   @override
   Future<StreamSubscription<LiveEvent>> events(
     String baseUrl,
     void Function(LiveEvent) onEvent, {
     void Function(Object error)? onError,
-  }) {
-    throw UnimplementedError();
+    void Function()? onDone,
+    String? since,
+  }) async {
+    return StreamController<LiveEvent>().stream.listen(
+      onEvent,
+      onError: onError,
+    );
   }
 
   @override

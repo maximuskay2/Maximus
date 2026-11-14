@@ -278,7 +278,7 @@ describe("console views", () => {
     expect(pricing).toContain("Browser");
     expect(pricing).toContain("Enterprise");
     expect(pricing).toContain('href="/signin"');
-    expect(planHref("free", false)).toBe("/signup");
+    expect(planHref("free", false)).toBe("/signup?plan=free");
     expect(planHref("starter", false)).toBe("/signup?plan=starter");
     expect(planHref("starter", true)).toBe("/");
     const signed = renderToStaticMarkup(createElement(PricingView, { plans: [FREE_PLAN], error: null, signedIn: true, person: "ada@example.com" }));
@@ -295,6 +295,24 @@ describe("console views", () => {
     expect(compare).toContain("Most popular");
     expect(compare).toContain("<details");
     expect(planFeatureUnion([FREE_PLAN, team])).toEqual([...FREE_PLAN.features, "Shared rooms", "Admin dashboard"]);
+  });
+
+  it("links forgot-password from the sign-in form", () => {
+    const html = renderToStaticMarkup(createElement(SigninView, {
+      step: "email",
+      email: "",
+      code: "",
+      memberships: [],
+      busy: false,
+      error: null,
+      onEmail: noop,
+      onCode: noop,
+      onSendCode: noop,
+      onVerifyCode: noop,
+      onBackToEmail: noop,
+      onPick: noop,
+    }));
+    expect(html).toContain('href="/forgot"');
   });
 
   it("renders each signin step", () => {

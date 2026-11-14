@@ -122,7 +122,7 @@ void main() {
     expect(billing.status?.plan, 'team');
   });
 
-  testWidgets('paywall lists plans and buys', (tester) async {
+  testWidgets('paywall lists Muse plans and buys', (tester) async {
     final store = FakeIAPPlatform.install();
     addTearDown(store.close);
     final billing = billingWith(FakeApi(), store);
@@ -134,6 +134,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.text('Use our AI'), findsWidgets);
     expect(find.text('Plus'), findsOneWidget);
     expect(find.text('Pro'), findsOneWidget);
 
@@ -153,7 +154,7 @@ void main() {
           blurb: 'A one-time Muse grant on our key.',
           baseUsd: 0,
           allowanceUsd: 0.012,
-          entitlements: [],
+          entitlements: ['gateway'],
           features: ['Once per account'],
         ),
         ConsolePlan(
@@ -162,8 +163,17 @@ void main() {
           blurb: 'Includes Muse.',
           baseUsd: 19,
           allowanceUsd: 8,
-          entitlements: [],
+          entitlements: ['billing', 'gateway'],
           features: ['muse-spark-1.3'],
+        ),
+        ConsolePlan(
+          id: 'byo',
+          name: 'Your model',
+          blurb: 'Bring your own LLM key.',
+          baseUsd: 9,
+          allowanceUsd: 0,
+          entitlements: ['billing'],
+          features: ['Your provider bills the tokens'],
         ),
       ];
     final billing = billingWith(api, store);
@@ -184,6 +194,11 @@ void main() {
     expect(find.text('\$0.012 of Muse, once'), findsOneWidget);
     expect(find.text('Plus'), findsOneWidget);
     expect(find.text('\$19/mo'), findsOneWidget);
+    expect(find.text('Your model'), findsWidgets);
+    await tester.tap(find.text('Your model').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Bring your own LLM key.'), findsOneWidget);
+    expect(find.text('\$9/mo'), findsOneWidget);
   });
 
   testWidgets('paywall shows naira and Paystack for Nigeria', (tester) async {
@@ -198,7 +213,16 @@ void main() {
           blurb: 'Includes Muse.',
           baseUsd: 19,
           allowanceUsd: 8,
-          entitlements: [],
+          entitlements: ['billing', 'gateway'],
+          features: [],
+        ),
+        ConsolePlan(
+          id: 'byo',
+          name: 'Your model',
+          blurb: 'Bring your own LLM key.',
+          baseUsd: 9,
+          allowanceUsd: 0,
+          entitlements: ['billing'],
           features: [],
         ),
       ];
@@ -220,9 +244,128 @@ void main() {
     expect(find.text('₦30,400/mo'), findsOneWidget);
     await tester.tap(find.text('Pay with Paystack'));
     await tester.pumpAndSettle();
+    expect(api.checkoutWrites.single['provider'], 'paystack');
     expect(api.checkoutWrites.single['plan'], 'plus');
     expect(api.checkoutWrites.single['customerEmail'], 'owner@example.test');
     expect(api.checkoutWrites.single['timeZone'], 'WAT');
+
+    await tester.tap(find.text('Your model').last);
+    await tester.pumpAndSettle();
+    expect(find.text('₦14,400/mo'), findsOneWidget);
+    await tester.tap(find.text('Pay with Paystack'));
+    await tester.pumpAndSettle();
+    expect(api.checkoutWrites.last['plan'], 'byo');
+  });
+
+  testWidgets('paywall pays with Bachs when that is the offer', (tester) async {
+    final store = FakeIAPPlatform.install(available: false);
+    addTearDown(store.close);
+    final api = FakeApi()
+      ..offerPayload = const BillingOffer(currency: 'USD', provider: 'bachs', ngnPerUsd: 1600)
+      ..checkoutUrl = 'https://checkout.bachs.io/ref'
+      ..plansPayload = const [
+        ConsolePlan(
+          id: 'plus',
+          name: 'Plus',
+          blurb: 'Includes Muse.',
+          baseUsd: 19,
+          allowanceUsd: 8,
+          entitlements: ['billing', 'gateway'],
+          features: [],
+        ),
+        ConsolePlan(
+          id: 'byo',
+          name: 'Your model',
+          blurb: 'Bring your own LLM key.',
+          baseUsd: 9,
+          allowanceUsd: 0,
+          entitlements: ['billing'],
+          features: [],
+        ),
+      ];
+    final billing = billingWith(api, store);
+    addTearDown(billing.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: MaxTokens.light(),
+        home: PaywallPage(
+          billing: billing,
+          workspaceName: 'Acme',
+          client: api,
+          baseUrl: 'https://h.example',
+          timeZone: 'UTC',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('\$19/mo'), findsOneWidget);
+    await tester.tap(find.text('Pay with Bachs'));
+    await tester.pumpAndSettle();
+    expect(api.checkoutWrites.single['provider'], 'bachs');
+    expect(api.checkoutWrites.single['plan'], 'plus');
+
+    await tester.tap(find.text('Your model').last);
+    await tester.pumpAndSettle();
+    expect(find.text('\$9/mo'), findsOneWidget);
+    await tester.tap(find.text('Pay with Bachs'));
+    await tester.pumpAndSettle();
+    expect(api.checkoutWrites.last['provider'], 'bachs');
+    expect(api.checkoutWrites.last['plan'], 'byo');
+    expect(find.textContaining('StoreKit'), findsNothing);
+    expect(find.text('Restore purchases'), findsNothing);
+  });
+
+  testWidgets('a paid plan starts checkout when the card itself is tapped', (tester) async {
+    final store = FakeIAPPlatform.install(available: false);
+    addTearDown(store.close);
+    final api = FakeApi()
+      ..offerPayload = const BillingOffer(currency: 'USD', provider: 'stripe', ngnPerUsd: 1600)
+      ..plansPayload = const [
+        ConsolePlan(
+          id: 'plus',
+          name: 'Plus',
+          blurb: 'Includes Muse.',
+          baseUsd: 19,
+          allowanceUsd: 8,
+          entitlements: ['billing', 'gateway'],
+          features: [],
+        ),
+      ];
+    final billing = billingWith(api, store);
+    addTearDown(billing.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: MaxTokens.light(),
+        home: PaywallPage(
+          billing: billing,
+          workspaceName: 'Acme',
+          client: api,
+          baseUrl: 'https://h.example',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Pay with Stripe'), findsOneWidget);
+    await tester.tap(find.text('Plus'));
+    await tester.pumpAndSettle();
+    expect(api.checkoutWrites.single['provider'], 'stripe');
+    expect(api.checkoutWrites.single['plan'], 'plus');
+  });
+
+  test('a StoreKit platform failure leaves the store unavailable', () async {
+    final store = FakeIAPPlatform.install();
+    addTearDown(store.close);
+    store.queryError = IAPError(
+      source: 'app_store',
+      code: 'storekit_no_response',
+      message: 'StoreKit: Failed to get response from platform.',
+    );
+    final billing = billingWith(FakeApi(), store);
+    addTearDown(billing.dispose);
+    await billing.loadProducts();
+    expect(billing.error, isNull);
+    expect(billing.available, isFalse);
+    expect(billing.products, isEmpty);
   });
 
   testWidgets('paywall explains a missing store', (tester) async {

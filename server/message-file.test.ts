@@ -67,12 +67,12 @@ describe("message-linked files", () => {
 
   it("matches Unix, Windows, and UNC links independently of the server OS", () => {
     expect(messageReferencesFile(
-      "[Open the notes](file:///Users/milind/Project/release%20notes.md)",
-      "/Users/milind/Project/release notes.md",
+      "[Open the notes](file:///Users/Kayode/Project/release%20notes.md)",
+      "/Users/Kayode/Project/release notes.md",
     )).toBe(true);
     expect(messageReferencesFile(
-      "I created /Users/milind/Project/release notes.md for you.",
-      "/Users/milind/Project/release notes.md",
+      "I created /Users/Kayode/Project/release notes.md for you.",
+      "/Users/Kayode/Project/release notes.md",
     ))
       .toBe(false);
     expect(messageReferencesFile(
@@ -95,7 +95,7 @@ describe("message-linked files", () => {
       "[Open A&amp;B](docs/A&amp;B.md \"download\")",
       "docs/A&B.md",
     )).toBe(true);
-    expect(messageReferencesFile("<file:///Users/milind/report.md>", "/Users/milind/report.md"))
+    expect(messageReferencesFile("<file:///Users/Kayode/report.md>", "/Users/Kayode/report.md"))
       .toBe(true);
 
     expect(messageReferencesFile(
@@ -142,8 +142,8 @@ describe("message-linked files", () => {
 
   it("resolves only definitions used by rendered reference links", () => {
     expect(messageReferencesFile(
-      "[Open the report][Download]\n\n[download]: /Users/milind/report.md",
-      "/Users/milind/report.md",
+      "[Open the report][Download]\n\n[download]: /Users/Kayode/report.md",
+      "/Users/Kayode/report.md",
     )).toBe(true);
     expect(messageReferencesFile(
       "[unused]: /project/.env",

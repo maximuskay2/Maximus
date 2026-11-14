@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { AppWindow, Bot as BotIcon, Cloud, Download, Mail, Smartphone, Sparkles, type LucideIcon } from "lucide-react";
+import { AppWindow, Bot as BotIcon, Cloud, CreditCard, Download, Mail, Smartphone, Sparkles, type LucideIcon } from "lucide-react";
 
+import { askToSubscribe } from "@/components/SubscribeAsk";
 import { track } from "@/lib/analytics";
 import { INTRO_CHIPS, setupSteps, type IntroChip, type SetupStep } from "@/lib/default-bot";
 import { t } from "@/lib/i18n";
@@ -64,6 +65,7 @@ export function HelperSetup() {
 
 const CHIPS: Record<IntroChip, { label: LocaleKey; icon: LucideIcon }> = {
   ai: { label: "helperIntro.chip.ai", icon: Sparkles },
+  plans: { label: "helperIntro.chip.plans", icon: CreditCard },
   apps: { label: "helperIntro.chip.mail", icon: Mail },
   import: { label: "helperIntro.chip.skills", icon: Download },
   phone: { label: "helperIntro.chip.phone", icon: Smartphone },
@@ -71,7 +73,7 @@ const CHIPS: Record<IntroChip, { label: LocaleKey; icon: LucideIcon }> = {
 };
 
 /** Each chip opens the app's own flow for it; Connect an AI opens its dialog in place (IntroChips). */
-export function chipAction(chip: Exclude<IntroChip, "ai">): Action {
+export function chipAction(chip: Exclude<IntroChip, "ai" | "plans">): Action {
   switch (chip) {
     case "apps": return { type: "togglePlugins", open: true, surface: "apps" };
     case "import": return { type: "toggleAppSettings", open: true, section: "import" };
@@ -95,6 +97,7 @@ export function IntroChips({ chips }: { chips: readonly IntroChip[] }) {
   const tap = (chip: IntroChip) => {
     setTapped((now) => new Set([...now, chip]));
     if (chip === "ai") return setConnecting(true);
+    if (chip === "plans") return askToSubscribe();
     if (chip === "cloud") track("onboarding_cloud", { action: "start_trial" });
     dispatch(chipAction(chip));
   };

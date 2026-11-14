@@ -186,6 +186,7 @@ class _RoutinesPageState extends State<RoutinesPage> {
           ),
           cache: widget.auth.cache,
           serverId: widget.auth.active?.id,
+          onSessionEnded: widget.auth.sessionEnded,
         ),
       ),
     );

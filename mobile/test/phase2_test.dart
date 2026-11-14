@@ -20,7 +20,12 @@ Widget _fakeImage(BuildContext context, String url, Map<String, String> headers)
 Future<AuthState> _authWith(FakeApi api) async {
   final store = MemorySessionStore();
   await store.saveServer(
-    const ServerRef(id: 'h', name: 'Home', baseUrl: 'https://h.example'),
+    const ServerRef(
+      id: 'h',
+      name: 'Home',
+      baseUrl: 'https://h.example',
+      companionToken: 'maximus_sess_test',
+    ),
   );
   final auth = AuthState(store: store, client: api);
   await auth.load();
@@ -52,6 +57,23 @@ void main() {
     expect(auth.needsSignIn, isTrue);
     expect(auth.active?.companionToken, isNull);
     expect(find.text('Retry'), findsNothing);
+  });
+
+  testWidgets('a missing session opens sign-in and does not keep the bot list', (tester) async {
+    final store = MemorySessionStore();
+    await store.saveServer(const ServerRef(
+      id: 'h',
+      name: 'Home',
+      baseUrl: 'https://h.example',
+      companionToken: 'maximus_sess_old',
+    ));
+    final auth = AuthState(store: store, client: FakeApi(forbiddenBots: true));
+    await auth.load();
+    await tester.pumpWidget(_themed(HomePage(auth: auth, prefs: AppPreferences())));
+    await tester.pumpAndSettle();
+    expect(auth.needsSignIn, isTrue);
+    expect(find.text('Max'), findsNothing);
+    expect(find.text('Scout'), findsNothing);
   });
 
   testWidgets('home shows the error state with retry', (tester) async {
@@ -187,6 +209,20 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
     expect(find.text('hi there'), findsOneWidget);
+    expect(find.text('Max'), findsOneWidget);
+  });
+
+  testWidgets('swiping a bot asks, then deletes it', (tester) async {
+    final api = FakeApi();
+    await tester.pumpWidget(_themed(HomePage(auth: await _authWith(api), prefs: AppPreferences())));
+    await tester.pumpAndSettle();
+    await tester.drag(find.text('Scout'), const Offset(-500, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete Scout?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+    await tester.pumpAndSettle();
+    expect(api.deletedBotId, 'b2');
+    expect(find.text('Scout'), findsNothing);
     expect(find.text('Max'), findsOneWidget);
   });
 }

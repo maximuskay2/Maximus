@@ -7,7 +7,7 @@ import type { IncomingMessage } from "node:http";
 import type { BillingEvent, BillingProvider } from "./events.ts";
 import { isKnownProviderEvent, normalizeBillingEvent } from "./normalize.ts";
 import type { BillingStore } from "./store.ts";
-import { verifyPaystackSignature, verifyStripeSignature } from "./verify.ts";
+import { verifyBachsSignature, verifyPaystackSignature, verifyStripeSignature } from "./verify.ts";
 
 export const MAX_BILLING_WEBHOOK_BYTES = 256 * 1024;
 
@@ -44,12 +44,14 @@ export function readRawBody(req: IncomingMessage, limit = MAX_BILLING_WEBHOOK_BY
 export interface BillingWebhookSecrets {
   stripeWebhookSecret?: string;
   paystackSecretKey?: string;
+  bachsWebhookSecret?: string;
 }
 
 export function billingWebhookSecretsFromEnv(env: NodeJS.ProcessEnv = process.env): BillingWebhookSecrets {
   return {
     ...(env.STRIPE_WEBHOOK_SECRET ? { stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET } : {}),
     ...(env.PAYSTACK_SECRET_KEY ? { paystackSecretKey: env.PAYSTACK_SECRET_KEY } : {}),
+    ...(env.BACHS_WEBHOOK_SECRET ? { bachsWebhookSecret: env.BACHS_WEBHOOK_SECRET } : {}),
   };
 }
 
@@ -81,7 +83,9 @@ export function handleBillingWebhook(
   }
   const verified = provider === "stripe"
     ? verifyStripeSignature(rawBody, header(headers, "stripe-signature"), deps.secrets.stripeWebhookSecret ?? "", deps.nowSeconds?.() ?? Math.floor(Date.now() / 1000))
-    : verifyPaystackSignature(rawBody, header(headers, "x-paystack-signature"), deps.secrets.paystackSecretKey ?? "");
+    : provider === "bachs"
+      ? verifyBachsSignature(rawBody, header(headers, "x-bachs-signature-v2") ?? header(headers, "X-Bachs-Signature-V2"), deps.secrets.bachsWebhookSecret ?? "")
+      : verifyPaystackSignature(rawBody, header(headers, "x-paystack-signature"), deps.secrets.paystackSecretKey ?? "");
   if (!verified) return { status: 401, body: { error: "Invalid webhook signature" } };
   let payload: unknown;
   try {

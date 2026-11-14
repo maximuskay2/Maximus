@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { api } from "@/state/api";
-import { chiefScope, type OwnedBot } from "../../shared/bot-owner";
+import { botOwner, chiefScope, type OwnedBot } from "../../shared/bot-owner";
 import { defaultBotPerson, viewersDefaultBot, type DefaultBotFields } from "../../shared/default-bot";
 
 export { DEFAULT_BOT_NAME } from "../../shared/default-bot";
@@ -34,8 +34,12 @@ export function someoneElsesDefaultBot(bot: DefaultBotFields, viewer: string | n
   return Boolean(bot.defaultBot && person && person !== (viewer ?? ""));
 }
 
-export function hiddenFromSidebar(bot: DefaultBotFields, viewer: string | null | undefined): boolean {
-  return Boolean(bot.sidebarHidden) || someoneElsesDefaultBot(bot, viewer);
+export function hiddenFromSidebar(bot: DefaultBotFields & Partial<OwnedBot>, viewer: string | null | undefined): boolean {
+  if (bot.sidebarHidden || someoneElsesDefaultBot(bot, viewer)) return true;
+  const email = viewer?.trim().toLowerCase() ?? "";
+  if (!email) return false;
+  const owner = botOwner(bot);
+  return Boolean(owner && owner !== email);
 }
 
 export function myDefaultBot<T extends DefaultBotFields>(bots: readonly T[], viewer: string | null | undefined): T | undefined {
@@ -101,7 +105,7 @@ export function setupSteps(input: { aiReady: boolean; ownBots: number; onCloud: 
   ];
 }
 
-export type IntroChip = "ai" | "apps" | "import" | "phone" | "cloud";
+export type IntroChip = "ai" | "plans" | "apps" | "import" | "phone" | "cloud";
 
 export interface IntroFacts {
   aiReady: boolean;
@@ -114,6 +118,8 @@ export interface IntroFacts {
   phonePaired?: boolean;
   /** This computer has skills or MCP servers from another AI tool to bring in. */
   importFound?: boolean;
+  /** Product free Muse grant is live — offer Plans beside setup chips. */
+  museGrant?: boolean;
 }
 
 /** At most this many chips under Max's look around: a step done or tapped leaves, and the next takes its place. */
@@ -125,6 +131,7 @@ export function introChips(input: IntroFacts): IntroChip[] {
   if (input.team) return [];
   const fresh = input.ownBots === 0;
   return [
+    ...(input.museGrant ? ["plans" as const] : []),
     ...(input.aiReady ? [] : ["ai" as const]),
     ...(fresh && !input.appsConnected ? ["apps" as const] : []),
     ...(fresh && input.importFound ? ["import" as const] : []),

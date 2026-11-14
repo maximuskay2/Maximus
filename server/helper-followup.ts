@@ -14,7 +14,14 @@ export const helperFollowupBody = z.object({
   threadId: z.string().regex(/^[\w-]+$/).optional(),
   ai: z.enum(["own", "backup", "none"]),
   apps: z.array(appName).max(20).default([]),
+  museGrant: z.boolean().optional(),
 });
+
+const AI_RANK: Record<HelperFollowupFacts["ai"], number> = { none: 0, backup: 1, own: 2 };
+
+function richer(next: HelperFollowupFacts, previous: HelperFollowupFacts): boolean {
+  return AI_RANK[next.ai] > AI_RANK[previous.ai] || Boolean(next.museGrant && !previous.museGrant);
+}
 
 /** Only Max's own person writes its follow-up: on a Team Cloud the member it belongs to, else the place's owner. */
 export function mayFollowUp(bot: BotRecord, auth: RequestAuth): boolean {
@@ -32,7 +39,7 @@ function seenBy(bot: BotRecord, person: string): boolean {
 /** What Max found: what its client saw, with the person's other bots and the routines they run counted here. */
 export function followupFacts(
   maus: BotRecord,
-  seen: { ai: HelperFollowupFacts["ai"]; apps: readonly string[] },
+  seen: { ai: HelperFollowupFacts["ai"]; apps: readonly string[]; museGrant?: boolean },
   bots: readonly BotRecord[],
   routines: readonly { botId: string; enabled: boolean }[],
   connects?: string,
@@ -46,15 +53,24 @@ export function followupFacts(
     bots: others.length,
     routines: routines.filter((routine) => routine.enabled && theirs.has(routine.botId)).length,
     ...(connects === undefined ? {} : { connects }),
+    ...(seen.museGrant ? { museGrant: true } : {}),
   };
 }
 
 /** The follow-up to append to `transcript`, or the one already there: a conversation gets one, under Max's intro. */
 export function helperFollowup(transcript: readonly Message[], facts: () => HelperFollowupFacts):
-  { existing: Message } | { append: Omit<Message, "id" | "at"> } | null {
+  | { existing: Message }
+  | { append: Omit<Message, "id" | "at"> }
+  | { upgrade: { id: string; text: string; helperFollowup: HelperFollowupFacts } }
+  | null {
   if (!transcript.some((message) => message.helperIntro)) return null;
   const existing = transcript.find((message) => message.helperFollowup);
-  if (existing) return { existing };
   const found = facts();
+  if (existing?.helperFollowup) {
+    if (richer(found, existing.helperFollowup)) {
+      return { upgrade: { id: existing.id, text: englishFollowup(found), helperFollowup: found } };
+    }
+    return { existing };
+  }
   return { append: { role: "bot", kind: "text", text: englishFollowup(found), helperFollowup: found } };
 }

@@ -809,6 +809,7 @@ export function loadConfig(): AppConfig {
     ["kimi", "MAXIMUS_KIMI_API_KEY"], ["deepseek", "MAXIMUS_DEEPSEEK_API_KEY"], ["greenference", "MAXIMUS_GREENFERENCE_API_KEY"], ["xai", "XAI_API_KEY"]] as const) {
     cfg[name] = { ...cfg[name], ...(process.env[env] !== undefined ? { key: process.env[env] } : {}) };
   }
+  if (process.env.MAXIMUS_META_API_URL !== undefined) cfg.meta = { ...cfg.meta, url: process.env.MAXIMUS_META_API_URL };
   if (process.env.MAXIMUS_TREG_KEY !== undefined) cfg.treg = { ...cfg.treg, key: process.env.MAXIMUS_TREG_KEY }; if (process.env.MAXIMUS_POSTIZ_API_KEY !== undefined) cfg.postiz = { ...cfg.postiz, key: process.env.MAXIMUS_POSTIZ_API_KEY };
   // Never ANTHROPIC_API_KEY: an operator's stray variable must not move every Claude bot onto API billing.
   cfg.anthropic = { ...cfg.anthropic };

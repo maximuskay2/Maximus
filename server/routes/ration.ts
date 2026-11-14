@@ -25,6 +25,23 @@ function identityOf(auth: RequestAuth, req: IncomingMessage): FreeIdentity {
 
 export function createRationRoutes(deps: RationRouteDeps): RouteHandler {
   return async ({ req, res, path, method, auth, json, readBody }) => {
+    if (path === "/api/account/plan" && (method === "GET" || method === "POST")) {
+      res.setHeader("cache-control", "no-store");
+      const email = auth.kind === "session" ? auth.session.email : undefined;
+      if (!email) return json(res, 200, { choice: null });
+      if (method === "GET") return json(res, 200, { choice: deps.ration.accountChoice(email) });
+      let body: unknown = null;
+      try {
+        body = await readBody(req, BODY_LIMIT);
+      } catch {
+        return json(res, 400, { error: "unreadable plan body" });
+      }
+      const requested = body && typeof body === "object" ? (body as { choice?: unknown }).choice : undefined;
+      if (requested !== "free" && requested !== "byo" && requested !== "muse") return json(res, 400, { error: "choice must be free, byo, or muse" });
+      const choice = deps.ration.chooseAccount(email, requested);
+      if (choice === "free") deps.ration.ensureFree(rationWorkspace(), new Date(), identityOf(auth, req));
+      return json(res, 200, { choice });
+    }
     const contributor = method === "POST" && path === "/api/ration/contributor";
     if ((method === "GET" && path === "/api/ration") || contributor) {
       res.setHeader("cache-control", "no-store");
@@ -44,11 +61,33 @@ export function createRationRoutes(deps: RationRouteDeps): RouteHandler {
       json(res, 200, deps.ration.walletView(workspace, new Date(), identity));
       return;
     }
+    const grants = path === "/api/admin/grants" && (method === "GET" || method === "POST");
     const profile = (method === "GET" || method === "PUT") && path === "/api/admin/ration";
     const pool = method === "PUT" && path === "/api/admin/ration/pool-key";
-    if (!profile && !pool) return PASS;
-    if (!ownerOrAdmin(auth)) return json(res, 403, { error: "Only an admin can manage rates." });
+    if (!profile && !pool && !grants) return PASS;
+    if (!ownerOrAdmin(auth)) return json(res, 403, { error: grants ? "Only an admin can grant credit or a plan." : "Only an admin can manage rates." });
     res.setHeader("cache-control", "no-store");
+    if (grants && method === "GET") return json(res, 200, { grants: deps.ration.listGrants() });
+    if (grants) {
+      let body: unknown = null;
+      try {
+        body = await readBody(req, BODY_LIMIT);
+      } catch {
+        return json(res, 400, { error: "unreadable grant body" });
+      }
+      const value = body && typeof body === "object" ? body as Record<string, unknown> : {};
+      if (typeof value.email !== "string") return json(res, 400, { error: "Enter the person's email address." });
+      const granted = deps.ration.grantAccount({
+        email: value.email,
+        ...(typeof value.plan === "string" ? { plan: value.plan } : {}),
+        ...(typeof value.creditUsd === "number" ? { creditUsd: value.creditUsd } : {}),
+        ...(typeof value.tokens === "number" ? { tokens: value.tokens } : {}),
+        ...(typeof value.note === "string" ? { note: value.note } : {}),
+        ...(value.renew === true ? { renew: true } : {}),
+      });
+      if (!granted.ok) return json(res, 400, { error: granted.error });
+      return json(res, 200, { seat: granted.seat, grants: deps.ration.listGrants() });
+    }
     if (method === "GET") {
       json(res, 200, deps.ration.view());
       return;

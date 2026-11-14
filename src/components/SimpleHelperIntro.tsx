@@ -51,6 +51,15 @@ function thinksWith(bot: Bot | undefined, instances: readonly InstanceInfo[]): H
   return instances.some((instance) => engineReady(instance) && freeFallback(instance)) ? "backup" : "none";
 }
 
+const AI_RANK: Record<HelperFollowupFacts["ai"], number> = { none: 0, backup: 1, own: 2 };
+
+/** Product free Muse: Meta (or Muse Code) is what Max thinks with on our pooled key. */
+function onMuseGrant(bot: Bot | undefined, instances: readonly InstanceInfo[]): boolean {
+  const id = bot?.modelSelection.instanceId;
+  if (id !== "meta" && id !== "museCode") return false;
+  return instances.some((instance) => instance.instanceId === id && engineReady(instance));
+}
+
 interface Look {
   apps: string[] | null;
   phonePaired?: boolean;
@@ -125,6 +134,7 @@ export function SimpleHelperIntro({ botId, threadId, message, answered, followup
   const lines = introLines({ name: bot?.name ?? "Max", chief: Boolean(bot?.chiefOfStaff), person, team });
   const look = useLookAround(!answered);
   const ai = thinksWith(bot, state.instances);
+  const museGrant = onMuseGrant(bot, state.instances);
   const connects = whoConnectsAi(useTeamPeople());
 
   // A first run's intro plays once: it asks for the follow-up, which then stays in the conversation.
@@ -138,27 +148,39 @@ export function SimpleHelperIntro({ botId, threadId, message, answered, followup
   const [posted, setPosted] = useState<HelperFollowupFacts | null>(null);
   const [unsaved, setUnsaved] = useState(false);
   const asked = useRef(false);
+  const upgraded = useRef(false);
+  const savedFacts = followup?.helperFollowup;
+  const stale = Boolean(savedFacts && (AI_RANK[ai] > AI_RANK[savedFacts.ai] || (museGrant && !savedFacts.museGrant)));
   useEffect(() => {
-    if (!first || !look.settled || followup || asked.current) return;
-    asked.current = true;
+    if (!look.settled) return;
+    if (stale) {
+      if (upgraded.current) return;
+      upgraded.current = true;
+    } else if (first) {
+      if (followup || asked.current) return;
+      asked.current = true;
+    } else {
+      return;
+    }
     void api<{ message?: Message }>(`/api/bots/${encodeURIComponent(botId)}/helper-followup`, {
       method: "POST",
-      body: JSON.stringify({ threadId, ai, apps: look.apps ?? [] }),
+      body: JSON.stringify({ threadId, ai, apps: look.apps ?? [], ...(museGrant ? { museGrant: true } : {}) }),
     }).then((answer) => (answer.message?.helperFollowup ? setPosted(answer.message.helperFollowup) : setUnsaved(true)), () => setUnsaved(true));
-  }, [first, look.settled, look.apps, followup, botId, threadId, ai]);
+  }, [first, look.settled, look.apps, followup, botId, threadId, ai, museGrant, stale]);
 
   // An intro from before follow-ups were written says what it sees, without saving it.
-  const local: HelperFollowupFacts | null = look.settled && (unsaved || !(first || due))
-    ? { ai, apps: look.apps ?? [], bots: state.bots.filter((candidate) => !candidate.hidden && !candidate.defaultBot).length, routines: 0 }
+  const local: HelperFollowupFacts | null = look.settled && (unsaved || !(first || due || stale))
+    ? { ai, apps: look.apps ?? [], bots: state.bots.filter((candidate) => !candidate.hidden && !candidate.defaultBot).length, routines: 0, ...(museGrant ? { museGrant: true } : {}) }
     : null;
-  const said = followup?.helperFollowup ?? posted ?? local;
+  const said = posted ?? (stale ? null : followup?.helperFollowup) ?? local;
   const facts = said && connects !== undefined ? { connects, ...said } : said;
-  const { shown, staged } = useArrival(first || due, ai !== "none", facts !== null);
+  const { shown, staged } = useArrival(first || due || stale, ai !== "none", facts !== null);
   if (hidden) return null;
 
   const bubbles = [...lines.slice(0, Math.min(shown, 3)), ...(shown >= 5 && facts ? [followupLine(facts)] : [])];
   const chips = answered || shown < ALL || !facts ? [] : introChips({
     aiReady: ai === "own",
+    museGrant,
     ownBots: state.bots.filter((candidate) => !candidate.hidden && !candidate.defaultBot).length,
     onCloud: state.config?.cloudHome === true,
     team: Boolean(state.config?.team),

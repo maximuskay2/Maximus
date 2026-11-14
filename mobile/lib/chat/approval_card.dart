@@ -243,19 +243,20 @@ class _ApprovalCardState extends State<ApprovalCard> {
   }
 
   Widget _permissionButtons() {
+    final outbound = _card.outboundRequest != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         FilledButton(
           onPressed: _live ? () => _answer('allow') : null,
-          child: const Text('Allow once'),
+          child: Text(outbound ? 'Allow' : 'Allow once'),
         ),
         const SizedBox(height: 8),
         OutlinedButton(
           onPressed: _live ? () => _answer('deny') : null,
           child: const Text('Deny'),
         ),
-        if (_card.allowSession) ...[
+        if (_card.allowSession && !outbound) ...[
           const SizedBox(height: 4),
           TextButton(
             onPressed: _live ? () => _answer('allow', always: true) : null,

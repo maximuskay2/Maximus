@@ -69,7 +69,7 @@ import { ChatNotice } from "@/components/ChatErrorBanner";
 import { loadingLine } from "@/lib/app-loading";
 import { useAiSwitchKeeper } from "@/lib/ai-switch";
 import { useChiefStepOpen } from "@/lib/default-bot";
-import { useSessionEnded } from "@/lib/session-ended";
+import { confirmOpenSession, useSessionEnded } from "@/lib/session-ended";
 import { PairPage } from "./pair/PairPage";
 import { WebPanelPage } from "@/components/WebPanelPage";
 
@@ -478,6 +478,17 @@ function Application() {
 
 export default function App() {
   const ended = useSessionEnded();
+  useEffect(() => {
+    const check = () => { void confirmOpenSession(); };
+    check();
+    const onVisible = () => { if (document.visibilityState === "visible") check(); };
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
   if (ended) return <PairPage initialCode={null} reason={t("pair.sessionEnded")} />;
   return <WorkspaceBackupRecovery><Application /></WorkspaceBackupRecovery>;
 }

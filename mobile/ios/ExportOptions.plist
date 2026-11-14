@@ -10,10 +10,12 @@
 	<true/>
 	<key>provisioningProfiles</key>
 	<dict>
-		<key>com.maximus.app</key>
+		<key>com.maximusbot.app</key>
 		<string>$(MAXIMUS_IOS_PROFILE_NAME)</string>
-		<key>com.maximus.app.LiveActivities</key>
+		<key>com.maximusbot.app.LiveActivities</key>
 		<string>$(MAXIMUS_IOS_ACTIVITY_PROFILE_NAME)</string>
+		<key>com.maximusbot.app.ShareExtension</key>
+		<string>$(MAXIMUS_IOS_SHARE_PROFILE_NAME)</string>
 	</dict>
 </dict>
 </plist>

@@ -42,6 +42,8 @@ export interface VerifiedLicense extends LicenseClaims {
 export const LICENSE_PUBLIC_KEYS: readonly string[] = [
   // Production key 1, generated 2026-11-07 at issue-tooling setup.
   "eO_dY7V4x4PW71QSBj-U9-V7Kyi-KTFQob2Twv3A3pM",
+  // Production key 2, generated 2026-11-11 (operator Mac; private key outside repo).
+  "A48wCEOJzXvznAO9l4Ho5L1lcx7hUHohEQBbHmmo3Y4",
 ];
 
 const BASE64URL = /^[A-Za-z0-9_-]*$/;

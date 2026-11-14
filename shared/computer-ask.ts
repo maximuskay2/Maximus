@@ -1,3 +1,5 @@
+import { PRODUCT_PUBLIC_ORIGIN } from "./product-origin.ts";
+
 // A bot on the person's own Cloud that needs their computer (its apps and screen, its files, or its terminal) when it
 // isn't available asks once with a card: what it wants and why, why it isn't available, and the one-tap fix. The English
 // mirrors src/locales/en.json `computerAsk.*` exactly (a test holds them together): the server has no i18n.
@@ -6,7 +8,8 @@
 export const COMPUTER_ASK_TOOL = "turn_on_your_computer";
 /** The bots' tool that raises the card. */
 export const ASK_FOR_COMPUTER_TOOL = "ask_for_computer";
-export const DESKTOP_DOWNLOAD_URL = "https://www.maximus.com/download";
+
+export const DESKTOP_DOWNLOAD_URL = `${PRODUCT_PUBLIC_ORIGIN}/welcome#download`;
 
 export const COMPUTER_NEEDS = ["screen", "folders", "terminal"] as const;
 export type ComputerNeed = (typeof COMPUTER_NEEDS)[number];

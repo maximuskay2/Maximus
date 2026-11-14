@@ -16,6 +16,8 @@ describe("Max in the sidebar", () => {
     ];
     const shown = (viewerEmail: string | null) => partitionSidebarBots(bots, { viewerEmail }).unsectionedBots.map((entry) => entry.id);
     expect(shown("ada@example.com")).toEqual(["maus", "ada-maus", "writer"]);
+    const owned = [...bots, { ...bot("kemi"), createdBy: "oluwakemi.umoren@gmail.com" }];
+    expect(partitionSidebarBots(owned, { viewerEmail: "ada@example.com" }).unsectionedBots.map((entry) => entry.id)).toEqual(["maus", "ada-maus", "writer"]);
     expect(shown(null)).toEqual(["maus", "writer"]);
     bots[0] = bot("maus", { defaultBot: {}, sidebarHidden: true });
     expect(shown(null)).toEqual(["writer"]);

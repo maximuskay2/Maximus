@@ -195,18 +195,87 @@ const ACCEPTED_AUDIO_MIMES = new Set([
   "audio/x-m4a", "audio/x-wav", "audio/wave", "audio/x-flac",
 ]);
 
-export function documentMime(file: Pick<File, "name" | "type">): string | null {
-  const declared = file.type.split(";", 1)[0]!.trim().toLowerCase();
-  if (ACCEPTED_DOCUMENT_MIMES.has(declared)) return declared;
-  const extension = file.name.split(".").at(-1)?.toLowerCase() ?? "";
-  return DOCUMENT_MIMES[extension] ?? null;
+const UNKNOWN_FILE_TYPE = new Set([
+  "",
+  "application/octet-stream",
+  "application/binary",
+  "binary/octet-stream",
+  "application/x-download",
+  "application/force-download",
+  "application/unknown",
+]);
+
+/** The last path segment, so a Windows, Mac, or Linux path is the same as the name the picker shows. */
+export function fileLeafName(name: string): string {
+  const parts = name.trim().split(/[\\/]/);
+  return (parts[parts.length - 1] ?? "").trim().replace(/[.\s]+$/, "");
 }
 
-export function isImageFile(file: { type: string; size?: number }): boolean {
-  return (
-    file.type.startsWith("image/") &&
-    ["image/png", "image/jpeg", "image/gif", "image/webp"].includes(file.type.split(";")[0]!.trim().toLowerCase())
-  );
+export function fileExtension(name: string): string {
+  const leaf = fileLeafName(name);
+  const dot = leaf.lastIndexOf(".");
+  if (dot <= 0) return "";
+  return leaf.slice(dot + 1).toLowerCase();
+}
+
+function declaredType(type: string | undefined): string {
+  return (type ?? "").split(";")[0]!.trim().toLowerCase();
+}
+
+export function documentMime(file: Pick<File, "name" | "type">): string | null {
+  const declared = declaredType(file.type);
+  if (ACCEPTED_DOCUMENT_MIMES.has(declared)) return declared;
+  return DOCUMENT_MIMES[fileExtension(file.name)] ?? null;
+}
+
+const IMAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+};
+
+const IMAGE_DECLARED: Readonly<Record<string, string>> = {
+  "image/png": "image/png",
+  "image/x-png": "image/png",
+  "image/jpeg": "image/jpeg",
+  "image/jpg": "image/jpeg",
+  "image/pjpeg": "image/jpeg",
+  "image/gif": "image/gif",
+  "image/webp": "image/webp",
+};
+
+const VIDEO_BY_EXTENSION: Readonly<Record<string, string>> = {
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+};
+
+const VIDEO_DECLARED: Readonly<Record<string, string>> = {
+  "video/mp4": "video/mp4",
+  "video/webm": "video/webm",
+  "video/quicktime": "video/quicktime",
+};
+
+/** A file picker often leaves the type blank. The extension then decides, and a stated non-image type still loses. */
+export function imageMime(file: { type?: string; name?: string }): string | null {
+  const declared = declaredType(file.type);
+  const known = IMAGE_DECLARED[declared];
+  if (known) return known;
+  if (declared && !UNKNOWN_FILE_TYPE.has(declared)) return null;
+  return IMAGE_BY_EXTENSION[fileExtension(file.name ?? "")] ?? null;
+}
+
+export function mediaMime(file: { type?: string; name?: string }): string | null {
+  const declared = declaredType(file.type);
+  if (ACCEPTED_AUDIO_MIMES.has(declared) || declared in VIDEO_DECLARED) return declared;
+  if (declared && !UNKNOWN_FILE_TYPE.has(declared)) return null;
+  const extension = fileExtension(file.name ?? "");
+  return AUDIO_MIMES_BY_EXTENSION[extension] ?? (extension === "oga" ? "audio/ogg" : undefined) ?? VIDEO_BY_EXTENSION[extension] ?? null;
+}
+
+export function isImageFile(file: { type: string; name?: string; size?: number }): boolean {
+  return imageMime(file) !== null;
 }
 
 /** Items first: Chromium on macOS exposes screenshots via items while clipboardData.files may stay empty. */
@@ -313,9 +382,9 @@ function canonicalImageName(originalName: string, path: string, mime: string): s
 }
 
 export function optimisticImageAttachment(file: File): ImageAttachment | null {
-  if (!isImageFile(file)) return null;
+  const mime = imageMime(file);
+  if (!mime) return null;
   if (file.size > IMAGE_MAX_BYTES) throw new AttachError(file.name, IMAGE_MAX_BYTES);
-  const mime = file.type.split(";", 1)[0]!.trim().toLowerCase();
   const previewUrl = typeof URL.createObjectURL === "function" ? URL.createObjectURL(file) : undefined;
   return {
     kind: "image",
@@ -333,7 +402,8 @@ export async function imageAttachmentFromFile(
   file: File,
   optimistic?: Pick<ImageAttachment, "id" | "previewUrl">,
 ): Promise<ImageAttachment | null> {
-  if (!isImageFile(file)) return null;
+  const mime = imageMime(file);
+  if (!mime) return null;
   if (file.size > IMAGE_MAX_BYTES) throw new AttachError(file.name, IMAGE_MAX_BYTES);
   const bytes = new Uint8Array(await file.arrayBuffer());
   const uploadId = newUploadId();
@@ -341,7 +411,7 @@ export async function imageAttachmentFromFile(
     `/api/attachments?uploadId=${encodeURIComponent(uploadId)}`,
     {
       method: "POST",
-      headers: { "content-type": file.type },
+      headers: { "content-type": mime },
       body: bytes,
     },
   );
@@ -358,15 +428,13 @@ export async function imageAttachmentFromFile(
 
 /** Copied into the private store so the companion route never sees an arbitrary Finder path. */
 export async function fileAttachmentFromFile(file: File): Promise<FileAttachment | null> {
-  const declared = file.type.split(";", 1)[0]!.trim().toLowerCase();
-  const extension = file.name.split(".").at(-1)?.toLowerCase() ?? "";
-  const mime = documentMime(file) ??
-    (ACCEPTED_AUDIO_MIMES.has(declared) ? declared : AUDIO_MIMES_BY_EXTENSION[extension]);
+  const leaf = fileLeafName(file.name) || file.name;
+  const mime = documentMime({ name: leaf, type: file.type }) ?? mediaMime({ name: leaf, type: file.type });
   if (!mime) return null;
   if (file.size > FILE_MAX_BYTES) throw new AttachError(file.name, FILE_MAX_BYTES);
   const uploadId = newUploadId();
   const saved = await uploadWithRetry<{ path: string; name: string; bytes: number }>(
-    `/api/files?name=${encodeURIComponent(file.name)}&uploadId=${encodeURIComponent(uploadId)}`,
+    `/api/files?name=${encodeURIComponent(leaf)}&uploadId=${encodeURIComponent(uploadId)}`,
     {
       method: "POST",
       headers: { "content-type": mime },

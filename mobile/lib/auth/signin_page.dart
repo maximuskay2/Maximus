@@ -9,11 +9,13 @@ import 'auth_state.dart';
 
 const _serverOverride = String.fromEnvironment('MAXIMUS_SERVER');
 
-/// The server this phone signs in to. A debug run uses the local harness.
-/// A release build uses the production service. Nobody types an address.
+/// The server this phone signs in to. Nobody types an address.
+/// Release/profile → `https://app.meetnote.cc`. Debug → local harness.
+/// Optional `--dart-define=MAXIMUS_SERVER=…` overrides both (CI / sideload).
 String accountServerUrl() {
   if (_serverOverride.isNotEmpty) return _serverOverride;
-  return kDebugMode ? EndpointPreset.local.url : EndpointPreset.production.url;
+  if (kDebugMode) return EndpointPreset.local.url;
+  return EndpointPreset.production.url;
 }
 
 /// Email OTP sign-in against a server.

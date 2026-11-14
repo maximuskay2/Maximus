@@ -6,7 +6,7 @@ import { DEFAULT_BOT_COLOR, DEFAULT_BOT_NAME, defaultBotPerson } from "../shared
 import { takeImportName } from "../shared/import-name.ts";
 import type { BotRecord, Message, Store } from "./store.ts";
 
-export type DefaultBotStore = Pick<Store, "bots" | "bot" | "createBot" | "patchBot" | "appendMessage" | "messagesFor" | "createTask" | "setChiefOfStaff">;
+export type DefaultBotStore = Pick<Store, "bots" | "bot" | "createBot" | "patchBot" | "appendMessage" | "patchMessage" | "messagesFor" | "createTask" | "setChiefOfStaff">;
 
 /** Where each place (key "") and Team Cloud member (their email) is recorded as having had its Max, so one that is
  * gone is never made twice. */
@@ -82,11 +82,29 @@ export function seededMax(bots: readonly BotRecord[]): BotRecord | undefined {
 }
 
 /** Puts the intro where its person sees it next: in its open conversation while nobody has written there, else at the
- * top of a new one, so no earlier message moves. */
+ * top of a new one, so no earlier message moves. A seeded greeting already in that open chat is promoted in place —
+ * never appended again as a second welcome. */
 function introduce(store: DefaultBotStore, bot: BotRecord, team?: string | null): void {
-  const untouched = !store.messagesFor(bot.threadId).some((message) => message.role === "user");
-  const threadId = untouched ? bot.threadId : store.createTask(bot.id, `What ${bot.name} can do`)?.threadId;
-  if (threadId) store.appendMessage(threadId, helperIntroMessage(bot, team));
+  if ((bot.tasks ?? []).some((task) => store.messagesFor(task.threadId).some((message) => message.helperIntro))) return;
+  const intro = helperIntroMessage(bot, team);
+  const messages = store.messagesFor(bot.threadId);
+  const untouched = !messages.some((message) => message.role === "user");
+  if (untouched) {
+    const greeting = messages.find((message) => message.role === "bot");
+    if (greeting) {
+      store.patchMessage(bot.threadId, greeting.id, {
+        ...intro,
+        setupOffer: undefined,
+        setupChoices: undefined,
+        setupChoicesPending: undefined,
+      });
+      return;
+    }
+    store.appendMessage(bot.threadId, intro);
+    return;
+  }
+  const threadId = store.createTask(bot.id, `What ${bot.name} can do`)?.threadId;
+  if (threadId) store.appendMessage(threadId, intro);
 }
 
 /** The first message a new Max says instead of its intro. */
@@ -99,7 +117,7 @@ export function createDefaultBot(store: DefaultBotStore, options: { person?: str
   const created = store.createBot({
     name: takeImportName(DEFAULT_BOT_NAME, taken),
     color: DEFAULT_BOT_COLOR,
-    ...(person ? { visibility: { people: [person] } } : {}),
+    ...(person ? { visibility: { people: [person] }, createdBy: person } : {}),
   }, { seedMessages: false });
   options.chief?.(created.id);
   const bot = store.patchBot(created.id, { defaultBot: person ? { person } : {} }) ?? created;

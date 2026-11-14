@@ -26,7 +26,7 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.maximus.app</string>
+			<string>com.maximusbot.app</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>maximus</string>
@@ -49,6 +49,10 @@
 	<string>Talk to your bots on live voice calls.</string>
 	<key>NSRemindersUsageDescription</key>
 	<string>Let your bots read and manage your reminders when you ask them to.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Let your bots read and manage your reminders when you ask them to.</string>
+	<key>NSHomeKitUsageDescription</key>
+	<string>Let your bots control Home accessories and scenes when you ask them to.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Dictate messages into the composer.</string>
 	<key>UIApplicationSceneManifest</key>

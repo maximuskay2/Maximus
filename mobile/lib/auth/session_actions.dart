@@ -74,3 +74,53 @@ class SessionActions extends StatelessWidget {
     );
   }
 }
+
+/// Shown when a page needs admin and this phone only has client.
+class OwnerOnlyBody extends StatelessWidget {
+  const OwnerOnlyBody({
+    super.key,
+    required this.auth,
+    required this.baseUrl,
+    this.detail =
+        'Sign out, then sign in with the home owner account.',
+  });
+
+  final AuthState auth;
+  final String baseUrl;
+  final String detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Owner only',
+              style: theme.textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              detail,
+              style: theme.textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            SessionActions(auth: auth, baseUrl: baseUrl),
+            if (auth.scopes.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => openSignIn(context, auth, baseUrl: baseUrl),
+                child: const Text('Sign in as owner'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}

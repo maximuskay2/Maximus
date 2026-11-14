@@ -36,7 +36,8 @@ const render = (bot: Bot) => renderToStaticMarkup(createElement(BotContextMenu, 
 describe("a team bot's actions for a session without the admin scope", () => {
   it("offers nothing it would refuse and says why the crown is greyed", () => {
     const html = render(scout);
-    for (const refused of [">Archive</button>", ">Delete</button>", "Duplicate", "Move to department", "Delete all threads"]) expect(html).not.toContain(refused);
+    for (const refused of [">Archive</button>", "Duplicate", "Move to department", "Delete all threads"]) expect(html).not.toContain(refused);
+    expect(html).toContain(">Delete</button>");
     expect(html).toContain('title="Only an admin of this installation can choose the Chief of Staff."');
     expect(html).not.toContain("Choose Claude or an ACP model provider first");
   });
@@ -49,7 +50,8 @@ describe("a team bot's actions for a session without the admin scope", () => {
   it("leaves Archive, Delete and Move to department out of the simple menu", () => {
     fixture.advanced = false;
     const html = render(scout);
-    for (const refused of [">Archive</button>", ">Delete</button>", "Move to department"]) expect(html).not.toContain(refused);
+    for (const refused of [">Archive</button>", "Move to department"]) expect(html).not.toContain(refused);
+    expect(html).toContain(">Delete</button>");
   });
 
   it("keeps every action for an admin", () => {

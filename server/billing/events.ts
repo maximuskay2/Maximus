@@ -13,7 +13,7 @@ export const BILLING_EVENT_TYPES = [
 ] as const;
 export type BillingEventType = (typeof BILLING_EVENT_TYPES)[number];
 
-export const BILLING_PROVIDERS = ["stripe", "paystack"] as const;
+export const BILLING_PROVIDERS = ["stripe", "paystack", "bachs"] as const;
 export type BillingProvider = (typeof BILLING_PROVIDERS)[number];
 
 const isoDateTime = z.string().refine((value) => Number.isFinite(Date.parse(value)), { message: "created_at must be ISO-8601" });

@@ -37,6 +37,21 @@ describe("intakeFiles", () => {
       fetch.mockRestore();
     }
   });
+  it("treats a png whose picker left the type blank as an image", async () => {
+    const uploadImage = vi.fn(upload);
+    const out = await intakeFiles([
+      file("ios logo-1.png", ""),
+      file("C:\\Users\\me\\ios logo-1.PNG", "application/octet-stream"),
+      file("/Users/me/ios logo-1.png.", "application/x-download"),
+    ], {
+      allowImages: true,
+      getPath: () => "",
+      uploadImage,
+    });
+    expect(uploadImage).toHaveBeenCalledTimes(3);
+    expect(out.problems).toEqual([]);
+    expect(out.attachments.map((a) => a.kind)).toEqual(["image", "image", "image"]);
+  });
   it("uploads images and keeps ordinary files as paths", async () => {
     const out = await intakeFiles([file("shot.png", "image/png"), file("notes.txt", "text/plain")], {
       allowImages: true,

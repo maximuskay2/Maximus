@@ -59,7 +59,7 @@ describe("the cancel sheet", () => {
     expect(document.activeElement?.textContent).toBe("Missing a feature");
     expect([...sheet()!.querySelectorAll("label")].map(label => label.textContent)).toEqual(["What did you expect Max to do? (optional)", "What could we have done better? (optional)"]);
     const call = sheet()!.querySelector<HTMLAnchorElement>(`a[href="${CLOUD_CALL_URL}"]`)!;
-    expect([call.textContent, call.getAttribute("target"), call.parentElement!.textContent]).toEqual(["Book 30 minutes with Milind", "_blank", "Rather talk it through? Book 30 minutes with Milind"]);
+    expect([call.textContent, call.getAttribute("target"), call.parentElement!.textContent]).toEqual(["Book 30 minutes with Kayode", "_blank", "Rather talk it through? Book 30 minutes with Kayode"]);
     // One tap picks a reason; the same tap again lets it go.
     await click(button("Too expensive"));
     await click(button("Too expensive"));
@@ -70,7 +70,7 @@ describe("the cancel sheet", () => {
     expect(actions.cancel).toHaveBeenCalledExactlyOnceWith({ answer: "setup", expected: "To answer my email by itself." });
     expect(sheet()!.querySelector("[role='status']")?.textContent).toBe(`Cancelled. Your trial ends on ${day(END)}, and nothing is charged.`);
     expect(text()).toContain("The Cloud stops then. Its files are kept 3 days, then deleted.");
-    expect(text()).toContain("Thanks. Milind and Omkar read every answer, and we'll write back if it's something we can build.");
+    expect(text()).toContain("Thanks. Kayode and Omkar read every answer, and we'll write back if it's something we can build.");
     expect(changed).not.toHaveBeenCalled();
     // Changed your mind? Keep my plan: renewal back on, the sheet closes and the plan is read again.
     expect(text()).toContain("Changed your mind?");

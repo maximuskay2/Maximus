@@ -1,5 +1,5 @@
 /// Phase 9: `maximus://` links from Siri, Shortcuts, and the Action
-/// button. Hosts: bots, thread, dictate, call.
+/// button. Hosts: bots, thread, dictate, call, share.
 class AppLink {
   const AppLink._(this.kind, {this.botName, this.text, this.threadId});
 
@@ -11,13 +11,25 @@ class AppLink {
   /// Bot display name (matched case-insensitively at open time).
   final String? botName;
 
-  /// Prefilled message (thread links).
+  /// Prefilled message (thread / share links).
   final String? text;
 
   /// Exact thread to open when known.
   final String? threadId;
 
   static AppLink? parse(Uri uri) {
+    if (uri.scheme == 'https' || uri.scheme == 'http') {
+      final host = uri.host.toLowerCase();
+      if ((host == 'meetnote.cc' || host.endsWith('.meetnote.cc')) &&
+          uri.path.startsWith('/share')) {
+        return AppLink._(
+          AppLinkKind.share,
+          text: _query(uri, 'text') ?? _query(uri, 'body'),
+          botName: _query(uri, 'bot'),
+        );
+      }
+      return null;
+    }
     if (uri.scheme != 'maximus') return null;
     switch (uri.host) {
       case 'bots':
@@ -41,6 +53,12 @@ class AppLink {
           botName: _query(uri, 'bot'),
           threadId: _query(uri, 'thread'),
         );
+      case 'share':
+        return AppLink._(
+          AppLinkKind.share,
+          text: _query(uri, 'text') ?? _query(uri, 'body'),
+          botName: _query(uri, 'bot'),
+        );
       default:
         return null;
     }
@@ -56,4 +74,4 @@ class AppLink {
       'AppLink($kind, botName: $botName, threadId: $threadId)';
 }
 
-enum AppLinkKind { bots, thread, dictate, call }
+enum AppLinkKind { bots, thread, dictate, call, share }

@@ -33,6 +33,8 @@ import { NotificationRows } from "./NotificationSettingsRows";
 import { useServerUpdateItem } from "./SidebarProfileMenu";
 import { AdvancedModeRow, BrowserProfilesRow, ColorUserBubblesRow, FollowUpRow, LanguageRow, ReplayTourRow, SendKeyRow, UpdatesRow } from "./AppSettingsRows";
 import { ThemeRow } from "./ThemeRow";
+import { useOwnerOrAdmin } from "@/lib/use-owner-or-admin";
+import { AccountRation } from "./AccountRation";
 import { AdminOnly } from "./AdminOnly";
 
 export type SimpleDisclosureId = "ai-more" | "ai-keys" | "computer-elsewhere" | "billing-limits";
@@ -158,16 +160,17 @@ export function SimpleComputerPage({ has, remoteAccess, servers, disclose }: { h
 export function SimpleBillingPage({ has, disclose, cloudAccount }: { has: Has; disclose: Disclose; cloudAccount: ReactNode }) {
   const { usage, upgrade, dialog } = useCloudUsageSettings();
   const plan = useCloudPlan();
+  const admin = useOwnerOrAdmin();
   const signedOut = plan?.view.kind === "signed-out" || plan?.view.kind === "removed";
   return (
     <>
       <div data-settings-block="usage" className="scroll-mt-4">
-        {usage ? <CloudUsageSummaryView usage={usage} upgrade={upgrade}>{dialog}</CloudUsageSummaryView> : <AdminOnly note="settings.adminOnly.usage"><PlanUsageSummary /></AdminOnly>}
+        {usage ? <CloudUsageSummaryView usage={usage} upgrade={upgrade}>{dialog}</CloudUsageSummaryView> : admin === true ? <PlanUsageSummary /> : <AccountRation />}
       </div>
-      {(usage || has("usage")) && (
+      {(usage || (has("usage") && admin === true)) && (
         <SettingsDisclosureRow title={t("settings.simple.billing.limits")} {...disclose("billing-limits")}>
           {usage && <CloudUsageDetails usage={usage} upgrade={upgrade} />}
-          {has("usage") && <AdminOnly note="settings.adminOnly.usage"><UsageSection /></AdminOnly>}
+          {has("usage") && admin === true && <UsageSection />}
         </SettingsDisclosureRow>
       )}
       {has("cloudAccount") && (

@@ -9,8 +9,8 @@
     "url": "https://github.com/RELEASE_OWNER/Maximus.git"
   },
   "author": {
-    "name": "Milind Soni",
-    "email": "46266943+milind-soni@users.noreply.github.com"
+    "name": "Akingbade Kayode",
+    "email": "46266943+Kayode-soni@users.noreply.github.com"
   },
   "license": "Apache-2.0",
   "desktopName": "com.maximus.app.desktop",
@@ -55,6 +55,8 @@
     "gen:bodies": "node --experimental-strip-types scripts/gen-mascot-bodies.ts",
     "gen:halloween": "node --experimental-strip-types scripts/gen-halloween-bodies.ts",
     "build:server": "tsc -p tsconfig.server.build.json && node scripts/bundle-server.mjs",
+    "deploy:vps": "bash deploy/coolify/push.sh",
+    "deploy:vps:accounts": "bash deploy/coolify/push.sh --accounts",
     "build:companion": "tsc -p tsconfig.companion.build.json && node scripts/mark-module-scope.mjs dist-companion",
     "build:speech": "node electron/build-speech-helper.mjs",
     "build:cua": "node scripts/prepare-cua.mjs",

@@ -35,6 +35,20 @@ it("asks for the connected apps once, and answers a refused session's later read
   expect(api).toHaveBeenCalledTimes(1);
 });
 
+it("does not ask an admin route when this session is only a client", async () => {
+  vi.doMock("./session", () => ({
+    readSessionState: async () => ({ kind: "session", scopes: ["client"] }),
+    isOwnerOrAdmin: (state: { kind?: string; scopes?: string[] }) => state.kind === "session" && Boolean(state.scopes?.includes("admin")),
+  }));
+  const request = vi.fn();
+  const { unlessRefused } = await import("./admin-scope");
+  expect(await unlessRefused("/api/live/call", request, null)).toBeNull();
+  expect(await unlessRefused("/api/connectors/connected", request, null)).toBeNull();
+  expect(await unlessRefused("/api/limit-resets", request, null)).toBeNull();
+  expect(request).not.toHaveBeenCalled();
+  vi.doUnmock("./session");
+});
+
 it("answers a refused route's later reads without asking, and leaves other routes alone", async () => {
   const { unlessRefused } = await import("./admin-scope");
   const request = vi.fn().mockRejectedValue(refusal());

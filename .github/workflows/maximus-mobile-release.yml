@@ -13,9 +13,9 @@
 #   MAXIMUS_APPLE_TEAM_ID — App Store Connect team id
 #   MAXIMUS_IOS_DIST_P12_BASE64 / MAXIMUS_IOS_DIST_P12_PASSWORD — Apple
 #     Distribution certificate (covers the app + LiveActivities extension)
-#   MAXIMUS_IOS_PROFILE_BASE64 — app provisioning profile (com.maximus.app)
+#   MAXIMUS_IOS_PROFILE_BASE64 — app provisioning profile (com.maximusbot.app)
 #   MAXIMUS_IOS_ACTIVITY_PROFILE_BASE64 — extension profile
-#     (com.maximus.app.LiveActivities)
+#     (com.maximusbot.app.LiveActivities)
 #   MAXIMUS_IOS_PROFILE_NAME / MAXIMUS_IOS_ACTIVITY_PROFILE_NAME — profile
 #     names matching ExportOptions.plist
 #   MAXIMUS_ASC_API_KEY_JSON — App Store Connect API key (TestFlight upload)

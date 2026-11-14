@@ -1,4 +1,5 @@
 import type { ProviderRegistry } from "../harness/registry.ts";
+import type { RequestAuth } from "../request-auth.ts";
 import type { RoutineManager } from "../routines.ts";
 import type { BotRecord, GroupRecord, Store } from "../store.ts";
 import { PASS, type RouteHandler } from "./table.ts";
@@ -14,14 +15,16 @@ export interface BotLifecycleRouteDeps {
   runningTurnInstance(bot: BotRecord | null | undefined, threadId: string): ReturnType<ProviderRegistry["get"]>;
   closeOpenApprovals(threadId: string): void;
   deleteBotWithLifecycle(botId: string): Promise<{ status: number; body: unknown }>;
+  /** Null when this session may delete the bot. Otherwise the response to send instead. */
+  mayDelete(auth: RequestAuth, botId: string): { status: 403 | 404; error: string } | null;
 }
 
 export function createBotLifecycleRoutes(deps: BotLifecycleRouteDeps): RouteHandler {
   const {
     store, interruptAllDirectThreads, cancelDirectTurnDispatch, revokeInternalCapabilitiesForThread, activeGroupTurnForBot,
-    cancelGroupTurnOperations, runningTurnInstance, closeOpenApprovals, deleteBotWithLifecycle,
+    cancelGroupTurnOperations, runningTurnInstance,     closeOpenApprovals, deleteBotWithLifecycle, mayDelete,
   } = deps;
-  return async ({ req, res, path, method, json }) => {
+  return async ({ req, res, path, method, json, auth }) => {
     let m: RegExpMatchArray | null = null;
     const routines = deps.routines();
     if (method === "POST" && path === "/api/local-computer/interrupt") {
@@ -54,6 +57,8 @@ export function createBotLifecycleRoutes(deps: BotLifecycleRouteDeps): RouteHand
     }
     m = path.match(/^\/api\/bots\/([\w-]+)$/);
     if (m && method === "DELETE") {
+      const denied = mayDelete(auth, m[1]);
+      if (denied) return json(res, denied.status, { error: denied.error });
       const result = await deleteBotWithLifecycle(m[1]);
       return json(res, result.status, result.body);
     }

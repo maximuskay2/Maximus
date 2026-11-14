@@ -13,5 +13,10 @@ export function scrollingDocument(pathname: string, signedIn: boolean): boolean 
     || pathname === "/join"
     || pathname === "/pricing"
     || pathname === "/signin"
+    || pathname === "/forgot"
+    || pathname === "/reset"
+    || pathname === "/about"
+    || pathname === "/terms"
+    || pathname === "/privacy"
     || pathname === "/admin";
 }

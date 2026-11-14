@@ -81,6 +81,9 @@ export function SigninView(props: SigninViewProps) {
           <button type="submit" className={primaryButton} disabled={props.busy || !validConsoleEmail(props.email) || (props.password ?? "").length < 8}>
             {props.busy ? t("pair.signingIn") : t("accounts.signIn")}
           </button>
+          <p className="mt-3 text-center text-[13px]">
+            <a href="/forgot" className="text-ink-secondary underline underline-offset-4">{t("account.forgotLink")}</a>
+          </p>
           {(props.providers ?? []).filter((method) => method.id !== "email").map((method) => (
             <button
               key={method.id}
@@ -274,7 +277,7 @@ export function SigninPage() {
             setError(result.error);
             return;
           }
-          window.location.assign("/");
+          window.location.assign(next === "/admin" ? "/" : next);
         });
       }}
       onVerifyCode={() => {

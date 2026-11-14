@@ -54,13 +54,19 @@ class DeepLinkRouter {
         return true;
       case AppLinkKind.thread:
       case AppLinkKind.dictate:
+      case AppLinkKind.share:
         final resolved = await _resolve(
           baseUrl,
           threadId: link.threadId,
           botName: link.botName,
         );
         if (resolved == null) {
-          if (context.mounted) _missing(context, 'conversation');
+          if (context.mounted) {
+            _missing(
+              context,
+              link.kind == AppLinkKind.share ? 'bot to share into' : 'conversation',
+            );
+          }
           return false;
         }
         if (!context.mounted) return false;
@@ -78,6 +84,7 @@ class DeepLinkRouter {
               autoDictate: link.kind == AppLinkKind.dictate,
               liveActivities: live,
               drafts: drafts,
+              onSessionEnded: auth.sessionEnded,
             ),
           ),
         );

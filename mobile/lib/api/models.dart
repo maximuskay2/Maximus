@@ -4,7 +4,8 @@ library;
 
 /// Service endpoint presets. The app picks one; a person never types a server.
 enum EndpointPreset {
-  production('https://accounts.maximus.com'),
+  production('https://app.meetnote.cc'),
+  accounts('https://accounts.meetnote.cc'),
   local('http://127.0.0.1:8799');
 
   const EndpointPreset(this.url);
@@ -71,6 +72,8 @@ class BotSummary {
     this.approvalMode,
     this.speakReplies,
     this.replyStyle,
+    this.outboundPolicy,
+    this.defaultBot = false,
   });
 
   final String id;
@@ -97,8 +100,19 @@ class BotSummary {
   /// default/conversational (Phase 7 bot settings).
   final String? replyStyle;
 
+  /// ask | allow — "Send on your behalf?" vs send without asking.
+  final String? outboundPolicy;
+
+  /// The place's own Max. It cannot be deleted.
+  final bool defaultBot;
+
   static BotSummary fromJson(Map<String, Object?> json) {
     final raw = json['tasks'] as List?;
+    final outbound = json['outbound'];
+    String? outboundPolicy;
+    if (outbound is Map) {
+      outboundPolicy = outbound['policy'] as String?;
+    }
     return BotSummary(
       id: json['id']! as String,
       name: (json['name'] as String?) ?? '',
@@ -114,6 +128,8 @@ class BotSummary {
       approvalMode: json['approvalMode'] as String?,
       speakReplies: json['speakReplies'] as bool?,
       replyStyle: json['replyStyle'] as String?,
+      outboundPolicy: outboundPolicy,
+      defaultBot: json['defaultBot'] != null,
       tasks: [
         for (final item in raw ?? const [])
           if (item is Map<String, Object?>) ?ThreadSummary.fromJson(item),
@@ -136,6 +152,8 @@ class BotSummary {
     'approvalMode': approvalMode,
     'speakReplies': speakReplies,
     'replyStyle': replyStyle,
+    if (outboundPolicy != null) 'outbound': {'policy': outboundPolicy},
+    if (defaultBot) 'defaultBot': <String, Object?>{},
     'tasks': [for (final t in tasks) t.toJson()],
   };
 }
@@ -234,6 +252,11 @@ class ChatMessage {
     this.reactions = const [],
     this.hasCard = false,
     this.card,
+    this.secret,
+    this.signIn,
+    this.connector,
+    this.widget,
+    this.publishedPage,
     this.replyToId,
   });
 
@@ -247,6 +270,22 @@ class ChatMessage {
 
   /// Parsed approval/question card; null when the row carries none.
   final OptionCard? card;
+
+  /// Credential / email secure card (`shared/wire.ts` SecretRequestCardData).
+  final SecretRequest? secret;
+
+  /// Website sign-in card (`shared/wire.ts` SignInRequestCardData).
+  final SignInRequest? signIn;
+
+  /// Connect-apps card (`shared/connector-card.ts`).
+  final ConnectorRequest? connector;
+
+  /// Bot-authored widget (`shared/widget.ts`) — draft Send/Discard and more.
+  final ChatWidget? widget;
+
+  /// Published page link (`shared/published-page.ts`).
+  final PublishedPage? publishedPage;
+
   final String? replyToId;
 
   /// Activity and in-progress rows often arrive with no visible body.
@@ -255,6 +294,11 @@ class ChatMessage {
       attachments.isEmpty &&
       reactions.isEmpty &&
       card == null &&
+      secret == null &&
+      signIn == null &&
+      connector == null &&
+      widget == null &&
+      publishedPage == null &&
       !hasCard;
 
   /// A turn receipt for the bot. The chat shows the reply, not the tool list.
@@ -263,10 +307,45 @@ class ChatMessage {
       kind == 'compaction' ||
       (text?.trimLeft().startsWith('[digest]') ?? false);
 
+  ChatMessage copyWith({
+    OptionCard? card,
+    SecretRequest? secret,
+    SignInRequest? signIn,
+    ConnectorRequest? connector,
+    ChatWidget? widget,
+    PublishedPage? publishedPage,
+    bool clearSecret = false,
+    bool clearSignIn = false,
+    bool clearConnector = false,
+    bool clearWidget = false,
+  }) {
+    return ChatMessage(
+      id: id,
+      role: role,
+      kind: kind,
+      text: text,
+      attachments: attachments,
+      reactions: reactions,
+      hasCard: hasCard,
+      card: card ?? this.card,
+      secret: clearSecret ? null : (secret ?? this.secret),
+      signIn: clearSignIn ? null : (signIn ?? this.signIn),
+      connector: clearConnector ? null : (connector ?? this.connector),
+      widget: clearWidget ? null : (widget ?? this.widget),
+      publishedPage: publishedPage ?? this.publishedPage,
+      replyToId: replyToId,
+    );
+  }
+
   static ChatMessage fromJson(Map<String, Object?> json) {
     final raw = json['attachments'] as List?;
     final rawReactions = json['reactions'] as List?;
     final rawCard = json['card'];
+    final rawSecret = json['secret'];
+    final rawSignIn = json['signIn'];
+    final rawConnector = json['connector'];
+    final rawWidget = json['widget'];
+    final rawPage = json['publishedPage'];
     return ChatMessage(
       id: json['id']! as String,
       role: (json['role'] as String?) ?? 'bot',
@@ -280,9 +359,29 @@ class ChatMessage {
         for (final item in rawReactions ?? const [])
           if (item is Map<String, Object?>) ?MessageReaction.fromJson(item),
       ],
-      hasCard: rawCard != null,
+      hasCard: rawCard != null ||
+          rawSecret != null ||
+          rawSignIn != null ||
+          rawConnector != null ||
+          rawWidget != null ||
+          rawPage != null,
       card: rawCard is Map<String, Object?>
           ? OptionCard.fromJson(rawCard)
+          : null,
+      secret: rawSecret is Map
+          ? SecretRequest.tryFrom(Map<String, Object?>.from(rawSecret))
+          : null,
+      signIn: rawSignIn is Map
+          ? SignInRequest.tryFrom(Map<String, Object?>.from(rawSignIn))
+          : null,
+      connector: rawConnector is Map
+          ? ConnectorRequest.tryFrom(Map<String, Object?>.from(rawConnector))
+          : null,
+      widget: rawWidget is Map
+          ? ChatWidget.tryFrom(Map<String, Object?>.from(rawWidget))
+          : null,
+      publishedPage: rawPage is Map
+          ? PublishedPage.tryFrom(Map<String, Object?>.from(rawPage))
           : null,
       replyToId: json['replyToId'] as String?,
     );
@@ -295,9 +394,230 @@ class ChatMessage {
     'text': text,
     'attachments': [for (final a in attachments) a.toJson()],
     'reactions': [for (final r in reactions) r.toJson()],
-    if (card != null) 'card': card!.toJson() else if (hasCard) 'card': const {},
+    if (card != null)
+      'card': card!.toJson()
+    else if (hasCard &&
+        secret == null &&
+        signIn == null &&
+        connector == null &&
+        widget == null &&
+        publishedPage == null)
+      'card': const {},
+    if (secret != null) 'secret': secret!.toJson(),
+    if (signIn != null) 'signIn': signIn!.toJson(),
+    if (connector != null) 'connector': connector!.toJson(),
+    if (widget != null) 'widget': widget!.toJson(),
+    if (publishedPage != null) 'publishedPage': publishedPage!.toJson(),
     'replyToId': replyToId,
   };
+}
+
+/// Bot asked for a credential or mailbox (`SecretRequestCardData`).
+class SecretRequest {
+  const SecretRequest({
+    required this.target,
+    required this.label,
+    required this.description,
+    required this.placeholder,
+    required this.requestKey,
+    this.helpUrl = '',
+    this.delivery,
+    this.address,
+    this.reason,
+    this.provided = false,
+    this.dismissed = false,
+    this.superseded = false,
+    this.resumed = false,
+    this.stopped = false,
+    this.error,
+  });
+
+  final String target;
+  final String label;
+  final String description;
+  final String placeholder;
+  final String requestKey;
+  final String helpUrl;
+  final String? delivery;
+  final String? address;
+  final String? reason;
+  final bool provided;
+  final bool dismissed;
+  final bool superseded;
+  final bool resumed;
+  final bool stopped;
+  final String? error;
+
+  bool get email => delivery == 'email';
+  bool get custom => target == 'customSecret';
+  bool get isLive =>
+      !provided && !dismissed && !superseded && !stopped;
+
+  SecretRequest copyWith({
+    bool? provided,
+    bool? dismissed,
+    bool? resumed,
+    String? error,
+    String? address,
+  }) {
+    return SecretRequest(
+      target: target,
+      label: label,
+      description: description,
+      placeholder: placeholder,
+      requestKey: requestKey,
+      helpUrl: helpUrl,
+      delivery: delivery,
+      address: address ?? this.address,
+      reason: reason,
+      provided: provided ?? this.provided,
+      dismissed: dismissed ?? this.dismissed,
+      superseded: superseded,
+      resumed: resumed ?? this.resumed,
+      stopped: stopped,
+      error: error,
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'target': target,
+    'label': label,
+    'description': description,
+    'placeholder': placeholder,
+    'requestKey': requestKey,
+    'helpUrl': helpUrl,
+    if (delivery != null) 'delivery': delivery,
+    if (address != null) 'address': address,
+    if (reason != null) 'reason': reason,
+    'provided': provided,
+    'dismissed': dismissed,
+    'superseded': superseded,
+    'resumed': resumed,
+    'stopped': stopped,
+    if (error != null) 'error': error,
+  };
+
+  static SecretRequest? tryFrom(Map<String, Object?> json) {
+    final target = json['target'];
+    final label = json['label'];
+    if (target is! String || target.isEmpty) return null;
+    if (label is! String || label.isEmpty) return null;
+    return SecretRequest(
+      target: target,
+      label: label,
+      description: (json['description'] as String?) ?? '',
+      placeholder: (json['placeholder'] as String?) ?? '',
+      requestKey: (json['requestKey'] as String?) ?? '',
+      helpUrl: (json['helpUrl'] as String?) ?? '',
+      delivery: json['delivery'] as String?,
+      address: json['address'] as String?,
+      reason: json['reason'] as String?,
+      provided: json['provided'] == true,
+      dismissed: json['dismissed'] == true,
+      superseded: json['superseded'] == true,
+      resumed: json['resumed'] == true,
+      stopped: json['stopped'] == true,
+      error: json['error'] as String?,
+    );
+  }
+}
+
+/// Bot asked the person to sign in on a website (`SignInRequestCardData`).
+class SignInRequest {
+  const SignInRequest({
+    required this.url,
+    required this.site,
+    required this.place,
+    this.reason,
+    this.done = false,
+    this.cancelled = false,
+    this.superseded = false,
+    this.resumed = false,
+    this.stopped = false,
+    this.answeredInChat = false,
+    this.savedLogin,
+    this.error,
+  });
+
+  final String url;
+  final String site;
+  final String place;
+  final String? reason;
+  final bool done;
+  final bool cancelled;
+  final bool superseded;
+  final bool resumed;
+  final bool stopped;
+  final bool answeredInChat;
+  final String? savedLogin;
+  final String? error;
+
+  bool get isLive =>
+      !done &&
+      !cancelled &&
+      !superseded &&
+      !stopped &&
+      !answeredInChat &&
+      savedLogin == null;
+
+  SignInRequest copyWith({
+    bool? done,
+    bool? cancelled,
+    bool? resumed,
+    String? savedLogin,
+    String? error,
+  }) {
+    return SignInRequest(
+      url: url,
+      site: site,
+      place: place,
+      reason: reason,
+      done: done ?? this.done,
+      cancelled: cancelled ?? this.cancelled,
+      superseded: superseded,
+      resumed: resumed ?? this.resumed,
+      stopped: stopped,
+      answeredInChat: answeredInChat,
+      savedLogin: savedLogin ?? this.savedLogin,
+      error: error,
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'url': url,
+    'site': site,
+    'place': place,
+    if (reason != null) 'reason': reason,
+    'done': done,
+    'cancelled': cancelled,
+    'superseded': superseded,
+    'resumed': resumed,
+    'stopped': stopped,
+    'answeredInChat': answeredInChat,
+    if (savedLogin != null) 'savedLogin': savedLogin,
+    if (error != null) 'error': error,
+  };
+
+  static SignInRequest? tryFrom(Map<String, Object?> json) {
+    final url = json['url'];
+    final site = json['site'];
+    if (url is! String || url.isEmpty) return null;
+    if (site is! String || site.isEmpty) return null;
+    return SignInRequest(
+      url: url,
+      site: site,
+      place: (json['place'] as String?) ?? 'browser',
+      reason: json['reason'] as String?,
+      done: json['done'] == true,
+      cancelled: json['cancelled'] == true,
+      superseded: json['superseded'] == true,
+      resumed: json['resumed'] == true,
+      stopped: json['stopped'] == true,
+      answeredInChat: json['answeredInChat'] == true,
+      savedLogin: json['savedLogin'] as String?,
+      error: json['error'] as String?,
+    );
+  }
 }
 
 /// Approval/question card subset of `OptionCardData` (`shared/wire.ts`).
@@ -318,6 +638,7 @@ class OptionCard {
     this.fixedOptions = false,
     this.questions = const [],
     this.computerAsk,
+    this.outboundRequest,
   });
 
   final String title;
@@ -349,6 +670,9 @@ class OptionCard {
   /// Turn-on-your-computer ask naming the device that must answer.
   final ComputerAsk? computerAsk;
 
+  /// "Send on your behalf?" — Allow/Deny with behavior allow|deny.
+  final OutboundRequest? outboundRequest;
+
   /// True while the card still takes an answer.
   bool get isLive =>
       requestId != null &&
@@ -358,7 +682,8 @@ class OptionCard {
       answered == null &&
       answeredText == null;
 
-  bool get isPermission => requestType == 'permission';
+  bool get isPermission =>
+      requestType == 'permission' || outboundRequest != null;
 
   /// Local copy marked settled after answering (the server's SSE update
   /// replaces it with the authoritative card shortly after).
@@ -383,6 +708,7 @@ class OptionCard {
       fixedOptions: fixedOptions,
       questions: questions,
       computerAsk: computerAsk,
+      outboundRequest: outboundRequest,
     );
   }
 
@@ -391,6 +717,7 @@ class OptionCard {
     final rawQuestions =
         (json['questionRequest'] as Map?)?['questions'] as List?;
     final rawAsk = json['computerAsk'];
+    final rawOutbound = json['outboundRequest'];
     return OptionCard(
       title: (json['title'] as String?) ?? '',
       subtitle: (json['subtitle'] as String?) ?? '',
@@ -415,6 +742,9 @@ class OptionCard {
       computerAsk: rawAsk is Map<String, Object?>
           ? ComputerAsk.fromJson(rawAsk)
           : null,
+      outboundRequest: rawOutbound is Map
+          ? OutboundRequest.tryFrom(Map<String, Object?>.from(rawOutbound))
+          : null,
     );
   }
 
@@ -438,7 +768,380 @@ class OptionCard {
         'questions': [for (final q in questions) q.toJson()],
       },
     if (computerAsk != null) 'computerAsk': computerAsk!.toJson(),
+    if (outboundRequest != null) 'outboundRequest': outboundRequest!.toJson(),
   };
+}
+
+/// Outbound send hold (`OptionCardData.outboundRequest`).
+class OutboundRequest {
+  const OutboundRequest({
+    required this.tool,
+    this.app,
+    this.calls = const [],
+  });
+
+  final String tool;
+  final String? app;
+  final List<String> calls;
+
+  Map<String, Object?> toJson() => {
+    'tool': tool,
+    'app': app,
+    'calls': [
+      for (final label in calls) {'label': label},
+    ],
+  };
+
+  static OutboundRequest? tryFrom(Map<String, Object?> json) {
+    final tool = json['tool'];
+    if (tool is! String || tool.isEmpty) return null;
+    final rawCalls = json['calls'] as List?;
+    return OutboundRequest(
+      tool: tool,
+      app: json['app'] as String?,
+      calls: [
+        for (final call in rawCalls ?? const [])
+          if (call is Map && call['label'] is String) call['label'] as String,
+      ],
+    );
+  }
+}
+
+/// Connect-apps card (`shared/connector-card.ts`).
+class ConnectorRequest {
+  const ConnectorRequest({
+    required this.slug,
+    required this.label,
+    required this.description,
+    required this.status,
+    required this.resumeKey,
+    this.source,
+    this.alias,
+    this.error,
+    this.dismissed = false,
+    this.superseded = false,
+    this.resumed = false,
+    this.stopped = false,
+  });
+
+  final String slug;
+  final String label;
+  final String description;
+  final String status;
+  final String resumeKey;
+  final String? source;
+  final String? alias;
+  final String? error;
+  final bool dismissed;
+  final bool superseded;
+  final bool resumed;
+  final bool stopped;
+
+  bool get gone => dismissed || superseded;
+  bool get isMcp => source == 'mcp';
+  bool get connected => status == 'connected';
+  bool get authorizing => status == 'authorizing';
+
+  ConnectorRequest copyWith({
+    String? status,
+    String? error,
+    bool? dismissed,
+    bool? resumed,
+  }) {
+    return ConnectorRequest(
+      slug: slug,
+      label: label,
+      description: description,
+      status: status ?? this.status,
+      resumeKey: resumeKey,
+      source: source,
+      alias: alias,
+      error: error ?? this.error,
+      dismissed: dismissed ?? this.dismissed,
+      superseded: superseded,
+      resumed: resumed ?? this.resumed,
+      stopped: stopped,
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'slug': slug,
+    'label': label,
+    'description': description,
+    'status': status,
+    'resumeKey': resumeKey,
+    if (source != null) 'source': source,
+    if (alias != null) 'alias': alias,
+    if (error != null) 'error': error,
+    'dismissed': dismissed,
+    'superseded': superseded,
+    'resumed': resumed,
+    'stopped': stopped,
+  };
+
+  static ConnectorRequest? tryFrom(Map<String, Object?> json) {
+    final slug = json['slug'];
+    final label = json['label'];
+    final status = json['status'];
+    final resumeKey = json['resumeKey'];
+    if (slug is! String || slug.isEmpty) return null;
+    if (label is! String || label.isEmpty) return null;
+    if (status is! String || status.isEmpty) return null;
+    if (resumeKey is! String || resumeKey.isEmpty) return null;
+    return ConnectorRequest(
+      slug: slug,
+      label: label,
+      description: (json['description'] as String?) ?? '',
+      status: status,
+      resumeKey: resumeKey,
+      source: json['source'] as String?,
+      alias: json['alias'] as String?,
+      error: json['error'] as String?,
+      dismissed: (json['dismissed'] as bool?) ?? false,
+      superseded: (json['superseded'] as bool?) ?? false,
+      resumed: (json['resumed'] as bool?) ?? false,
+      stopped: (json['stopped'] as bool?) ?? false,
+    );
+  }
+}
+
+/// Confirm/cancel button on a widget root.
+class ChatWidgetButton {
+  const ChatWidgetButton({required this.label, required this.actionType, this.ref});
+
+  final String label;
+  final String actionType;
+  final String? ref;
+}
+
+/// Settled widget receipt.
+class ChatWidgetSettled {
+  const ChatWidgetSettled({
+    required this.ref,
+    required this.label,
+    required this.tone,
+  });
+
+  final String ref;
+  final String label;
+  final String tone;
+}
+
+/// Bot-authored chat widget (`shared/widget.ts`) — enough for Send/Discard drafts.
+class ChatWidget {
+  const ChatWidget({
+    required this.rootType,
+    required this.lines,
+    this.title,
+    this.confirm,
+    this.cancel,
+    this.settled,
+    this.rev = 0,
+  });
+
+  final String rootType;
+  final List<String> lines;
+  final String? title;
+  final ChatWidgetButton? confirm;
+  final ChatWidgetButton? cancel;
+  final ChatWidgetSettled? settled;
+  final int rev;
+
+  bool get isLive => settled == null && (confirm != null || cancel != null);
+
+  ChatWidget copyWith({ChatWidgetSettled? settled}) {
+    return ChatWidget(
+      rootType: rootType,
+      lines: lines,
+      title: title,
+      confirm: confirm,
+      cancel: cancel,
+      settled: settled ?? this.settled,
+      rev: rev,
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'v': 1,
+    'rev': rev,
+    'root': {
+      'type': rootType,
+      'id': 'n1',
+      if (title != null) 'title': title,
+      if (confirm != null)
+        'confirm': {
+          'label': confirm!.label,
+          'action': {'type': confirm!.actionType},
+        },
+      if (cancel != null)
+        'cancel': {
+          'label': cancel!.label,
+          'action': {'type': cancel!.actionType},
+        },
+      'children': [
+        for (final line in lines) {'type': 'Text', 'id': 't', 'value': line},
+      ],
+    },
+    if (settled != null)
+      'settled': {
+        'ref': settled!.ref,
+        'label': settled!.label,
+        'tone': settled!.tone,
+        'at': 0,
+      },
+  };
+
+  static ChatWidget? tryFrom(Map<String, Object?> json) {
+    final root = json['root'];
+    if (root is! Map) return null;
+    final rootMap = Map<String, Object?>.from(root);
+    final type = (rootMap['type'] as String?) ?? 'Card';
+    final confirm = _buttonFrom(rootMap['confirm']);
+    final cancel = _buttonFrom(rootMap['cancel']);
+    final settledRaw = json['settled'];
+    ChatWidgetSettled? settled;
+    if (settledRaw is Map) {
+      final map = Map<String, Object?>.from(settledRaw);
+      final ref = map['ref'];
+      final label = map['label'];
+      final tone = map['tone'];
+      if (ref is String && label is String && tone is String) {
+        settled = ChatWidgetSettled(ref: ref, label: label, tone: tone);
+      }
+    }
+    return ChatWidget(
+      rootType: type,
+      title: rootMap['title'] as String?,
+      lines: _collectWidgetLines(rootMap),
+      confirm: confirm,
+      cancel: cancel,
+      settled: settled,
+      rev: (json['rev'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  static ChatWidgetButton? _buttonFrom(Object? raw) {
+    if (raw is! Map) return null;
+    final map = Map<String, Object?>.from(raw);
+    final label = map['label'];
+    final action = map['action'];
+    if (label is! String || label.isEmpty) return null;
+    if (action is! Map) return null;
+    final actionType = action['type'];
+    if (actionType is! String || actionType.isEmpty) return null;
+    return ChatWidgetButton(
+      label: label,
+      actionType: actionType,
+      ref: map['id'] as String?,
+    );
+  }
+
+  static List<String> _collectWidgetLines(Map<String, Object?> node) {
+    final out = <String>[];
+    void walk(Object? value) {
+      if (value is! Map) return;
+      final map = Map<String, Object?>.from(value);
+      final type = map['type'] as String?;
+      final text = map['value'] as String?;
+      if (text != null &&
+          text.trim().isNotEmpty &&
+          (type == 'Text' ||
+              type == 'Caption' ||
+              type == 'Markdown' ||
+              type == 'Title' ||
+              type == 'Label')) {
+        out.add(text.trim());
+      }
+      final children = map['children'];
+      if (children is List) {
+        for (final child in children) {
+          walk(child);
+        }
+      }
+    }
+
+    walk(node);
+    return out.take(12).toList();
+  }
+}
+
+/// Published page card (`shared/published-page.ts`).
+class PublishedPage {
+  const PublishedPage({
+    required this.state,
+    required this.title,
+    this.pageId,
+    this.url,
+    this.message,
+  });
+
+  final String state;
+  final String title;
+  final String? pageId;
+  final String? url;
+  final String? message;
+
+  Map<String, Object?> toJson() => {
+    'state': state,
+    'title': title,
+    if (pageId != null) 'pageId': pageId,
+    if (url != null) 'url': url,
+    if (message != null) 'message': message,
+  };
+
+  static PublishedPage? tryFrom(Map<String, Object?> json) {
+    final state = json['state'];
+    final title = json['title'];
+    if (state is! String || state.isEmpty) return null;
+    if (title is! String || title.isEmpty) return null;
+    return PublishedPage(
+      state: state,
+      title: title,
+      pageId: json['pageId'] as String?,
+      url: json['url'] as String?,
+      message: json['message'] as String?,
+    );
+  }
+}
+
+/// One Needs-you row from `GET /api/needs-you` / today report.
+class NeedsYouItem {
+  const NeedsYouItem({
+    required this.kind,
+    required this.id,
+    required this.at,
+    this.text = '',
+    this.botId,
+    this.threadId,
+    this.app,
+  });
+
+  final String kind;
+  final String id;
+  final int at;
+  final String text;
+  final String? botId;
+  final String? threadId;
+  final String? app;
+
+  static NeedsYouItem? tryFrom(Map<String, Object?> json) {
+    final kind = json['kind'];
+    final id = json['id'];
+    final at = json['at'];
+    if (kind is! String || id is! String) return null;
+    if (at is! num) return null;
+    return NeedsYouItem(
+      kind: kind,
+      id: id,
+      at: at.toInt(),
+      text: (json['text'] as String?) ??
+          (json['app'] as String?) ??
+          kind,
+      botId: json['botId'] as String?,
+      threadId: json['threadId'] as String?,
+      app: json['app'] as String?,
+    );
+  }
 }
 
 class AskQuestion {
@@ -965,9 +1668,12 @@ class PublicPhone {
 
 /// A live event from `/api/events`. Payload shapes vary by kind.
 class LiveEvent {
-  const LiveEvent({required this.kind, required this.data});
+  const LiveEvent({required this.kind, required this.data, this.id});
   final String kind;
   final Map<String, Object?> data;
+
+  /// SSE `id:` for this frame, when the server sent one.
+  final String? id;
 }
 
 /// Pairing code issue response.
@@ -1255,6 +1961,12 @@ class ConsolePlan {
   final List<String> entitlements;
   final List<String> features;
 
+  /// Hosted Muse grant plans (and the free one-time grant).
+  bool get useOurAi => id != 'byo' && (id == 'free' || entitlements.contains('gateway') || allowanceUsd > 0);
+
+  /// Bring-your-own model seat (app fee only; tokens billed by your provider).
+  bool get bringYourOwn => id == 'byo';
+
   static ConsolePlan? tryFrom(Object? json) {
     final map = json is Map<String, Object?> ? json : null;
     final id = map?['id'];
@@ -1279,6 +1991,9 @@ class ConsolePlan {
 }
 
 /// What this phone should show for a paid plan, from GET /api/billing/offer.
+///
+/// The server picks the provider from Admin → Rates (Bachs primary when on;
+/// Paystack only for Nigeria while Bachs is off).
 class BillingOffer {
   const BillingOffer({
     required this.currency,
@@ -1290,7 +2005,17 @@ class BillingOffer {
   final String provider;
   final int ngnPerUsd;
 
-  bool get paystack => currency == 'NGN' && provider == 'paystack';
+  bool get paystack => provider == 'paystack';
+  bool get bachs => provider == 'bachs';
+
+  /// External hosted checkout (Bachs or Paystack) — not the App Store / Play.
+  bool get hostedCheckout => bachs || paystack;
+
+  String get checkoutLabel => switch (provider) {
+    'bachs' => 'Bachs',
+    'paystack' => 'Paystack',
+    _ => 'Stripe',
+  };
 
   static const usd = BillingOffer(currency: 'USD', provider: 'stripe', ngnPerUsd: 1600);
 
@@ -1625,6 +2350,107 @@ class StoreGrant {
       plan: (map['plan'] as String?) ?? 'free',
       productId: (map['productId'] as String?) ?? '',
       expiresAt: (map['expiresAt'] as num?)?.toInt(),
+    );
+  }
+}
+
+/// One AI engine from GET /api/instances.
+class EngineInstance {
+  const EngineInstance({
+    required this.instanceId,
+    required this.driverKind,
+    required this.displayName,
+    required this.state,
+    this.reason,
+    this.access,
+    this.authMethod,
+    this.readOnly = false,
+    this.url,
+  });
+
+  final String instanceId;
+  final String driverKind;
+  final String displayName;
+  final String state;
+  final String? reason;
+  final String? access;
+  final String? authMethod;
+  final bool readOnly;
+  final String? url;
+
+  bool get available => state == 'available';
+  bool get needsKey => access == 'api' && !available;
+  bool get canSignIn =>
+      authMethod == 'device-code' || authMethod == 'paste-code';
+  bool get chatgptOnDesktop => authMethod == 'browser-pkce';
+
+  static EngineInstance? tryFrom(Object? json) {
+    final map = json is Map ? Map<String, Object?>.from(json) : null;
+    if (map == null) return null;
+    final id = map['instanceId'];
+    if (id is! String || id.isEmpty) return null;
+    final snapshot = map['snapshot'];
+    final snap = snapshot is Map ? Map<String, Object?>.from(snapshot) : const <String, Object?>{};
+    final auth = map['authentication'];
+    final authMap = auth is Map ? Map<String, Object?>.from(auth) : null;
+    return EngineInstance(
+      instanceId: id,
+      driverKind: (map['driverKind'] as String?) ?? '',
+      displayName: (map['displayName'] as String?) ?? id,
+      state: (snap['state'] as String?) ?? 'unavailable',
+      reason: snap['reason'] as String?,
+      access: map['access'] as String?,
+      authMethod: authMap?['method'] as String?,
+      readOnly: map['readOnly'] == true,
+      url: map['url'] as String?,
+    );
+  }
+
+  static List<EngineInstance> listFrom(Object? json) {
+    final root = json is Map ? Map<String, Object?>.from(json) : null;
+    final list = root?['instances'] ?? json;
+    if (list is! List) return const [];
+    return [
+      for (final row in list)
+        ?EngineInstance.tryFrom(row),
+    ];
+  }
+}
+
+/// Auth flow returned by POST /api/instances/:id/auth/start|status.
+class EngineAuthFlow {
+  const EngineAuthFlow({
+    required this.phase,
+    this.flowId,
+    this.authorizationUrl,
+    this.expiresAt,
+    this.userCode,
+    this.message,
+  });
+
+  final String phase;
+  final String? flowId;
+  final String? authorizationUrl;
+  final String? expiresAt;
+  final String? userCode;
+  final String? message;
+
+  bool get waiting => phase == 'waiting';
+  bool get succeeded => phase == 'succeeded';
+
+  static EngineAuthFlow fromJson(Object? json) {
+    final root = json is Map ? Map<String, Object?>.from(json) : null;
+    final auth = root?['auth'];
+    final map = auth is Map
+        ? Map<String, Object?>.from(auth)
+        : (root ?? const <String, Object?>{});
+    return EngineAuthFlow(
+      phase: (map['phase'] as String?) ?? 'failed',
+      flowId: map['flowId'] as String?,
+      authorizationUrl: map['authorizationUrl'] as String?,
+      expiresAt: map['expiresAt'] as String?,
+      userCode: map['userCode'] as String?,
+      message: map['message'] as String?,
     );
   }
 }

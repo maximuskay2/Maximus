@@ -32,6 +32,7 @@ class _BotSettingsPageState extends State<BotSettingsPage> {
   late bool _speakReplies;
   late String? _replyStyle;
   late String _approvalMode;
+  late String _outboundPolicy;
   bool _busy = false;
 
   static const _modes = ['ask', 'edits', 'auto', 'full', 'custom'];
@@ -41,7 +42,7 @@ class _BotSettingsPageState extends State<BotSettingsPage> {
     'edits': 'Edits freely, asks for the rest.',
     'auto': 'Reviews its own steps, asks when unsure.',
     'full': 'Full access — answers its own prompts.',
-    'custom': 'A custom permission set.',
+    'custom': 'Configure command allowlists on desktop.',
   };
 
   @override
@@ -58,6 +59,8 @@ class _BotSettingsPageState extends State<BotSettingsPage> {
     _approvalMode = _modes.contains(bot.approvalMode)
         ? bot.approvalMode!
         : 'full';
+    _outboundPolicy =
+        bot.outboundPolicy == 'allow' ? 'allow' : 'ask';
   }
 
   @override
@@ -85,6 +88,8 @@ class _BotSettingsPageState extends State<BotSettingsPage> {
         'replyStyle': _replyStyle,
       if (_approvalMode != (bot.approvalMode ?? 'full'))
         'approvalMode': _approvalMode,
+      if (_outboundPolicy != (bot.outboundPolicy ?? 'ask'))
+        'outbound': {'policy': _outboundPolicy},
     };
     if (patch.isEmpty) {
       Navigator.of(context).pop();
@@ -159,6 +164,34 @@ class _BotSettingsPageState extends State<BotSettingsPage> {
           const SizedBox(height: 8),
           Text(
             _modeBlurbs[_approvalMode] ?? '',
+            style: const TextStyle(fontSize: 13, color: Color(0xFF8E8E93)),
+          ),
+          if (_approvalMode == 'custom') ...[
+            const SizedBox(height: 4),
+            const Text(
+              'Custom rules and command allowlists stay on desktop for now.',
+              style: TextStyle(fontSize: 13, color: Color(0xFF8E8E93)),
+            ),
+          ],
+          const SizedBox(height: 16),
+          const Text(
+            'Send on your behalf',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          MaxSegment<String>(
+            value: _outboundPolicy,
+            options: const [
+              ('ask', 'Ask first'),
+              ('allow', 'Allow sends'),
+            ],
+            onChanged: (policy) => setState(() => _outboundPolicy = policy),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _outboundPolicy == 'allow'
+                ? 'Sends mail and messages without a card.'
+                : 'Shows Allow / Deny before anything leaves.',
             style: const TextStyle(fontSize: 13, color: Color(0xFF8E8E93)),
           ),
           SwitchListTile(

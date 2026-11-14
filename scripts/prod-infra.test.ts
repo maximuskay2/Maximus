@@ -19,7 +19,7 @@ describe("production compose overlays", () => {
   it("pin the release image from placeholders, never a hardcoded owner", () => {
     for (const overlay of [prod, staging]) {
       expect(overlay.services.maximus.image).toContain("ghcr.io/${RELEASE_OWNER");
-      expect(overlay.services.maximus.image).not.toContain("milind-soni");
+      expect(overlay.services.maximus.image).not.toContain("Kayode-soni");
     }
     expect(prod.services.maximus.image).toContain("${MAXIMUS_VERSION");
     expect(staging.services.maximus.image).toContain("staging");
@@ -119,7 +119,7 @@ describe("Maximus release workflow", () => {
     expect(text).toContain("is not set");
     // Placeholder names only — no key material, no real hostnames.
     expect(text).not.toMatch(/-----BEGIN [A-Z ]+-----/);
-    expect(text).not.toContain("milind-soni");
+    expect(text).not.toContain("Kayode-soni");
   });
   it("fails closed without both updater feeds", () => {
     expect(stepsText("feed")).toContain("latest-mac.yml");

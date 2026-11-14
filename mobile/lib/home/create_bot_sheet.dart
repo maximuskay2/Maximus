@@ -5,8 +5,8 @@ import '../api/models.dart';
 import '../theme/blobs.dart';
 import '../theme/tokens.dart';
 
-/// Create sheet: name and color. The harness still creates
-/// the bot; look is a follow-up patch so a failed look never loses the bot.
+/// Create sheet: the name you type, and a color. Look is a follow-up
+/// patch so a failed look never loses the bot.
 Future<bool> showCreateBotSheet({
   required BuildContext context,
   required MaximusApi client,
@@ -43,14 +43,11 @@ class _CreateBotSheetState extends State<_CreateBotSheet> {
   }
 
   Future<void> _create() async {
-    if (_busy) return;
+    final name = _name.text.trim();
+    if (_busy || name.isEmpty) return;
     setState(() => _busy = true);
     try {
-      final name = _name.text.trim();
-      final bot = await widget.client.createBot(
-        widget.baseUrl,
-        name: name.isEmpty ? null : name,
-      );
+      final bot = await widget.client.createBot(widget.baseUrl, name: name);
       try {
         await widget.client.patchBot(widget.baseUrl, bot.id, {
           'color': _color,
@@ -123,7 +120,9 @@ class _CreateBotSheetState extends State<_CreateBotSheet> {
                 TextField(
                   controller: _name,
                   textAlign: TextAlign.center,
+                  textCapitalization: TextCapitalization.words,
                   style: const TextStyle(fontSize: 17),
+                  onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
                     hintText: 'Name your agent',
                     hintStyle: TextStyle(color: Colors.black.withValues(alpha: 0.28)),
@@ -177,7 +176,7 @@ class _CreateBotSheetState extends State<_CreateBotSheet> {
                       foregroundColor: Colors.white,
                       shape: const StadiumBorder(),
                     ),
-                    onPressed: _busy ? null : _create,
+                    onPressed: _busy || _name.text.trim().isEmpty ? null : _create,
                     child: Text(_busy ? 'Creating…' : 'Create'),
                   ),
                 ),

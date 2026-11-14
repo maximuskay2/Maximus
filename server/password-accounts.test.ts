@@ -16,4 +16,7 @@ it("creates an account, signs in, and keeps the password off disk", () => {
   expect(JSON.stringify(accounts.list())).not.toContain("correct-horse");
   expect(accounts.signup("bea@example.com", "another-secret")).toMatchObject({ ok: true, owner: false });
   expect(accounts.signin("bea@example.com", "another-secret")).toMatchObject({ ok: true, owner: false });
+  expect(accounts.setPassword("ada@example.com", "new-horse-battery")).toEqual({ ok: true, email: "ada@example.com" });
+  expect(accounts.signin("ada@example.com", "correct-horse")).toEqual({ ok: false, reason: "wrong" });
+  expect(accounts.signin("ada@example.com", "new-horse-battery")).toEqual({ ok: true, email: "ada@example.com", owner: true });
 });

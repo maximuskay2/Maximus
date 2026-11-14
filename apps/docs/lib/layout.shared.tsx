@@ -10,7 +10,7 @@ export function baseOptions(): BaseLayoutProps {
       transparentMode: 'none',
     },
     links: [
-      { text: 'Website', url: 'https://www.maximus.com', external: true },
+      { text: 'Website', url: 'https://app.meetnote.cc', external: true },
       { text: 'Changelog', url: '/docs/changelog' },
       { type: 'button', text: 'Download', url: 'https://github.com/RELEASE_OWNER/Maximus/releases/latest', external: true },
     ],

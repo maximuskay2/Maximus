@@ -37,12 +37,24 @@ describe("payment routes", () => {
     const off = ctx("/api/billing/offer?timeZone=Africa/Lagos", "GET", session);
     await handler(off.route);
     expect(off.sent[0]?.body).toMatchObject({ offer: { currency: "USD", provider: "stripe" } });
-    expect(store.save({ paystackEnabled: true, ngnPerUsd: 1600 })).toBeNull();
+    expect(store.save({ paystackEnabled: true, bachsEnabled: false, ngnPerUsd: 1600 })).toBeNull();
+    expect(store.saveSecrets({ paystackSecretKey: "sk_test_paystack" })).toBeNull();
     const on = ctx("/api/billing/offer?timeZone=Africa/Lagos", "GET", session);
     await handler(on.route);
     expect(on.sent[0]?.body).toMatchObject({ offer: { currency: "NGN", provider: "paystack", plans: [{ id: "plus", ngn: 30400 }] } });
     const abroad = ctx("/api/billing/offer?timeZone=Europe/London", "GET", session, undefined, { "cf-ipcountry": "GB" });
     await handler(abroad.route);
     expect(abroad.sent[0]?.body).toMatchObject({ offer: { currency: "USD" } });
+  });
+
+  it("prefers Bachs over Paystack when both switches are on", async () => {
+    const store = new PaymentStore(mkdtempSync(join(tmpdir(), "pay-routes-bachs-")));
+    const handler = createPaymentRoutes({ store, plans: PLANS });
+    const session = { kind: "session", scopes: ["client"] } as unknown as RequestAuth;
+    expect(store.save({ paystackEnabled: true, bachsEnabled: true, ngnPerUsd: 1600 })).toBeNull();
+    expect(store.saveSecrets({ paystackSecretKey: "sk_test_paystack", bachsApiKey: "bachs_test" })).toBeNull();
+    const nigeria = ctx("/api/billing/offer?timeZone=Africa/Lagos", "GET", session);
+    await handler(nigeria.route);
+    expect(nigeria.sent[0]?.body).toMatchObject({ offer: { currency: "USD", provider: "bachs" } });
   });
 });
