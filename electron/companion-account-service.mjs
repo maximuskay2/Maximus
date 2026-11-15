@@ -12,7 +12,7 @@ import {
   withoutManagedCompanionTunnelAccess,
 } from "./managed-companion-tunnel.mjs";
 import { MANAGED_ENDPOINT_PHONES_UNUSED } from "./companion-endpoint-need.mjs";
-import { PRODUCT_ACCOUNTS_ORIGIN } from "../shared/product-origin.ts";
+import { PRODUCT_ACCOUNTS_ORIGIN } from "../shared/product-origin.mjs";
 
 export { managedEndpointNeed, PHONE_UNUSED_RELEASE_MS } from "./companion-endpoint-need.mjs";
 

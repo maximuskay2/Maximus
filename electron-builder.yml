@@ -44,6 +44,8 @@ files:
   - "!electron/resources/recorder-helper.swift"
   - "!electron/resources/recorder-helper-Info.plist"
   - "!electron/resources/Maximus Recorder.app/**"
+  # Plain JS origin constants imported by the Electron main process.
+  - shared/product-origin.mjs
   - "!**/node_modules/**"
   - src/locales/*.json
   - "!src/locales/source-hashes.json"

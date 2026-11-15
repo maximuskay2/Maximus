@@ -1,4 +1,4 @@
-import { PRODUCT_PUBLIC_ORIGIN } from "./product-origin.ts";
+import { PRODUCT_PUBLIC_ORIGIN } from "./product-origin.mjs";
 
 // A bot on the person's own Cloud that needs their computer (its apps and screen, its files, or its terminal) when it
 // isn't available asks once with a card: what it wants and why, why it isn't available, and the one-tap fix. The English
