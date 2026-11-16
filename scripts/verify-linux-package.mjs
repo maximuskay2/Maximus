@@ -72,8 +72,10 @@ function requireUpdaterTarget(resources, label) {
   const updateFile = path.join(resources, "app-update.yml");
   requireFile(updateFile);
   const update = readFileSync(updateFile, "utf8");
-  if (!/^owner: RELEASE_OWNER$/m.test(update) || !/^repo: Maximus$/m.test(update)) {
-    fail(`${label} app-update.yml does not point at RELEASE_OWNER/Maximus`);
+  if (
+    !(/^owner: (?:RELEASE_OWNER|maximuskay2)$/m.test(update) && /^repo: Maximus$/m.test(update))
+  ) {
+    fail(`${label} app-update.yml does not point at RELEASE_OWNER/Maximus or maximuskay2/Maximus`);
   }
 }
 
