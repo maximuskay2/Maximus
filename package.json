@@ -3,10 +3,10 @@
   "private": true,
   "version": "0.1.145",
   "description": "A local-first chat app for running a team of AI agents.",
-  "homepage": "https://github.com/RELEASE_OWNER/Maximus",
+  "homepage": "https://github.com/maximuskay2/Maximus",
   "repository": {
     "type": "git",
-    "url": "https://github.com/RELEASE_OWNER/Maximus.git"
+    "url": "https://github.com/maximuskay2/Maximus.git"
   },
   "author": {
     "name": "Akingbade Kayode",
@@ -71,7 +71,8 @@
     "build:cua:linux": "node scripts/prepare-cua-linux.mjs",
     "build:cua:linux:offline": "node scripts/prepare-cua-linux.mjs --offline",
     "build:updater": "node scripts/bundle-updater.mjs",
-    "package:prepare": "pnpm build && pnpm build:server && pnpm build:companion && pnpm build:updater && pnpm build:android-tools && pnpm build:cloudflared && pnpm build:browser && pnpm build:duckdb",
+    "build:push-receiver": "node scripts/bundle-push-receiver.mjs",
+    "package:prepare": "pnpm build && pnpm build:server && pnpm build:companion && pnpm build:updater && pnpm build:push-receiver && pnpm build:android-tools && pnpm build:cloudflared && pnpm build:browser && pnpm build:duckdb",
     "package:mac": "pnpm package:prepare && pnpm build:speech && pnpm build:cua && electron-builder --mac --publish never",
     "package:win": "pnpm package:prepare && pnpm build:cua:win && electron-builder --win --publish never",
     "package:linux": "pnpm package:prepare && pnpm build:cua:linux && electron-builder --linux --x64 --publish never",
@@ -116,6 +117,7 @@
     "clsx": "^2.1.1",
     "codemirror": "6.0.2",
     "croner": "10.0.1",
+    "firebase": "^13.3.0",
     "imapflow": "2.10.0",
     "jmespath": "0.16.0",
     "jose": "6.2.10",
@@ -127,6 +129,7 @@
     "nodemailer": "10.3.1",
     "papaparse": "^5.7.0",
     "posthog-js": "^1.415.6",
+    "push-receiver": "^2.1.1",
     "qrcode-terminal": "0.12.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.1.0",

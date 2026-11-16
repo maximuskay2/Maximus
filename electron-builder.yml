@@ -15,7 +15,7 @@ protocols:
 # stranded on its installed version.
 publish:
   - provider: github
-    owner: RELEASE_OWNER
+    owner: maximuskay2
     repo: Maximus
 
 directories:
