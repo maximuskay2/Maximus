@@ -8,7 +8,7 @@
 
 [**app.meetnote.cc**](https://app.meetnote.cc) &nbsp;·&nbsp; [Download](https://app.meetnote.cc/welcome#download)
 
-<img src="docs/screenshots/social-bull.png" alt="Maximus — the bull" width="900">
+<img src="docs/assets/brand/social-bull.png" alt="Maximus — the bull" width="900">
 
 <sub>Maximus is a chat where every conversation is an AI coworker with its own job, its own model, and its own thread. Sign up once at <a href="https://app.meetnote.cc">app.meetnote.cc</a>. That account opens in the browser, the desktop app, and the phone. Also known as <strong>Max</strong>; formerly <strong>OpenGrokBot</strong>. An independent project. Not affiliated with xAI, Meta, OpenAI or Manus.</sub>
 
@@ -82,74 +82,12 @@ and a decision guide in five questions: [Which AI agent should I use?](https://a
 
 ## Features
 
-<table>
-<tr>
-<td width="50%" valign="top">
-
-### 🧠 Pick a brain per bot
-
-A model picker with a provider rail — Claude and Codex models side by side, defaults marked, unavailable
-providers dimmed with the reason. Switch a bot's model mid-conversation.
-
-<img src="docs/screenshots/model-picker.png" alt="Model picker with provider rail" width="100%">
-
-</td>
-<td width="50%" valign="top">
-
-### 🖥️ Every bot gets a computer
-
-Open the Computer panel and the bot's cloud desktop spins up on its own — live screen preview while it
-works, "Open desktop" to take over in your browser, or point the bot at *this Mac* instead.
-
-<img src="docs/screenshots/computer-panel.png" alt="Computer panel with live screen preview" width="100%">
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-### 🙋 Bots ask before they act
-
-Shell commands, file edits, and questions surface as inline cards — Allow / Deny / answer in chat. A
-permission broker turns every risky action into a decision you make, for cloud and local computers alike.
-
-<img src="docs/screenshots/approval-card.png" alt="Approval and question cards in chat" width="100%">
-
-</td>
-<td width="50%" valign="top">
-
-### 🔌 Connected apps
-
-A one-click marketplace over Composio Sessions: Gmail, Slack, GitHub, Notion, Linear and hundreds more.
-OAuth once, and every bot can use them as tools.
-
-<img src="docs/screenshots/marketplace.png" alt="Connected apps marketplace" width="100%">
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-### 🗂 Manage bots like chats
-
-Right-click any bot: pin, mark unread, edit profile, duplicate, copy conversation ID, hide, delete. It's a
-messaging app — your agents behave like contacts.
-
-<img src="docs/screenshots/context-menu.png" alt="Bot context menu" width="100%">
-
-</td>
-<td width="50%" valign="top">
-
-### 🔑 Keys once, everything lights up
-
-Paste credentials in App Settings — they persist locally and the provider fleet hot-reloads instantly.
-Secrets are write-only: the UI only ever sees "configured" flags.
-
-<img src="docs/screenshots/app-settings.png" alt="App-level settings with API keys" width="100%">
-
-</td>
-</tr>
-</table>
+- **Pick a brain per bot.** A model picker with a provider rail — Claude and Codex models side by side, defaults marked, unavailable providers dimmed with the reason. Switch a bot's model mid-conversation.
+- **Every bot gets a computer.** Open the Computer panel and the bot's cloud desktop spins up on its own — live screen preview while it works, or point the bot at this Mac instead.
+- **Bots ask before they act.** Shell commands, file edits, and questions surface as inline cards — Allow / Deny / answer in chat.
+- **Connected apps.** A one-click marketplace over Composio: Gmail, Slack, GitHub, Notion, Linear and hundreds more.
+- **Manage bots like chats.** Pin, mark unread, edit profile, duplicate, hide, delete — agents behave like contacts.
+- **Keys once, everything lights up.** Paste credentials in App Settings; they persist locally and the provider fleet hot-reloads.
 
 ### #️⃣ Channels for every context
 

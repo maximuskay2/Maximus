@@ -17,7 +17,7 @@ try {
   const workspace = join(fixture.info.dataDir, "workspaces", bot.id);
   mkdirSync(workspace, { recursive: true });
   const video = join(workspace, "demo.mp4");
-  copyFileSync(join(root, "docs/screenshots/composer-dock-after.mp4"), video);
+  copyFileSync(join(root, "docs/verification/evidence/local-vm-resume/resume.mp4"), video);
   const files = ["brief.md", "metrics.csv", "notes.txt", "next-steps.md"];
   for (const name of files) writeFileSync(join(workspace, name), `Synthetic UI fixture: ${name}\n`, "utf8");
   const image = await fetch(`${fixture.info.url}/api/attachments`, {

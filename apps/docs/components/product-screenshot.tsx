@@ -22,8 +22,9 @@ const screenshotNames = [
 
 type ScreenshotName = (typeof screenshotNames)[number];
 
+/** Product UI shots were removed; docs pages show the bull mark until fresh captures land. */
 export function ProductScreenshot({
-  name,
+  name: _name,
   alt,
   caption,
   position = 'center',
@@ -37,7 +38,7 @@ export function ProductScreenshot({
     <figure className="maximus-product-shot">
       <div className="maximus-product-shot-frame">
         <img
-          src={`/screenshots/${name}.png`}
+          src="/screenshots/bull-avatar.png"
           alt={alt}
           loading="lazy"
           className={position === 'top' ? 'object-top' : 'object-center'}

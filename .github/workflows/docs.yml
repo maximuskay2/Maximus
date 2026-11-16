@@ -4,8 +4,9 @@ on:
   pull_request:
     paths:
       - "apps/docs/**"
-      - "docs/screenshots/**"
+      - "docs/assets/**"
       - "public/app-icon.svg"
+      - "public/bull-avatar.png"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -14,8 +15,9 @@ on:
     branches: [main]
     paths:
       - "apps/docs/**"
-      - "docs/screenshots/**"
+      - "docs/assets/**"
       - "public/app-icon.svg"
+      - "public/bull-avatar.png"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"

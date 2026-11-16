@@ -95,7 +95,7 @@ describe("CI path scope", () => {
   it("runs only the docs tests, without the build, for documentation, its evidence and the docs site", () => {
     expect(selectCiScope([
       "README.md", "AGENTS.md", "docs/guide.md", "docs/nested/guide.md", ".github/FUNDING.yml", "apps/docs/content/index.mdx",
-      "docs/verification/evidence/mentions/rtl-dom.json", "docs/screenshots/home.png",
+      "docs/verification/evidence/mentions/rtl-dom.json", "docs/assets/brand/social-bull.png",
     ])).toEqual({ areas: ["docs"], checks: ["docs-tests"] });
   });
 
