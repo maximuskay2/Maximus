@@ -5,6 +5,7 @@ import type { IncomingMessage } from "node:http";
 
 import { ownerOrAdmin, type RequestAuth } from "../request-auth.ts";
 import type { GrantMailer } from "../billing/grant-mail.ts";
+import { grantInstallId } from "../billing/grant-identity.ts";
 import { plansFromRation, rationWorkspace, type FreeIdentity, type RationProfile } from "../billing/ration.ts";
 import type { RationService } from "../billing/ration-service.ts";
 import { PASS, type RouteHandler } from "./table.ts";
@@ -22,9 +23,11 @@ const BODY_LIMIT = 65_536;
 function identityOf(auth: RequestAuth, req: IncomingMessage): FreeIdentity {
   const email = auth.kind === "session" ? auth.session?.email : undefined;
   const header = req.headers["x-maximus-install"];
-  const installId = typeof header === "string" ? header : undefined;
+  const installId = grantInstallId(typeof header === "string" ? header : Array.isArray(header) ? header[0] : undefined);
   return { ...(email ? { email } : {}), ...(installId ? { installId } : {}) };
 }
+
+const FREE_USED = "This email or device already used the free Muse grant. Subscribe to Your model or a Muse plan.";
 
 export function createRationRoutes(deps: RationRouteDeps): RouteHandler {
   return async ({ req, res, path, method, auth, json, readBody }) => {
@@ -32,7 +35,9 @@ export function createRationRoutes(deps: RationRouteDeps): RouteHandler {
       res.setHeader("cache-control", "no-store");
       const email = auth.kind === "session" ? auth.session.email : undefined;
       if (!email) return json(res, 200, { choice: null });
-      if (method === "GET") return json(res, 200, { choice: deps.ration.accountChoice(email) });
+      const identity = identityOf(auth, req);
+      const freeAvailable = deps.ration.freeGrantOpen(identity);
+      if (method === "GET") return json(res, 200, { choice: deps.ration.accountChoice(email), freeAvailable });
       let body: unknown = null;
       try {
         body = await readBody(req, BODY_LIMIT);
@@ -41,9 +46,12 @@ export function createRationRoutes(deps: RationRouteDeps): RouteHandler {
       }
       const requested = body && typeof body === "object" ? (body as { choice?: unknown }).choice : undefined;
       if (requested !== "free" && requested !== "byo" && requested !== "muse") return json(res, 400, { error: "choice must be free, byo, or muse" });
+      if (requested === "free" && !freeAvailable && deps.ration.accountChoice(email) !== "free") {
+        return json(res, 409, { error: FREE_USED, code: "free_used", choice: deps.ration.accountChoice(email), freeAvailable: false });
+      }
       const choice = deps.ration.chooseAccount(email, requested);
-      if (choice === "free") deps.ration.ensureFree(rationWorkspace(), new Date(), identityOf(auth, req));
-      return json(res, 200, { choice });
+      if (choice === "free") deps.ration.ensureFree(rationWorkspace(), new Date(), identity);
+      return json(res, 200, { choice, freeAvailable: choice === "free" ? deps.ration.freeGrantOpen(identity) : freeAvailable });
     }
     const contributor = method === "POST" && path === "/api/ration/contributor";
     if ((method === "GET" && path === "/api/ration") || contributor) {

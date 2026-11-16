@@ -96,6 +96,9 @@ describe("ration wallet", () => {
     expect(ration.ensureFree("local", now, { email: "ada@example.com" }).grantedUsd).toBe(0.012);
     expect(ration.ensureFree("local", now, { email: "ada@example.com" }).spentUsd).toBe(0);
     expect(ration.ensureFree("other-host", now, { installId: "phone-1" }).grantedUsd).toBe(0);
+    expect(ration.ensureFree("local", now, { email: "Ada.O+2@gmail.com", installId: "laptop-9" }).grantedUsd).toBe(0.012);
+    expect(ration.ensureFree("local", now, { email: "adao@googlemail.com" }).workspace).toBe("free:adao@gmail.com");
+    expect(ration.freeGrantOpen({ email: "bob@example.com", installId: "phone-1" })).toBe(false);
     const bob = ration.ensureFree("local", now, { email: "bob@example.com" });
     expect(bob.grantedUsd).toBe(0.012);
     expect(bob.workspace).toBe("free:bob@example.com");

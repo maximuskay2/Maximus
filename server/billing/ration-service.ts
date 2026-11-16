@@ -128,10 +128,18 @@ function blankWallet(workspace: string, now: Date): Wallet {
 }
 
 /** Free Muse is one wallet per signup email (or install when there is no email). Paid plans stay on the host workspace id. */
+function identityEmail(identity?: FreeIdentity): string {
+  return canonicalGrantEmail(identity?.email ?? "");
+}
+
+function identityInstall(identity?: FreeIdentity): string {
+  return grantInstallId(identity?.installId);
+}
+
 function freeWalletId(identity?: FreeIdentity): string | null {
-  const email = identity?.email?.trim().toLowerCase() ?? "";
-  if (email) return `free:${email}`;
-  const install = identity?.installId?.trim() ?? "";
+  const email = identityEmail(identity);
+  if (email.includes("@")) return `free:${email}`;
+  const install = identityInstall(identity);
   if (install) return `free:install:${install}`;
   return null;
 }
@@ -163,13 +171,26 @@ export class RationService {
     this.load();
   }
 
-  /** What this email already accepted, including a free grant opened on an earlier device. */
+  /** What this email already accepted, including a free grant that still has dollars on it. */
   accountChoice(email: string): AccountChoice | null {
     const saved = this.accountPlans.get(email);
     if (saved) return saved;
-    const key = email.trim().toLowerCase();
-    if (!key) return null;
-    return this.claims.some((claim) => claim.kind === "email" && claim.value === key) ? "free" : null;
+    const key = canonicalGrantEmail(email);
+    if (!key.includes("@")) return null;
+    const wallet = this.wallets.get(`free:${key}`);
+    if (wallet?.tier === "free" && wallet.grantedUsd > 0) return "free";
+    return null;
+  }
+
+  /** A new Free choice is allowed only when this mailbox and device have never taken the grant. */
+  freeGrantOpen(identity?: FreeIdentity): boolean {
+    const id = freeWalletId(identity);
+    if (!id) return true;
+    if (this.identityTaken(id, identity)) return false;
+    const current = this.wallets.get(id);
+    if (!current) return true;
+    if (current.tier !== "free") return false;
+    return current.grantedUsd > current.spentUsd;
   }
 
   chooseAccount(email: string, choice: AccountChoice): AccountChoice {
@@ -186,7 +207,7 @@ export class RationService {
    * or the same plan with renew, starts a fresh month. Other accounts' free wallets stay put.
    */
   grantAccount(input: AccountGrantInput, now = new Date()): { ok: true; seat: AccountSeatView } | { ok: false; error: string } {
-    const email = input.email.trim().toLowerCase();
+    const email = canonicalGrantEmail(input.email);
     if (!EMAIL.test(email)) return { ok: false, error: "Enter the person's email address." };
     let requested: SeatPlan | undefined;
     if (input.plan !== undefined) {
@@ -436,7 +457,7 @@ export class RationService {
    * An email with no saved plan is not charged, so a local owner and a test send stay put.
    */
   chargeChat(workspace: string, email: string, text: string, now = new Date()): RationRefusal | null {
-    const who = email.trim().toLowerCase();
+    const who = canonicalGrantEmail(email);
     const identity: FreeIdentity = { email: who };
     const seat = this.seats.get(who);
     if (seat?.plan === "byo") return null;
@@ -654,8 +675,8 @@ export class RationService {
   }
 
   private noteIdentity(workspace: string, identity?: FreeIdentity): boolean {
-    const email = identity?.email?.trim().toLowerCase() ?? "";
-    const install = identity?.installId?.trim() ?? "";
+    const email = identityEmail(identity);
+    const install = identityInstall(identity);
     let changed = false;
     for (const [kind, value] of [["email", email], ["install", install]] as const) {
       if (!value || value.length > 320) continue;
@@ -667,11 +688,11 @@ export class RationService {
   }
 
   private identityTaken(workspace: string, identity?: FreeIdentity): boolean {
-    const email = identity?.email?.trim().toLowerCase() ?? "";
-    const install = identity?.installId?.trim() ?? "";
+    const email = identityEmail(identity);
+    const install = identityInstall(identity);
     // Only a personal free:* wallet counts. Older host-scoped claims must not block a per-signup grant.
     return this.claims.some((claim) => claim.workspace !== workspace && claim.workspace.startsWith("free:") && (
-      (email !== "" && claim.kind === "email" && claim.value === email)
+      (email !== "" && claim.kind === "email" && canonicalGrantEmail(claim.value) === email)
       || (install !== "" && claim.kind === "install" && claim.value === install)
     ));
   }

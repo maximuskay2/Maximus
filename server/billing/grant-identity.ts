@@ -17,7 +17,7 @@ export function canonicalGrantEmail(email: string): string {
   return local && domain ? `${local}@${domain}` : trimmed;
 }
 
-const INSTALL_ID = /^[A-Za-z0-9._:-]{8,320}$/;
+const INSTALL_ID = /^[A-Za-z0-9._:-]{6,320}$/;
 
 export function grantInstallId(raw: unknown): string {
   return typeof raw === "string" && INSTALL_ID.test(raw.trim()) ? raw.trim() : "";

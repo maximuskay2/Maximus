@@ -24,4 +24,13 @@ describe("an account's plan follows the email", () => {
     expect(second.choose("ada@example.com", "free")).toBe("muse");
     expect(new AccountPlans(folder).get("ada@example.com")).toBe("muse");
   });
+
+  it("treats a Gmail plus alias as the same mailbox", () => {
+    const folder = mkdtempSync(join(tmpdir(), "account-plan-gmail-"));
+    folders.push(folder);
+    const plans = new AccountPlans(folder);
+    expect(plans.choose("Ada.O+free@gmail.com", "free")).toBe("free");
+    expect(plans.get("adao@gmail.com")).toBe("free");
+    expect(plans.choose("adao@googlemail.com", "byo")).toBe("byo");
+  });
 });
