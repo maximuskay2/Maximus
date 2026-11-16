@@ -1,10 +1,14 @@
 <div align="center">
 
+<img src="public/bull-avatar.png" alt="Maximus bull" width="220">
+
 # Maximus
 
 **One account. A team of AI coworkers. The browser, your computer, and your phone.**
 
 [**app.meetnote.cc**](https://app.meetnote.cc) &nbsp;·&nbsp; [Download](https://app.meetnote.cc/welcome#download)
+
+<img src="docs/screenshots/social-bull.png" alt="Maximus — the bull" width="900">
 
 <sub>Maximus is a chat where every conversation is an AI coworker with its own job, its own model, and its own thread. Sign up once at <a href="https://app.meetnote.cc">app.meetnote.cc</a>. That account opens in the browser, the desktop app, and the phone. Also known as <strong>Max</strong>; formerly <strong>OpenGrokBot</strong>. An independent project. Not affiliated with xAI, Meta, OpenAI or Manus.</sub>
 
@@ -38,15 +42,6 @@ Talk to the bots like contacts. Watch them work. Approve what matters.
     <img src="docs/assets/sponsors/boat-logo.svg" alt="Boat (boat.dev)" height="34">
   </picture>
 </a>
-
-<br>
-<br>
-
-<img src="docs/screenshots/social-bull.png" alt="Maximus — the bull" width="900">
-
-<br>
-
-<img src="public/bull-avatar.png" alt="Maximus bull mark" width="280">
 
 </div>
 
