@@ -34,14 +34,9 @@ Talk to the bots like contacts. Watch them work. Approve what matters.
 <br>
 <br>
 
-<sub>Powered by <a href="https://boat.dev">boat.dev</a></sub>
+<sub>Powered by <a href="https://maxit.com.ng">maxit.com.ng</a></sub>
 <br>
-<a href="https://boat.dev">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/sponsors/boat-logo-white.svg">
-    <img src="docs/assets/sponsors/boat-logo.svg" alt="Boat (boat.dev)" height="34">
-  </picture>
-</a>
+<a href="https://maxit.com.ng">Maximus Infotech</a>
 
 </div>
 
@@ -169,7 +164,8 @@ expressions · screenshots of the bot's work folded into the transcript.
 | **Claude · Codex · Grok** | The agents behind every bot, run through their local CLIs |
 | **Electron** | Desktop shells for macOS, Windows, and Ubuntu |
 | **React + Vite + Tailwind CSS** | The chat app UI and its build |
-| **Boat** ([boat.dev](https://boat.dev)) | Each bot's cloud computer · our sponsor |
+| **Boat** ([boat.dev](https://boat.dev)) | Each bot's cloud computer |
+| **Maximus Infotech** ([maxit.com.ng](https://maxit.com.ng)) | Product host · powered by |
 | **Composio** | Connected apps — Gmail, Slack, GitHub, and more |
 | **Cua Driver** | Native computer use on your own machine |
 | **ElevenLabs · Fish Audio** | Hosted voices for bots that talk back |
