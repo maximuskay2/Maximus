@@ -1,12 +1,31 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AGENT_OS_STALE_MS } from "../shared/agent-os.ts";
 import { createAgentOs, resetAgentOsHosts } from "./agent-os.ts";
-import { callAgentOsBoundTool } from "./agent-os-turn.ts";
+import { callAgentOsBoundTool, gateAgentOsComputerTool } from "./agent-os-turn.ts";
 import type { HarnessClient, Json } from "./drivers/agents-client.ts";
+
+function lend(dataDir: string, id: string, at = 1_000) {
+  writeFileSync(join(dataDir, "lent-computers.json"), JSON.stringify({
+    version: 1,
+    computers: [{
+      id,
+      person: "ada",
+      name: "Office Mac",
+      platform: "darwin",
+      folders: 1,
+      terminal: true,
+      screen: true,
+      chrome: true,
+      lastSeenAt: at,
+      lastUsedAt: null,
+      stoppedAt: null,
+    }],
+  }));
+}
 
 const folders: string[] = [];
 afterEach(() => {
@@ -38,8 +57,8 @@ describe("Agent OS turn dispatch", () => {
     folders.push(dataDir);
     process.env.MAXIMUS_DATA_DIR = dataDir;
     const clock = { value: 1_000 };
+    lend(dataDir, "office", clock.value);
     const os = createAgentOs({ dataDir, now: () => clock.value, entitled: () => true, self: { name: "Here", kind: "this_desktop" } });
-    os.heartbeat({ id: "office", name: "Office Mac", kind: "lent_peer", capabilities: ["computer"] });
     os.assign({ machineId: "office", threadId: "t1", botId: "b1" });
     clock.value += AGENT_OS_STALE_MS + 1;
     const calls: Array<{ path: string; body?: string }> = [];
@@ -52,8 +71,8 @@ describe("Agent OS turn dispatch", () => {
     const dataDir = mkdtempSync(join(tmpdir(), "agent-os-turn-"));
     folders.push(dataDir);
     process.env.MAXIMUS_DATA_DIR = dataDir;
+    lend(dataDir, "office");
     const os = createAgentOs({ dataDir, now: () => 1_000, entitled: () => true, self: { name: "Here", kind: "this_desktop" } });
-    os.heartbeat({ id: "office", name: "Office Mac", kind: "lent_peer", capabilities: ["computer"] });
     os.assign({ machineId: "office", threadId: "t1", botId: "b1" });
     const calls: Array<{ path: string; body?: string }> = [];
     const result = await callAgentOsBoundTool("shared_computer", { action: "list_files" } as Json, {
@@ -64,6 +83,22 @@ describe("Agent OS turn dispatch", () => {
     });
     expect(JSON.parse(calls[0]?.body ?? "{}")).toMatchObject({ action: "list_files", computer_id: "office" });
     expect(result?.isError).toBeUndefined();
+  });
+
+  it("blocks local CUA when runsOn is a live remote Mac", () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "agent-os-turn-gate-"));
+    folders.push(dataDir);
+    process.env.MAXIMUS_DATA_DIR = dataDir;
+    lend(dataDir, "office");
+    const os = createAgentOs({ dataDir, now: () => 1_000, entitled: () => true, self: { name: "Here", kind: "this_desktop" } });
+    os.assign({ machineId: "office", threadId: "t1", botId: "b1" });
+    const gated = gateAgentOsComputerTool("click", { botId: "b1", threadId: "t1", sharedComputers: true, client: client([]) });
+    expect(gated).toMatchObject({ isError: true });
+    expect(JSON.parse(gated?.text ?? "{}")).toMatchObject({
+      runsOn: "office",
+      dispatch: "shared-computer",
+      leasePath: "/api/shared-computers/office/lease",
+    });
   });
 
   it("invokes a confirmed Canva publish as a turn tool on this desktop", async () => {

@@ -310,6 +310,10 @@ class _MessageBubbleState extends State<MessageBubble> {
             ApprovalCard(
               card: message.card!,
               onAnswer: _mine ? null : widget.onAnswerCard,
+              client: widget.client,
+              baseUrl: widget.baseUrl,
+              botId: widget.bot?.id,
+              threadId: widget.thread?.threadId,
             ),
           if (message.secret != null &&
               widget.client != null &&

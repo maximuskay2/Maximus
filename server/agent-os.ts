@@ -91,6 +91,15 @@ function ossMachine(kind: AgentOsMachineKind): boolean {
   return kind === "this_desktop" || kind === "cloud_home";
 }
 
+function lentOverlayIds(dataDir: string): Set<string> {
+  try {
+    const parsed = JSON.parse(readFileSync(join(dataDir, "lent-computers.json"), "utf8")) as { computers?: Array<{ id?: string }> };
+    return new Set((parsed.computers ?? []).map((row) => row.id).filter((id): id is string => Boolean(id)));
+  } catch {
+    return new Set();
+  }
+}
+
 export interface AgentOsHost {
   selfId: string;
   heartbeat: (row: { id: string; name: string; kind: AgentOsMachineKind; capabilities?: AgentOsCapability[] }) => AgentOsMachine;
@@ -255,10 +264,17 @@ export function createAgentOs(options: AgentOsOptions): AgentOsHost {
       return { ok: false, error: `${machine.name} is asleep. Wake that computer, then try again.`, outcome: "offline", machine };
     }
     const target: "local" | "remote" = machine.id === SELF_ID ? "local" : "remote";
-    if (!multi()) {
-      const error = "Subscribe to Your model to use Agent OS. The monthly fee is this computer; your provider bills the tokens.";
-      audit({ actor: input.actor, botId: input.botId, machineId: input.machineId, tool: `route:${input.capability}`, approved: false, outcome: "denied", detail: error });
-      return { ok: false, error, outcome: "denied" };
+    if (target === "remote") {
+      if (machine.kind !== "lent_peer" || !lentOverlayIds(options.dataDir).has(machine.id)) {
+        const error = "That computer is not a live shared desktop. Lend it from Maximus on that Mac, then try again.";
+        audit({ actor: input.actor, botId: input.botId, machineId: input.machineId, tool: `route:${input.capability}`, approved: false, outcome: "denied", detail: error });
+        return { ok: false, error, outcome: "denied", machine };
+      }
+      if (!multi()) {
+        const error = "Subscribe to Your model to use Agent OS. The monthly fee is this computer; your provider bills the tokens.";
+        audit({ actor: input.actor, botId: input.botId, machineId: input.machineId, tool: `route:${input.capability}`, approved: false, outcome: "denied", detail: error });
+        return { ok: false, error, outcome: "denied" };
+      }
     }
     audit({ actor: input.actor, botId: input.botId, machineId: input.machineId, tool: `route:${input.capability}`, approved: true, outcome: "ok" });
     return { ok: true, target, machine };
@@ -321,14 +337,15 @@ export function createAgentOs(options: AgentOsOptions): AgentOsHost {
       clickPublish: options.clickPublish,
     });
     const account = executed.account ?? input.personId;
+    const detail = executed.detail ?? `person ${input.personId} account ${account} machine ${machineId}`;
     audit({
       actor: input.actor,
       botId: input.botId,
       machineId,
       tool: `${input.mode}:${input.app}:${input.action}`,
       approved: true,
-      outcome: "ok",
-      detail: `person ${input.personId} account ${account} machine ${machineId}`,
+      outcome: executed.ok ? "ok" : "error",
+      detail: `person ${input.personId} account ${account} machine ${machineId}${executed.ok ? "" : ` — ${detail}`}`,
     });
     const result = {
       mode: input.mode,
@@ -345,6 +362,9 @@ export function createAgentOs(options: AgentOsOptions): AgentOsHost {
       ...(executed.cdpUrl ? { cdpUrl: executed.cdpUrl } : {}),
     };
     noteAgentOsThread(options.dataDir, input.threadId, String(executed.detail ?? result.preview), executed.ok);
+    if (!executed.ok && write) {
+      return { ok: false, error: String(executed.detail ?? result.preview), status: 409 };
+    }
     return { ok: true, result };
   };
 

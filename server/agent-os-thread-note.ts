@@ -5,7 +5,8 @@ import { appendMessage } from "./message-db.ts";
 import { dropCachedThread } from "./thread-cache.ts";
 
 export function noteAgentOsThread(dataDir: string, threadId: string | undefined, text: string, ok: boolean): void {
-  if (!threadId || dataDir !== DATA_DIR) return;
+  const active = process.env.MAXIMUS_DATA_DIR?.trim();
+  if (!threadId || (dataDir !== DATA_DIR && dataDir !== active)) return;
   const line = text.trim().slice(0, 2_000);
   if (!line) return;
   const at = Date.now();

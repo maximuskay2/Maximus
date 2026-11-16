@@ -21,9 +21,29 @@ function spawnGit(cwd: string) {
   spawnSync("git", ["commit", "--allow-empty", "-m", "ready"], { cwd, encoding: "utf8" });
 }
 
-function host(opts?: { entitled?: boolean; now?: { value: number } }) {
+function lend(dataDir: string, id: string, name = "Office Mac", at = 1_000) {
+  writeFileSync(join(dataDir, "lent-computers.json"), JSON.stringify({
+    version: 1,
+    computers: [{
+      id,
+      person: "ada",
+      name,
+      platform: "darwin",
+      folders: 1,
+      terminal: true,
+      screen: true,
+      chrome: true,
+      lastSeenAt: at,
+      lastUsedAt: null,
+      stoppedAt: null,
+    }],
+  }));
+}
+
+function host(opts?: { entitled?: boolean; now?: { value: number }; lendId?: string }) {
   const dataDir = mkdtempSync(join(tmpdir(), "agent-os-"));
   folders.push(dataDir);
+  if (opts?.lendId) lend(dataDir, opts.lendId, "Office Mac", opts.now?.value ?? 1_000);
   const clock = opts?.now ?? { value: 1_000 };
   return createAgentOs({
     dataDir,
@@ -57,30 +77,42 @@ describe("Agent OS registry", () => {
 describe("Agent OS router", () => {
   it("refuses a silent run when the chosen computer is asleep", () => {
     const clock = { value: 1_000 };
-    const os = host({ now: clock, entitled: true });
-    os.heartbeat({ id: "office", name: "Office Mac", kind: "lent_peer", capabilities: ["computer"] });
+    const os = host({ now: clock, entitled: true, lendId: "office" });
     clock.value += AGENT_OS_STALE_MS + 1;
     const result = os.route({ machineId: "office", capability: "computer", actor: "ada@example.test" });
     expect(result).toMatchObject({ ok: false, outcome: "offline" });
   });
 
   it("routes an approved local computer turn on this process", () => {
-    const os = host({ entitled: true });
+    const os = host({ entitled: false });
     const result = os.route({ machineId: "self", capability: "computer", actor: "ada@example.test" });
     expect(result).toEqual(expect.objectContaining({ ok: true, target: "local" }));
   });
 
-  it("refuses Agent OS on this computer until Your model is paid", () => {
+  it("lets OSS use this computer without Your model", () => {
     const os = host({ entitled: false });
     const result = os.route({ machineId: "self", capability: "computer", actor: "ada" });
-    expect(result).toMatchObject({ ok: false, outcome: "denied" });
-    expect(String(result.ok === false ? result.error : "")).toMatch(/Your model/i);
+    expect(result).toMatchObject({ ok: true, target: "local" });
   });
 
   it("needs a paid plan to send a turn to another live computer", () => {
-    const os = host({ entitled: false });
-    os.heartbeat({ id: "office", name: "Office Mac", kind: "lent_peer", capabilities: ["computer"] });
+    const os = host({ entitled: false, lendId: "office" });
     expect(os.route({ machineId: "office", capability: "computer", actor: "ada" }).ok).toBe(false);
+  });
+
+  it("refuses a heartbeat-only peer that was never lent", () => {
+    const os = host({ entitled: true });
+    os.heartbeat({ id: "orphan", name: "Orphan", kind: "lent_peer", capabilities: ["computer"] });
+    const result = os.route({ machineId: "orphan", capability: "computer", actor: "ada" });
+    expect(result).toMatchObject({ ok: false, outcome: "denied" });
+    expect(String(result.ok === false ? result.error : "")).toMatch(/live shared desktop/i);
+  });
+
+  it("routes to a live lent peer when entitled", () => {
+    const os = host({ entitled: true, lendId: "office" });
+    expect(os.route({ machineId: "office", capability: "computer", actor: "ada" })).toEqual(
+      expect.objectContaining({ ok: true, target: "remote" }),
+    );
   });
 });
 
@@ -108,10 +140,11 @@ describe("Agent OS plug-in modes", () => {
     const publish = await os.invoke({ actor: "ada", personId: "ada", mode: "browser", app: "canva", action: "publish" });
     expect(publish).toMatchObject({ ok: false, status: 409 });
     const confirmed = await os.invoke({ actor: "ada", personId: "ada", mode: "browser", app: "canva", action: "publish", confirm: true });
-    expect(confirmed).toMatchObject({ ok: true, result: { as: "ada", app: "canva", bound: true, machineId: "self" } });
-    if (confirmed.ok) expect(String(confirmed.result.detail)).toMatch(/Chromium partition/i);
+    expect(confirmed).toMatchObject({ ok: false, status: 409 });
+    expect(String(confirmed.ok === false ? confirmed.error : "")).toMatch(/Chromium partition|not running|only approve/i);
     const posted = await os.invoke({ actor: "ada", personId: "ada", mode: "local", app: "erp", action: "post", confirm: true });
-    expect(posted).toMatchObject({ ok: true, result: { as: "ada", app: "erp", action: "post" } });
+    expect(posted).toMatchObject({ ok: false, status: 409 });
+    expect(os.audit().at(-1)).toMatchObject({ outcome: "error" });
   });
 
   it("comments on Figma as that person after confirm", async () => {
@@ -184,8 +217,9 @@ describe("Agent OS plug-in modes", () => {
     const desktop = await os.invoke({ actor: "ada", personId: "ada", mode: "browser", app: "canva", action: "publish", confirm: true, client: "desktop" });
     expect(desktop).toMatchObject({ ok: true, result: { executed: true, cdpUrl: "ws://127.0.0.1:9/devtools/browser/x" } });
     const phone = await os.invoke({ actor: "ada", personId: "ada", mode: "browser", app: "canva", action: "publish", confirm: true, client: "remote" });
-    expect(phone).toMatchObject({ ok: true, result: { executed: false } });
-    if (phone.ok) expect(phone.result.cdpUrl).toBeUndefined();
+    expect(phone).toMatchObject({ ok: false, status: 409 });
+    expect(String(phone.ok === false ? phone.error : "")).toMatch(/only approve/i);
+    expect(os.audit().at(-1)).toMatchObject({ outcome: "error" });
   });
 
   it("lists Figma as that person's connected account", async () => {
@@ -231,17 +265,16 @@ describe("Agent OS plug-in modes", () => {
   });
 
   it("does not run git in this process for a live remote computer", async () => {
-    const os = host({ entitled: true });
-    os.heartbeat({ id: "office", name: "Office Mac", kind: "lent_peer", capabilities: ["computer"] });
+    const os = host({ entitled: true, lendId: "office" });
     os.assign({ machineId: "office", botId: "clerk" });
     const live = await os.invoke({ actor: "ada", personId: "ada", mode: "local", app: "git", action: "lookup", botId: "clerk" });
     expect(live).toMatchObject({ ok: true, result: { machineId: "office", executed: false } });
+    expect(os.audit().at(-1)).toMatchObject({ machineId: "office", outcome: "error" });
   });
 
   it("uses the bound machine and waits when that computer is asleep", async () => {
     const clock = { value: 1_000 };
-    const os = host({ now: clock, entitled: true });
-    os.heartbeat({ id: "office", name: "Office Mac", kind: "lent_peer", capabilities: ["computer"] });
+    const os = host({ now: clock, entitled: true, lendId: "office" });
     os.assign({ machineId: "office", botId: "clerk" });
     clock.value += AGENT_OS_STALE_MS + 1;
     const asleep = await os.invoke({ actor: "ada", personId: "ada", mode: "local", app: "git", action: "lookup", botId: "clerk" });

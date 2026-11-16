@@ -15,11 +15,28 @@ afterEach(() => {
   for (const folder of folders.splice(0)) rmSync(folder, { recursive: true, force: true });
 });
 
-async function call(path: string, method: string, body?: unknown, auth: RequestAuth = { kind: "loopback", scopes: ["admin"] }) {
+async function call(path: string, method: string, body?: unknown, auth: RequestAuth = { kind: "loopback", scopes: ["admin"] }, opts?: { lend?: boolean }) {
   const dataDir = mkdtempSync(join(tmpdir(), "agent-os-http-"));
   folders.push(dataDir);
+  if (opts?.lend !== false) {
+    writeFileSync(join(dataDir, "lent-computers.json"), JSON.stringify({
+      version: 1,
+      computers: [{
+        id: "office",
+        person: "ada",
+        name: "Office Mac",
+        platform: "darwin",
+        folders: 1,
+        terminal: true,
+        screen: true,
+        chrome: true,
+        lastSeenAt: Date.now(),
+        lastUsedAt: null,
+        stoppedAt: null,
+      }],
+    }));
+  }
   const os = createAgentOs({ dataDir, entitled: () => true, self: { name: "Office Mac", kind: "this_desktop" } });
-  os.heartbeat({ id: "office", name: "Office Mac", kind: "lent_peer", capabilities: ["computer"] });
   const handler = createAgentOsRoutes({ os });
   const sent: Array<{ status: number; body: unknown }> = [];
   const out = await handler({
@@ -79,18 +96,37 @@ describe("Agent OS HTTP", () => {
       scopes: ["client"],
       session: { id: "s1", tokenHash: "a".repeat(64), label: "phone", scopes: ["client"], createdAt: 1, lastSeenAt: 1, expiresAt: 9 },
     });
-    expect(reply.status).toBe(200);
-    expect(reply.body).toEqual(expect.objectContaining({ app: "canva", executed: false, bound: true }));
-    expect((reply.body as { cdpUrl?: string }).cdpUrl).toBeUndefined();
+    expect(reply.status).toBe(409);
+    expect(String((reply.body as { error: string }).error)).toMatch(/only approve/i);
   });
 
   it("drives Canva on the named desktop only after confirm", async () => {
     const refused = await call("/api/agent-os/plugins/invoke", "POST", { mode: "browser", app: "canva", action: "publish" });
     expect(refused.status).toBe(409);
     const published = await call("/api/agent-os/plugins/invoke", "POST", { mode: "browser", app: "canva", action: "publish", confirm: true });
-    expect(published.status).toBe(200);
-    expect(published.body).toEqual(expect.objectContaining({ app: "canva", as: "owner", bound: true, machineId: "self" }));
-    expect(String((published.body as { detail: string }).detail)).toMatch(/Chromium partition/i);
+    expect(published.status).toBe(409);
+    expect(String((published.body as { error: string }).error)).toMatch(/Chromium partition/i);
+  });
+
+  it("refuses route for a heartbeat-only peer that was never lent", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "agent-os-orphan-http-"));
+    folders.push(dataDir);
+    const os = createAgentOs({ dataDir, entitled: () => true, self: { name: "Here", kind: "this_desktop" } });
+    os.heartbeat({ id: "orphan", name: "Orphan", kind: "lent_peer", capabilities: ["computer"] });
+    const handler = createAgentOsRoutes({ os });
+    const sent: Array<{ status: number; body: unknown }> = [];
+    await handler({
+      req: { headers: { "content-type": "application/json" } } as IncomingMessage,
+      res: { setHeader() {}, headersSent: false } as unknown as ServerResponse,
+      url: new URL("http://localhost/api/agent-os/route"),
+      path: "/api/agent-os/route",
+      method: "POST",
+      auth: { kind: "loopback", scopes: ["admin"] },
+      json: ((_res, status, response) => { sent.push({ status, body: response }); }) as RouteContext["json"],
+      readBody: async () => ({ machineId: "orphan", capability: "computer" }),
+    });
+    expect(sent[0]?.status).toBe(403);
+    expect(String((sent[0]?.body as { error: string }).error)).toMatch(/live shared desktop/i);
   });
 });
 
@@ -134,8 +170,22 @@ describe("Agent OS overlay HTTP", () => {
     const dataDir = mkdtempSync(join(tmpdir(), "agent-os-asleep-http-"));
     folders.push(dataDir);
     const clock = { value: 1_000 };
+    writeFileSync(join(dataDir, "lent-computers.json"), JSON.stringify({
+      version: 1,
+      computers: [{
+        id: "office",
+        person: "ada",
+        name: "Office Mac",
+        platform: "darwin",
+        folders: 1,
+        terminal: true,
+        screen: true,
+        lastSeenAt: clock.value,
+        lastUsedAt: null,
+        stoppedAt: null,
+      }],
+    }));
     const os = createAgentOs({ dataDir, now: () => clock.value, entitled: () => true, self: { name: "Here", kind: "this_desktop" } });
-    os.heartbeat({ id: "office", name: "Office Mac", kind: "lent_peer", capabilities: ["computer"] });
     clock.value += AGENT_OS_STALE_MS + 1;
     const handler = createAgentOsRoutes({ os });
     const sent: Array<{ status: number; body: unknown }> = [];

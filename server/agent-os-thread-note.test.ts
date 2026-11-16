@@ -16,7 +16,14 @@ it("does not write a transcript outside the running server's data dir", () => {
   const dataDir = mkdtempSync(join(tmpdir(), "agent-os-note-"));
   folders.push(dataDir);
   expect(dataDir).not.toBe(DATA_DIR);
-  expect(() => noteAgentOsThread(dataDir, "thread-1", "Office Mac is asleep.", false)).not.toThrow();
+  const previous = process.env.MAXIMUS_DATA_DIR;
+  delete process.env.MAXIMUS_DATA_DIR;
+  try {
+    expect(() => noteAgentOsThread(dataDir, "thread-1", "Office Mac is asleep.", false)).not.toThrow();
+  } finally {
+    if (previous === undefined) delete process.env.MAXIMUS_DATA_DIR;
+    else process.env.MAXIMUS_DATA_DIR = previous;
+  }
 });
 
 it("drops a cached thread so the next read reloads", () => {

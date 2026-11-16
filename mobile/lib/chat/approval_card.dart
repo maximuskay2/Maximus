@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../api/client.dart';
 import '../api/models.dart';
+import 'agent_os_where.dart';
 
 /// Answers a live card. Mirrors the desktop's card-answer semantics:
 /// permission cards take allow/deny, questions take answer + message.
@@ -23,12 +25,26 @@ const questionDismissMessage =
 /// Always allow for permissions, option chips + free text for questions,
 /// a settled receipt once answered, and the named device for computer asks.
 class ApprovalCard extends StatefulWidget {
-  const ApprovalCard({super.key, required this.card, this.onAnswer});
+  const ApprovalCard({
+    super.key,
+    required this.card,
+    this.onAnswer,
+    this.client,
+    this.baseUrl,
+    this.botId,
+    this.threadId,
+  });
 
   final OptionCard card;
 
   /// Null renders the card read-only (settled cards, previews).
   final CardAnswerer? onAnswer;
+
+  /// Optional Agent OS attribution (bound machine + who approved).
+  final MaximusApi? client;
+  final String? baseUrl;
+  final String? botId;
+  final String? threadId;
 
   @override
   State<ApprovalCard> createState() => _ApprovalCardState();
@@ -154,6 +170,14 @@ class _ApprovalCardState extends State<ApprovalCard> {
             ),
           ],
           if (ask != null) _computerAsk(context, ask),
+          if (widget.client != null && widget.baseUrl != null)
+            AgentOsWhere(
+              client: widget.client!,
+              baseUrl: widget.baseUrl!,
+              botId: widget.botId,
+              threadId: widget.threadId,
+              answeredBy: _card.answeredBy,
+            ),
           const SizedBox(height: 4),
           if (!_card.isLive)
             _receipt(context)

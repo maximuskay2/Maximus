@@ -647,6 +647,32 @@ class SignInRequest {
   }
 }
 
+/// Who settled an approval card (`CardAnswerer` in `shared/wire.ts`).
+class CardAnsweredBy {
+  const CardAnsweredBy({required this.kind, this.name, this.via});
+
+  final String kind;
+  final String? name;
+  final String? via;
+
+  String get label {
+    if (kind == 'session' || kind == 'bot') return name?.trim() ?? '';
+    if (kind == 'loopback') return 'This computer';
+    return '';
+  }
+
+  static CardAnsweredBy? tryFrom(Object? json) {
+    if (json is! Map) return null;
+    final kind = json['kind'];
+    if (kind is! String || kind.isEmpty) return null;
+    return CardAnsweredBy(
+      kind: kind,
+      name: json['name'] as String?,
+      via: json['via'] as String?,
+    );
+  }
+}
+
 /// Approval/question card subset of `OptionCardData` (`shared/wire.ts`).
 class OptionCard {
   const OptionCard({
@@ -658,6 +684,7 @@ class OptionCard {
     this.tool,
     this.answered,
     this.answeredText,
+    this.answeredBy,
     this.dismissed = false,
     this.expired = false,
     this.stopped = false,
@@ -681,6 +708,7 @@ class OptionCard {
   /// expired/stopped (nothing can answer those any more).
   final String? answered;
   final String? answeredText;
+  final CardAnsweredBy? answeredBy;
   final bool dismissed;
   final bool expired;
   final bool stopped;
@@ -728,6 +756,7 @@ class OptionCard {
       tool: tool,
       answered: answered ?? this.answered,
       answeredText: answeredText ?? this.answeredText,
+      answeredBy: answeredBy,
       dismissed: dismissed || this.dismissed,
       expired: expired,
       stopped: stopped,
@@ -757,6 +786,7 @@ class OptionCard {
       tool: json['tool'] as String?,
       answered: json['answered'] as String?,
       answeredText: json['answeredText'] as String?,
+      answeredBy: CardAnsweredBy.tryFrom(json['answeredBy']),
       dismissed: (json['dismissed'] as bool?) ?? false,
       expired: (json['expired'] as bool?) ?? false,
       stopped: (json['stopped'] as bool?) ?? false,
