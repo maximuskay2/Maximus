@@ -444,8 +444,8 @@ abstract class MaximusApi {
   /// second free grant.
   Future<RationWallet> rationWallet(String baseUrl, {String? installId});
 
-  /// GET /api/account/plan — the plan this email already accepted, or null.
-  Future<String?> accountPlan(String baseUrl);
+  /// GET /api/account/plan — the plan this email already accepted, and whether Free is still open.
+  Future<AccountPlanInfo> accountPlan(String baseUrl);
 
   /// POST /api/account/plan — remember free, byo, or muse for this email.
   Future<void> chooseAccountPlan(String baseUrl, String choice);
@@ -755,6 +755,12 @@ class MaximusClient implements MaximusApi {
   final HttpClient _http;
   final Map<String, String> _cookies = {};
   bool _closed = false;
+  String? _installId;
+
+  void setInstallId(String? id) {
+    final value = id?.trim() ?? '';
+    _installId = value.length >= 6 ? value : null;
+  }
 
   @override
   void setCompanionToken(String? token) => _companionToken = token;
@@ -821,6 +827,10 @@ class MaximusClient implements MaximusApi {
       _authToken(request.headers);
     }
     headers?.forEach(request.headers.set);
+    final install = _installId;
+    if (install != null && (headers == null || !headers.containsKey('x-maximus-install'))) {
+      request.headers.set('x-maximus-install', install);
+    }
     if (_cookies.isNotEmpty) {
       request.cookies.addAll([
         for (final entry in _cookies.entries)
@@ -2075,10 +2085,9 @@ class MaximusClient implements MaximusApi {
   }
 
   @override
-  Future<String?> accountPlan(String baseUrl) async {
+  Future<AccountPlanInfo> accountPlan(String baseUrl) async {
     final json = await _json('GET', _u(baseUrl, '/api/account/plan'));
-    final choice = json['choice'];
-    return choice is String && choice.isNotEmpty ? choice : null;
+    return AccountPlanInfo.fromJson(json);
   }
 
   @override

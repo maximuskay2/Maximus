@@ -34,7 +34,7 @@ export function createRationRoutes(deps: RationRouteDeps): RouteHandler {
     if (path === "/api/account/plan" && (method === "GET" || method === "POST")) {
       res.setHeader("cache-control", "no-store");
       const email = auth.kind === "session" ? auth.session.email : undefined;
-      if (!email) return json(res, 200, { choice: null });
+      if (!email) return json(res, 200, { choice: null, freeAvailable: deps.ration.freeGrantOpen(identityOf(auth, req)) });
       const identity = identityOf(auth, req);
       const freeAvailable = deps.ration.freeGrantOpen(identity);
       if (method === "GET") return json(res, 200, { choice: deps.ration.accountChoice(email), freeAvailable });

@@ -3,6 +3,7 @@
 // and lives in session storage: it dies with the tab and is revocable
 // server-side. Amounts arrive from operator configuration, never code.
 import { applyGrantInstallHeader } from "../lib/install-id";
+
 export class ConsoleError extends Error {
   readonly status: number;
   readonly code: string;

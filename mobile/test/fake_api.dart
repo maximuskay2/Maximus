@@ -1084,9 +1084,13 @@ class FakeApi implements MaximusApi {
 
   /// Default muse so home refresh does not open the paywall in widget tests.
   String? accountChoice = 'muse';
+  bool freeAvailable = true;
 
   @override
-  Future<String?> accountPlan(String baseUrl) async => accountChoice;
+  Future<AccountPlanInfo> accountPlan(String baseUrl) async => AccountPlanInfo(
+        choice: accountChoice,
+        freeAvailable: freeAvailable,
+      );
 
   @override
   Future<void> chooseAccountPlan(String baseUrl, String choice) async {

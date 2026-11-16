@@ -58,7 +58,8 @@ Future<void> askToSubscribe(
 
 Future<bool> _chosenOnAccount(MaximusApi client, String baseUrl) async {
   try {
-    final choice = await client.accountPlan(baseUrl);
+    final plan = await client.accountPlan(baseUrl);
+    final choice = plan.choice;
     return choice != null && choice.isNotEmpty;
   } catch (_) {
     return false;

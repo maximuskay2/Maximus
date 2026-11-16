@@ -96,15 +96,16 @@ describe("ration wallet", () => {
     expect(ration.ensureFree("local", now, { email: "ada@example.com" }).grantedUsd).toBe(0.012);
     expect(ration.ensureFree("local", now, { email: "ada@example.com" }).spentUsd).toBe(0);
     expect(ration.ensureFree("other-host", now, { installId: "phone-1" }).grantedUsd).toBe(0);
+    expect(ration.ensureFree("local", now, { email: "bob@example.com", installId: "phone-1" }).grantedUsd).toBe(0);
+    expect(ration.freeGrantOpen({ email: "bob@example.com", installId: "phone-1" })).toBe(false);
     expect(ration.ensureFree("local", now, { email: "Ada.O+2@gmail.com", installId: "laptop-9" }).grantedUsd).toBe(0.012);
     expect(ration.ensureFree("local", now, { email: "adao@googlemail.com" }).workspace).toBe("free:adao@gmail.com");
-    expect(ration.freeGrantOpen({ email: "bob@example.com", installId: "phone-1" })).toBe(false);
-    const bob = ration.ensureFree("local", now, { email: "bob@example.com" });
+    const bob = ration.ensureFree("local", now, { email: "carol@example.com" });
     expect(bob.grantedUsd).toBe(0.012);
-    expect(bob.workspace).toBe("free:bob@example.com");
+    expect(bob.workspace).toBe("free:carol@example.com");
     expect(ration.debit("local", "muse-spark-1.3-contributor", { freshInput: 100, cachedInput: 0, output: 40 }, now, { email: "ada@example.com" })).toBeNull();
     expect(ration.wallet("free:ada@example.com").spentUsd).toBeGreaterThan(0);
-    expect(ration.wallet("free:bob@example.com").spentUsd).toBe(0);
+    expect(ration.wallet("free:carol@example.com").spentUsd).toBe(0);
     expect(ration.wallet("local").spentUsd).toBe(0);
   });
 

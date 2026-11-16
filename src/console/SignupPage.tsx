@@ -17,6 +17,7 @@ import {
   type ConsoleWorkspace,
   type SignInMethod,
 } from "./account";
+import { applyGrantInstallHeader } from "../lib/install-id";
 import { accountChoiceFromPlan, rememberPendingPlan } from "../lib/pending-plan";
 import { defaultDeviceLabel, signUpWithPassword } from "../lib/session";
 import { SiteShell } from "../site/SiteShell";
@@ -248,10 +249,12 @@ export function SignupPage() {
   const finishSignup = async (): Promise<void> => {
     rememberPendingPlan(plan);
     const choice = accountChoiceFromPlan(plan);
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    applyGrantInstallHeader(headers);
     await fetch("/api/account/plan", {
       method: "POST",
       credentials: "same-origin",
-      headers: { "content-type": "application/json" },
+      headers,
       body: JSON.stringify({ choice }),
     }).catch(() => undefined);
     window.location.assign(plan === "free" ? "/" : `/?plan=${encodeURIComponent(plan)}`);

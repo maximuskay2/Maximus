@@ -55,6 +55,7 @@ class _PaywallPageState extends State<PaywallPage> {
   String? _paying;
   String? _freeNote;
   bool _freeChosen = false;
+  bool _freeBlocked = false;
   late PaywallTrack _track = widget.initialTrack;
 
   @override
@@ -78,10 +79,22 @@ class _PaywallPageState extends State<PaywallPage> {
       final plans = await client.consolePlans(baseUrl);
       final offer = await client.billingOffer(baseUrl, timeZone: _zone);
       hosted = offer.hostedCheckout;
+      var freeBlocked = _freeBlocked;
+      try {
+        final account = await client.accountPlan(baseUrl);
+        freeBlocked = account.freeAvailable == false;
+      } catch (_) {
+        /* wallet check on Use free still covers a missing plan peek */
+      }
       if (mounted) {
         setState(() {
           _plans = plans;
           _offer = offer;
+          _freeBlocked = freeBlocked;
+          if (freeBlocked) {
+            _freeNote =
+                'This email or phone already used the free Muse grant. Subscribe to Your model or a Muse plan.';
+          }
         });
       }
     } catch (_) {
@@ -134,13 +147,14 @@ class _PaywallPageState extends State<PaywallPage> {
         return;
       }
       if (wallet.leftUsd <= 0) {
-        await _remember('free');
         if (!mounted) return;
+        final blocked = wallet.grantedUsd <= 0;
         setState(() {
-          _freeNote = wallet.grantedUsd <= 0
-              ? 'This email or phone already used its free Muse grant.'
+          _freeNote = blocked
+              ? 'This email or phone already used the free Muse grant. Subscribe to Your model or a Muse plan.'
               : 'This free Muse grant is used up.';
-          _freeChosen = true;
+          _freeBlocked = blocked;
+          _freeChosen = !blocked;
           _paying = null;
         });
         return;
@@ -398,7 +412,7 @@ class _PaywallPageState extends State<PaywallPage> {
             ? '${_money(plan.allowanceUsd)} of Muse each month'
             : plan.blurb;
     final choose = free
-        ? (_paying == 'free' ? null : _chooseFree)
+        ? (_paying == 'free' || _freeBlocked ? null : _chooseFree)
         : (_paying == plan.id ? null : () => _pay(plan));
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -437,8 +451,8 @@ class _PaywallPageState extends State<PaywallPage> {
             if (free) ...[
               const SizedBox(height: 12),
               FilledButton(
-                onPressed: _paying == 'free' ? null : _chooseFree,
-                child: Text(_paying == 'free' ? 'Opening…' : _freeChosen ? 'Continue' : 'Use free'),
+                onPressed: _paying == 'free' || _freeBlocked ? null : _chooseFree,
+                child: Text(_paying == 'free' ? 'Opening…' : _freeBlocked ? 'Grant already used' : _freeChosen ? 'Continue' : 'Use free'),
               ),
             ] else if (plan.baseUsd > 0) ...[
               const SizedBox(height: 12),

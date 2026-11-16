@@ -24,10 +24,13 @@ function alreadyChosen(): boolean {
   try { return localStorage.getItem(CHOSEN) === "1"; } catch { return false; }
 }
 
-async function accountChoice(): Promise<"free" | "byo" | "muse" | null> {
-  const body = await api<{ choice?: unknown }>("/api/account/plan");
+async function accountPlan(): Promise<{ choice: "free" | "byo" | "muse" | null; freeAvailable: boolean }> {
+  const body = await api<{ choice?: unknown; freeAvailable?: unknown }>("/api/account/plan");
   const choice = body.choice;
-  return choice === "free" || choice === "byo" || choice === "muse" ? choice : null;
+  return {
+    choice: choice === "free" || choice === "byo" || choice === "muse" ? choice : null,
+    freeAvailable: body.freeAvailable !== false,
+  };
 }
 
 function saveChoice(choice: "free" | "byo" | "muse"): Promise<unknown> {
@@ -66,6 +69,7 @@ export function SubscribeAsk() {
   const [payError, setPayError] = useState<string | null>(null);
   const [paying, setPaying] = useState<string | null>(null);
   const [freeUsedUp, setFreeUsedUp] = useState(false);
+  const [freeBlocked, setFreeBlocked] = useState(false);
 
   useEffect(() => {
     const openAsk = () => setPlansOpen(true);
@@ -78,22 +82,24 @@ export function SubscribeAsk() {
       if (!live || state.kind !== "session" || !state.email) return;
       if (pending) {
         const choice = accountChoiceFromPlan(pending);
-        await saveChoice(choice).catch(() => undefined);
+        const saved = await saveChoice(choice).then(() => true).catch(() => false);
         if (!live) return;
-        if (pending === "free") {
+        if (pending === "free" && saved) {
           remember();
           return;
         }
+        if (pending === "free" && !saved) setFreeBlocked(true);
         setPlansOpen(true);
         return;
       }
       if (alreadyChosen()) return;
-      const choice = await accountChoice().catch(() => null);
+      const plan = await accountPlan().catch(() => null);
       if (!live) return;
-      if (choice) {
+      if (plan?.choice) {
         remember();
         return;
       }
+      if (plan && plan.freeAvailable === false) setFreeBlocked(true);
       setPlansOpen(true);
     }).catch(() => undefined);
     return () => { live = false; listeners.delete(openAsk); };
@@ -124,6 +130,7 @@ export function SubscribeAsk() {
   }, [plansOpen, offer]);
 
   const takeFree = (): void => {
+    if (freeBlocked) return;
     if (freeUsedUp) {
       remember();
       setPlansOpen(false);
@@ -140,9 +147,11 @@ export function SubscribeAsk() {
         });
       }
       if (wallet.leftUsd <= 0) {
-        setFreeUsedUp(true);
-        setPayError(wallet.grantedUsd <= 0
-          ? "This email already used its free Muse grant."
+        const blocked = wallet.grantedUsd <= 0;
+        setFreeUsedUp(!blocked);
+        setFreeBlocked(blocked);
+        setPayError(blocked
+          ? "This email or device already used the free Muse grant. Subscribe to Your model or a Muse plan."
           : "This free Muse grant is used up.");
         setPaying(null);
         return;
@@ -150,6 +159,8 @@ export function SubscribeAsk() {
       remember();
       setPlansOpen(false);
     }).catch((thrown: unknown) => {
+      const blocked = thrown instanceof Error && thrown.message.includes("already used the free Muse grant");
+      if (blocked) setFreeBlocked(true);
       setPayError(thrown instanceof Error ? thrown.message : "The free plan could not be opened.");
       setPaying(null);
     });
@@ -223,8 +234,8 @@ export function SubscribeAsk() {
                       <p className="text-[15px] font-semibold text-accent">{priceOf(plan)}</p>
                     </div>
                     <p className="mt-1 text-[13px] text-ink-secondary">{allowanceLine(plan)}</p>
-                    <button type="button" className="ui-button ui-button-primary mt-3" disabled={paying === "free"} onClick={takeFree}>
-                      {paying === "free" ? "Opening…" : freeUsedUp ? "Continue" : "Use free"}
+                    <button type="button" className="ui-button ui-button-primary mt-3" disabled={paying === "free" || freeBlocked} onClick={takeFree}>
+                      {paying === "free" ? "Opening…" : freeBlocked ? "Grant already used" : freeUsedUp ? "Continue" : "Use free"}
                     </button>
                   </>
                 )}

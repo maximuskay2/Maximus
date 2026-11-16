@@ -4,6 +4,7 @@ import 'package:app_links/app_links.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'api/client.dart';
 import 'api/models.dart';
@@ -84,6 +85,7 @@ class _MaximusAppState extends State<MaximusApp>
       _client = _auth.client;
     } else {
       _client = MaximusClient();
+      unawaited(_bindGrantInstall(_client as MaximusClient));
       _auth = AuthState(store: SecureSessionStore(), client: _client);
       _auth.load();
     }
@@ -420,4 +422,17 @@ class _MaximusAppState extends State<MaximusApp>
       },
     );
   }
+}
+
+Future<void> _bindGrantInstall(MaximusClient client) async {
+  const key = 'maximus.phone.install';
+  try {
+    const storage = FlutterSecureStorage();
+    var id = await storage.read(key: key);
+    if (id == null || id.length < 6) {
+      id = '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}-app';
+      await storage.write(key: key, value: id);
+    }
+    client.setInstallId(id);
+  } catch (_) {}
 }

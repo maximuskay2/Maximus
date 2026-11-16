@@ -2329,6 +2329,22 @@ class UsageReport {
   }
 }
 
+/// GET /api/account/plan — saved choice plus whether Free can still be claimed.
+class AccountPlanInfo {
+  const AccountPlanInfo({this.choice, this.freeAvailable = true});
+
+  final String? choice;
+  final bool freeAvailable;
+
+  static AccountPlanInfo fromJson(Map<String, Object?> json) {
+    final choice = json['choice'];
+    return AccountPlanInfo(
+      choice: choice is String && choice.isNotEmpty ? choice : null,
+      freeAvailable: json['freeAvailable'] != false,
+    );
+  }
+}
+
 /// The signed-in Muse wallet. Dollars are provider cost; sparkTokens is the
 /// same remainder priced as Spark output.
 class RationWallet {

@@ -106,14 +106,15 @@ describe("/api/admin/ration", () => {
 
   it("keeps one free grant for an email that already chose, on the next sign-in", async () => {
     const call = await serve(["client"], "Ada@example.com");
-    expect((await call("/api/account/plan"))[1]).toEqual({ choice: null });
+    expect((await call("/api/account/plan"))[1]).toEqual({ choice: null, freeAvailable: true });
     const chosen = await call("/api/account/plan", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ choice: "free" }),
     }) as [number, { choice: string }];
-    expect(chosen).toEqual([200, { choice: "free" }]);
-    expect((await call("/api/account/plan"))[1]).toEqual({ choice: "free" });
+    expect(chosen[0]).toBe(200);
+    expect(chosen[1]).toMatchObject({ choice: "free" });
+    expect((await call("/api/account/plan"))[1]).toMatchObject({ choice: "free" });
     const first = await call("/api/ration") as [number, { grantedUsd: number }];
     const second = await call("/api/ration") as [number, { grantedUsd: number }];
     expect(first[1].grantedUsd).toBe(0.012);
