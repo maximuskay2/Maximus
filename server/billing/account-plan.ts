@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { z } from "zod";
 
 import { writeFileAtomic } from "../atomic.ts";
+import { canonicalGrantEmail } from "./grant-identity.ts";
 
 export const ACCOUNT_CHOICES = ["free", "byo", "muse"] as const;
 export type AccountChoice = (typeof ACCOUNT_CHOICES)[number];
@@ -63,5 +64,5 @@ export class AccountPlans {
 }
 
 function normalize(email: string): string {
-  return email.trim().toLowerCase();
+  return canonicalGrantEmail(email);
 }

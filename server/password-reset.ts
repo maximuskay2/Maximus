@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 
+import { passwordResetMailParts } from "../shared/transactional-mail.ts";
 import { writeFileAtomic } from "./atomic.ts";
 import { normalizeAccountEmail, passwordLongEnough, validAccountEmail, type createPasswordAccounts } from "./password-accounts.ts";
 import { SignInMailError, smtpOptions, type MailTransport } from "./sign-in-mail.ts";
@@ -91,13 +92,13 @@ export function createPasswordResetMail(options: {
       transport ??= import("nodemailer").then(({ createTransport }) => createTransport(smtpOptions(options.url)));
       const link = `${origin}/reset?token=${encodeURIComponent(`${id}.${token}`)}`;
       try {
+        const parts = passwordResetMailParts(link);
         await (await transport).sendMail({
           from: sender,
           to: email,
-          subject: "Reset your Maximus password",
-          text:
-            `Use this link to choose a new Maximus password:\n\n${link}\n\n` +
-            "It works once, for the next hour. If you did not ask for a reset, ignore this email.\n",
+          subject: parts.subject,
+          text: parts.text,
+          html: parts.html,
         });
       } catch (error) {
         pending.delete(id);

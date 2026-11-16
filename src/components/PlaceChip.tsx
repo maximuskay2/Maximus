@@ -12,6 +12,7 @@ import type { PlaceView } from "../../shared/place-view";
 import { useDesktopCapabilities } from "./DesktopCapabilities";
 import { PlaceIcon } from "./PlaceIcon";
 import type { SidebarMenuItem } from "./SidebarPopoverMenu";
+import { AgentOsRunOnMenu, agentOsMenuItems, useAgentOsRunOn } from "./AgentOsRunOn";
 
 export type PlaceAvailability = Record<Place, boolean>;
 
@@ -57,6 +58,7 @@ export function usePlaceMenuItem({ bot, task, disabled = false, onPin }: {
   const followsAuto = botDefault === "auto";
   const check = <Check size={14} className="text-accent" aria-hidden="true" />;
   const choose = (surface: Place | null) => { if (surface !== (pin ?? null)) onPin(surface); };
+  const agentOs = useAgentOsRunOn({ botId: bot.id, threadId: bot.threadId });
   return {
     key: "place",
     label: t("computer.worksOn"),
@@ -87,6 +89,7 @@ export function usePlaceMenuItem({ bot, task, disabled = false, onPin }: {
           onSelect: () => choose(place),
         };
       }),
+      ...agentOsMenuItems({ machines: agentOs.machines, machineId: agentOs.machineId, choose: (id) => void agentOs.choose(id), check }),
     ],
   };
 }
@@ -112,7 +115,11 @@ export function PlaceChip({ bot, task, live, disabled = false, onPin }: {
   const off = effective === "off";
   const label = t(placeLabelKey(effective));
   const showLive = live && effective !== "off" && effective !== "auto";
-  const title = off ? t("place.offHint") : disabled ? t("place.busy") : pinned ? t("place.pinnedHere") : t("place.fromBot");
+  const agentOs = useAgentOsRunOn({ botId: bot.id, threadId: bot.threadId });
+  const bound = agentOs.machines.find((row) => row.id === agentOs.machineId);
+  const title = bound && !bound.online
+    ? t("agentOs.waitCard", { name: bound.name })
+    : off ? t("place.offHint") : disabled ? t("place.busy") : pinned ? t("place.pinnedHere") : t("place.fromBot");
 
   useEffect(() => {
     if (!open) return;
@@ -191,6 +198,7 @@ export function PlaceChip({ bot, task, live, disabled = false, onPin }: {
                 </button>
               );
             })}
+            <AgentOsRunOnMenu botId={bot.id} threadId={bot.threadId} />
           </div>
         </div>
       )}

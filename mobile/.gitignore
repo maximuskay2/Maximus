@@ -44,5 +44,9 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Firebase client config. CI writes these from secrets; never commit.
+/android/app/google-services.json
+/ios/Runner/GoogleService-Info.plist
+
 # Widget Preview related
 .widget_preview/

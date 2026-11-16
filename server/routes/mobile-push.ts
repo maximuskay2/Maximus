@@ -1,3 +1,4 @@
+import { isFcmPlatform } from "../../shared/fcm.ts";
 import { ownerOrAdmin, type RequestAuth } from "../request-auth.ts";
 import type { FcmSender } from "../mobile-push-fcm.ts";
 import type { PushTokenRow } from "../message-db.ts";
@@ -58,8 +59,8 @@ export function createMobilePushRoutes(deps: PushRouteDeps): RouteHandler {
       if (!token || token.length > MAX_TOKEN) {
         return json(res, 400, { error: "token must be a non-empty string" });
       }
-      if (body?.platform !== "ios" && body?.platform !== "android") {
-        return json(res, 400, { error: "platform must be ios or android" });
+      if (!isFcmPlatform(body?.platform)) {
+        return json(res, 400, { error: "platform must be ios, android, web or desktop" });
       }
       const deviceName = typeof body?.deviceName === "string" ? body.deviceName.trim().slice(0, MAX_NAME) : null;
       const appVersion = typeof body?.appVersion === "string" ? body.appVersion.trim().slice(0, MAX_NAME) : null;
@@ -95,7 +96,7 @@ export function createMobilePushRoutes(deps: PushRouteDeps): RouteHandler {
       const token = typeof body?.token === "string" && body.token
         ? body.token
         : deps.listTokens()[0]?.token;
-      if (!token) return json(res, 404, { error: "no registered phones" });
+      if (!token) return json(res, 404, { error: "no registered devices" });
       const result = await sender.send({
         token,
         title: "Maximus",

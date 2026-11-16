@@ -22,6 +22,23 @@ export function useDesktopNotificationOpens(state: AppState, dispatch: (action: 
   const showThreads = useShowThreads();
   useEffect(() => window.ogb?.desktopNotifications?.onOpen(setTarget), []);
   useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || data.type !== "maximus-push-open") return;
+      if (typeof data.botId === "string" && typeof data.threadId === "string") {
+        setTarget({ botId: data.botId, threadId: data.threadId });
+      }
+    };
+    const worker = typeof navigator !== "undefined" ? navigator.serviceWorker : undefined;
+    worker?.addEventListener("message", onMessage);
+    const search = typeof window !== "undefined" && window.location ? window.location.search : "";
+    const params = new URLSearchParams(search);
+    const botId = params.get("botId");
+    const threadId = params.get("threadId");
+    if (botId && threadId) setTarget({ botId, threadId });
+    return () => worker?.removeEventListener("message", onMessage);
+  }, []);
+  useEffect(() => {
     if (!target || !state.hydrated) return;
     setTarget(null);
     openThread(dispatch, target, state, showThreads);

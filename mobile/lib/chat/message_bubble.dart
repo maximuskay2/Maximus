@@ -4,6 +4,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../api/client.dart';
 import '../api/models.dart';
 import '../theme/tokens.dart';
+import 'app_card.dart';
 import 'approval_card.dart';
 import 'connector_card.dart';
 import 'secret_card.dart';
@@ -203,6 +204,18 @@ class _MessageBubbleState extends State<MessageBubble> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (message.fromApp != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                'Sent from ${message.fromApp!.title}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: (_mine ? scheme.onPrimary : scheme.onSurface)
+                      .withValues(alpha: 0.7),
+                ),
+              ),
+            ),
           if (widget.replyToText != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
@@ -235,7 +248,9 @@ class _MessageBubbleState extends State<MessageBubble> {
                 durationMs: clip.durationMs,
               ),
             ),
-          if (message.text != null && message.text!.isNotEmpty)
+          if (message.app == null &&
+              message.text != null &&
+              message.text!.isNotEmpty)
             MarkdownBody(
               data: message.text!,
               styleSheet: MarkdownStyleSheet(
@@ -348,6 +363,19 @@ class _MessageBubbleState extends State<MessageBubble> {
               widgetData: message.widget!,
               onUpdated: widget.onWidgetUpdated,
             ),
+          if (message.app != null &&
+              widget.client != null &&
+              widget.bot != null &&
+              widget.thread != null)
+            AppCard(
+              client: widget.client!,
+              baseUrl: widget.baseUrl,
+              botId: widget.bot!.id,
+              threadId: widget.thread!.threadId,
+              messageId: message.id,
+              payload: message.app!,
+              fallbackText: message.text,
+            ),
           if (message.publishedPage != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
@@ -367,6 +395,7 @@ class _MessageBubbleState extends State<MessageBubble> {
               message.signIn == null &&
               message.connector == null &&
               message.widget == null &&
+              message.app == null &&
               message.publishedPage == null)
             Padding(
               padding: const EdgeInsets.only(top: 6),

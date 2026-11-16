@@ -12,11 +12,13 @@ class OutgoingMessage {
     required this.text,
     this.attachments = const [],
     this.replyToId,
+    this.sendId,
   });
 
   final String text;
   final List<UploadedAttachment> attachments;
   final String? replyToId;
+  final String? sendId;
 }
 
 /// Chat composer: autosaved draft, @mention autocomplete, attachments,

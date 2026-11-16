@@ -1,11 +1,12 @@
+import type { FcmPlatform } from "../shared/fcm.ts";
 import type { NotificationLogEntry, NotifyKind } from "../shared/notification.ts";
 import type { FcmSendResult, FcmSender } from "./mobile-push-fcm.ts";
 
-/** A registered phone: one FCM token. `personKey` scopes Team Cloud
+/** A registered FCM token. `personKey` scopes Team Cloud
  * deliveries; personal installs leave it null and receive everything. */
 export interface PushToken {
   token: string;
-  platform: "ios" | "android";
+  platform: FcmPlatform;
   deviceName: string | null;
   personKey: string | null;
   appVersion: string | null;
@@ -17,14 +18,14 @@ export interface PushFanoutDeps {
   /** Per-bot toggle (bot.notifications) and the global push switch. */
   botMuted: (botId: string) => boolean;
   globalEnabled: () => boolean;
-  /** Desktop-preferred: a desktop/web SSE stream is currently live. */
+  /** A desktop/web SSE stream is live: skip FCM to those tokens so the OS banner is not duplicated. Phones still get FYI. */
   desktopLive: () => boolean;
   sender: FcmSender | null;
   clock?: () => number;
 }
 
-/** Kinds that wait on the person: they always push, even muted or with the
- * desktop open. Everything else is FYI and yields to both. */
+/** Kinds that wait on the person: they always push, even muted.
+ * FYI (`done`, notices) still skips muted bots and live web/desktop tokens. */
 export const NEEDS_YOU: ReadonlySet<NotifyKind> = new Set([
   "approval",
   "question",
@@ -68,10 +69,10 @@ export function createPushFanout(deps: PushFanoutDeps) {
     if (!deps.globalEnabled()) return { delivered: 0, skipped: "push disabled" };
     const urgent = NEEDS_YOU.has(entry.kind);
     if (!urgent && deps.botMuted(entry.botId)) return { delivered: 0, skipped: "bot muted" };
-    if (!urgent && deps.desktopLive()) return { delivered: 0, skipped: "desktop live" };
     const now = clock();
     let delivered = 0;
     for (const target of deps.tokens()) {
+      if (deps.desktopLive() && (target.platform === "web" || target.platform === "desktop")) continue;
       // A mention for one teammate never buzzes another's phone.
       if (entry.forPerson && target.personKey !== entry.forPerson) continue;
       if (hourly(sendsByToken, target.token, now).length >= TOTAL_PER_TOKEN_PER_HOUR) continue;
@@ -105,7 +106,7 @@ export function createPushFanout(deps: PushFanoutDeps) {
         deps.removeToken(target.token);
       }
     }
-    return { delivered, skipped: delivered ? "" : "no phones" };
+    return { delivered, skipped: delivered ? "" : "no devices" };
   }
 
   return { fanout, urgent: (kind: NotifyKind): boolean => NEEDS_YOU.has(kind) };

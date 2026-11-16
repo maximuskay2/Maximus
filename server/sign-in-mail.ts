@@ -2,6 +2,8 @@
 // service. A code is 8 digits, works once for ten minutes and for five tries, and only its hash is kept, in memory.
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 
+import { signInCodeMailParts } from "../shared/transactional-mail.ts";
+
 export const SIGNIN_CODE_TTL_MS = 10 * 60_000;
 export const SIGNIN_CODE_RESEND_MS = 30_000;
 export const SIGNIN_CODE_TRIES = 5;
@@ -12,6 +14,7 @@ export interface MailMessage {
   to: string;
   subject: string;
   text: string;
+  html?: string;
 }
 
 export interface MailTransport {
@@ -75,10 +78,9 @@ export function createSignInMail(options: { url: string; from?: string; now?: ()
       const code = String(randomInt(0, 100_000_000)).padStart(8, "0");
       pending.set(email, { hash: digest(code), sentAt: now(), tries: 0 });
       try {
+        const parts = signInCodeMailParts(code);
         await (await transport).sendMail({
-          from: sender, to: email, subject: "Your Maximus sign-in code",
-          text: `Your code to sign in to Maximus is\n\n    ${code.slice(0, 4)} ${code.slice(4)}\n\nIt works once, for the next ten minutes.\n`
-            + "If you did not ask to sign in, ignore this email: nobody gets in without the code.\n",
+          from: sender, to: email, subject: parts.subject, text: parts.text, html: parts.html,
         });
       } catch (error) {
         pending.delete(email);

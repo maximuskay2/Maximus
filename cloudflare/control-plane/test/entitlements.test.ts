@@ -82,7 +82,9 @@ function billingEvent(overrides: Partial<BillingEvent> & { workspace_id: string 
 describe("entitlement transitions", () => {
   it("grants known ids only and carries unknown ones", () => {
     expect(grantedEntitlements(["admin", "nope", "gateway", "admin"])).toEqual(["admin", "gateway"]);
-    expect(entitlementView(ACTIVE).granted).toEqual(["admin", "gateway"]);
+    expect(entitlementView(ACTIVE).granted).toEqual([
+      "admin", "agentOsMachines", "billing", "budgets", "gateway", "sso", "whitelabel",
+    ]);
     expect(entitlementView(ACTIVE).banner).toBeNull();
   });
 
@@ -117,7 +119,9 @@ describe("entitlement transitions", () => {
       floor,
       billingEvent({ workspace_id: "acme", plan: "starter", entitlements: [], allowance: null }),
     );
-    expect(starter).toMatchObject({ plan: "starter", allowance: 8_00, entitlements: ["billing", "gateway"], status: "active" });
+    expect(starter).toMatchObject({ plan: "starter", allowance: 8_00, entitlements: ["billing", "gateway", "agentOsMachines"], status: "active" });
+    expect(PLAN_CATALOG.byo.entitlements).toContain("agentOsMachines");
+    expect(PLAN_CATALOG.free.entitlements).not.toContain("agentOsMachines");
     expect(PLAN_CATALOG.team).toMatchObject({ allowance: 22_00 });
     expect(PLAN_CATALOG.team.entitlements).toContain("gateway");
     expect(PLAN_CATALOG.business.allowance).toBe(40_00);

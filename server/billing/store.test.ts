@@ -46,6 +46,19 @@ describe("billing store", () => {
     expect(store.record("acme")?.carried).toContain("unshipped-future");
   });
 
+  it("adds named computers from the paid plan without a second billing product", () => {
+    const withApp = new Map(plans);
+    withApp.set("maximus-pro", { id: "maximus-pro", baseUsd: 49, allowanceUsd: 200, hardCapUsd: 500, entitlements: ["gateway", "agentOsMachines"] });
+    const billed = new BillingStore({
+      dataDir: mkdtempSync(join(tmpdir(), "billing-store-")),
+      plans: withApp,
+      knownEntitlements: KNOWN_ENTITLEMENTS,
+      now: () => NOW,
+    });
+    billed.apply(event({ entitlements: ["gateway"] }));
+    expect(billed.granted("acme")).toEqual(["agentOsMachines", "gateway"]);
+  });
+
   it("acknowledges duplicate deliveries without re-applying", () => {
     const { store } = storeIn();
     expect(store.apply(event()).outcome).toBe("applied");

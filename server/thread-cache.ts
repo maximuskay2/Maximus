@@ -10,6 +10,12 @@ export interface ThreadState {
 export const THREAD_IDLE_MS = 10 * 60_000;
 const SWEEP_EVERY_MS = 60_000;
 
+const caches = new Set<ThreadCache>();
+
+export function dropCachedThread(threadId: string): void {
+  for (const cache of caches) cache.delete(threadId);
+}
+
 export class ThreadCache {
   private entries = new Map<string, { state: ThreadState; usedAt: number }>();
   private sweptAt = Date.now();
@@ -17,6 +23,7 @@ export class ThreadCache {
 
   constructor(busyThreadIds: () => ReadonlySet<string>) {
     this.busyThreadIds = busyThreadIds;
+    caches.add(this);
   }
 
   get(threadId: string): ThreadState | undefined {

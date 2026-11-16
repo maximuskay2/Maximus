@@ -22,7 +22,11 @@ project and a server service account. Until then the app reports push
    settings → Cloud Messaging → Apple app configuration, upload the APNs
    Auth Key (`.p8`, with Key ID + Team ID) from the Apple Developer
    portal. Without it, iPhones register but never buzz.
-5. Rebuild: `cd mobile && flutter run`.
+5. The Web app and Web Push key are already in tree
+   (`scripts/firebase-web-config.ts`). Desktop uses the same
+   `messagingSenderId`.
+6. Rebuild: `cd mobile && flutter run`. Then `pnpm build` for web and
+   desktop.
 
 ## 2. Server credentials (every install that sends push)
 
@@ -52,8 +56,9 @@ project and a server service account. Until then the app reports push
   push, and only that tap shows the OS prompt.
 - Approvals, questions, sign-ins, secrets, incidents, failures, mentions,
   spend and briefs always push. Finished work (done, delegation-settled,
-  waits, notices) stays quiet while a desktop/web stream is open or the
-  bot is muted, and coalesces to one banner per thread per minute
-  (max 20 FYI + 60 total per phone per hour).
+  waits, notices) skips FCM to web/desktop tokens while that session's
+  stream is open (the live window already shows the OS banner), and still
+  reaches phones. Muted bots stay quiet. FYI coalesces to one banner per
+  thread per minute (max 20 FYI + 60 total per phone per hour).
 - Kill the app and tap a banner: `getInitialMessage` routes to the
   thread. While the app runs, banners arrive in-app with a View action.

@@ -11,6 +11,7 @@ import '../api/models.dart';
 import '../api/thread_cache.dart';
 import '../bots/bot_pages.dart';
 import '../call/call_page.dart';
+import '../settings/machines_page.dart';
 import '../settings/preferences.dart';
 import '../theme/blobs.dart';
 import 'approval_card.dart';
@@ -20,6 +21,7 @@ import 'composer.dart';
 import 'dictation.dart';
 import 'drafts.dart';
 import 'message_bubble.dart';
+import 'send_outbox.dart';
 
 /// Live chat thread: transcript, streaming replies, composer, reactions.
 class ThreadPage extends StatefulWidget {
@@ -33,6 +35,7 @@ class ThreadPage extends StatefulWidget {
     this.botNames = const [],
     this.imageLoader = defaultAttachmentImageLoader,
     this.drafts,
+    this.outbox,
     this.eventStream,
     this.cache,
     this.serverId,
@@ -55,6 +58,9 @@ class ThreadPage extends StatefulWidget {
 
   /// Injectable draft store (memory in tests).
   final DraftStore? drafts;
+
+  /// Injectable unsent-message queue (memory in tests).
+  final SendOutbox? outbox;
 
   /// Injectable live events for tests (defaults to /api/events).
   final Stream<LiveEvent>? eventStream;
@@ -105,6 +111,8 @@ class _ThreadPageState extends State<ThreadPage> with WidgetsBindingObserver {
   String? _cursor;
   String? _openedSince;
   late final DraftStore _drafts = widget.drafts ?? DraftStore();
+  late final SendOutbox _outbox = widget.outbox ?? SendOutbox();
+  bool _flushing = false;
   final SpeechDriver _speech = SystemSpeechDriver();
   double _keyboardInset = 0;
 
@@ -133,6 +141,22 @@ class _ThreadPageState extends State<ThreadPage> with WidgetsBindingObserver {
     _find.dispose();
     _findFocus.dispose();
     super.dispose();
+    unawaited(_flushOutbox());
+  }
+
+  @override
+  void didUpdateWidget(ThreadPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.thread.threadId != widget.thread.threadId) {
+      unawaited(_load());
+    } else {
+      unawaited(_flushOutbox());
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_flushOutbox());
   }
 
   @override
@@ -229,7 +253,10 @@ class _ThreadPageState extends State<ThreadPage> with WidgetsBindingObserver {
     if (event.kind == 'hello') {
       if (liveEventsNeedSnapshot(_openedSince, event.data['resumed'])) {
         unawaited(_load());
+      } else {
+        unawaited(_flushOutbox());
       }
+      _openedSince = _cursor;
       return;
     }
     final threadId = event.data['threadId'] as String?;
@@ -243,7 +270,16 @@ class _ThreadPageState extends State<ThreadPage> with WidgetsBindingObserver {
       if (index >= 0) {
         _messages[index] = message; // streaming patch / reaction update
       } else {
-        _messages.add(message);
+        final echo = message.role == 'user'
+            ? _messages.lastIndexWhere(
+                (row) => row.role == 'user' && row.text == message.text,
+              )
+            : -1;
+        if (echo >= 0) {
+          _messages[echo] = message;
+        } else {
+          _messages.add(message);
+        }
       }
       // Empty bot rows are in-progress activity. A work receipt is not
       // the reply, so it leaves the thinking indicator alone.
@@ -265,7 +301,7 @@ class _ThreadPageState extends State<ThreadPage> with WidgetsBindingObserver {
     final cache = widget.cache;
     final serverId = widget.serverId;
     setState(() {
-      _loading = true;
+      if (_messages.isEmpty) _loading = true;
       _error = null;
     });
     // Stale-while-revalidate: cached page renders instantly, network refreshes.
@@ -273,10 +309,7 @@ class _ThreadPageState extends State<ThreadPage> with WidgetsBindingObserver {
       final cached = await cache.readThread(serverId, widget.thread.threadId);
       if (cached != null && mounted) {
         setState(() {
-          _messages
-            ..clear()
-            ..addAll(cached.messages);
-          _hasMore = cached.hasMore;
+          _applyPage(cached.messages, hasMore: cached.hasMore);
           _loading = false;
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -295,12 +328,7 @@ class _ThreadPageState extends State<ThreadPage> with WidgetsBindingObserver {
         await cache.writeThread(serverId, widget.thread.threadId, page);
       }
       if (!mounted) return;
-      setState(() {
-        _messages
-          ..clear()
-          ..addAll(page.messages);
-        _hasMore = page.hasMore;
-      });
+      setState(() => _applyPage(page.messages, hasMore: page.hasMore));
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_scroll.hasClients) {
           _scroll.jumpTo(_scroll.position.maxScrollExtent);
@@ -312,7 +340,9 @@ class _ThreadPageState extends State<ThreadPage> with WidgetsBindingObserver {
         setState(() => _error = error.message);
       }
     } finally {
+      await _restoreQueued();
       if (mounted) setState(() => _loading = false);
+      await _flushOutbox();
     }
   }
 
@@ -339,60 +369,121 @@ class _ThreadPageState extends State<ThreadPage> with WidgetsBindingObserver {
     }
   }
 
+  void _applyPage(List<ChatMessage> page, {required bool hasMore}) {
+    final kept = [
+      for (final row in _messages)
+        if (row.role == 'user' && page.every((m) => m.id != row.id)) row,
+    ];
+    _messages
+      ..clear()
+      ..addAll(page)
+      ..addAll(kept);
+    _hasMore = hasMore;
+  }
+
+  ChatMessage _queuedRow(OutboxItem item) => ChatMessage(
+    id: item.sendId,
+    role: 'user',
+    kind: 'text',
+    text: item.text,
+    replyToId: item.replyToId,
+  );
+
+  Future<void> _restoreQueued() async {
+    final pending = await _outbox.pending(widget.thread.threadId);
+    if (!mounted || pending.isEmpty) return;
+    setState(() {
+      for (final item in pending) {
+        if (_messages.any((row) => row.id == item.sendId || row.text == item.text)) {
+          continue;
+        }
+        _messages.add(_queuedRow(item));
+      }
+    });
+  }
+
   Future<void> _send(OutgoingMessage outgoing) async {
-    final optimistic = ChatMessage(
-      id: 'optimistic-${DateTime.now().microsecondsSinceEpoch}',
-      role: 'user',
-      kind: 'text',
+    final sendId = outgoing.sendId ?? newSendId();
+    final item = OutboxItem(
+      sendId: sendId,
+      threadId: widget.thread.threadId,
+      botId: widget.bot.id,
+      groupId: widget.groupId,
       text: outgoing.text,
       replyToId: outgoing.replyToId,
+      attachments: outgoing.attachments,
     );
+    await _outbox.enqueue(item);
     unawaited(AppPreferences.buzz());
     setState(() {
-      _messages.add(optimistic);
+      if (!_messages.any((row) => row.id == sendId)) {
+        _messages.add(_queuedRow(item));
+      }
       _sending = true;
       _sendError = null;
       _working = true;
     });
     _scrollToBottom();
+    await _deliver(item);
+    if (mounted) setState(() => _sending = false);
+  }
+
+  Future<bool> _deliver(OutboxItem item) async {
     try {
-      final sent = widget.groupId != null
+      final sent = item.groupId != null
           ? await widget.client.sendGroupMessage(
               widget.baseUrl,
-              widget.groupId!,
-              outgoing.text,
+              item.groupId!,
+              item.text,
               attachments: [
-                for (final a in outgoing.attachments)
-                  {'path': a.path, 'mime': a.mime},
+                for (final a in item.attachments) {'path': a.path, 'mime': a.mime},
               ],
+              sendId: item.sendId,
             )
           : await widget.client.sendMessage(
               widget.baseUrl,
-              widget.bot.id,
-              outgoing.text,
+              item.botId,
+              item.text,
               attachments: [
-                for (final a in outgoing.attachments)
-                  {'path': a.path, 'mime': a.mime},
+                for (final a in item.attachments) {'path': a.path, 'mime': a.mime},
               ],
-              replyToId: outgoing.replyToId,
+              replyToId: item.replyToId,
+              sendId: item.sendId,
             );
+      await _outbox.remove(item.threadId, item.sendId);
       if (mounted) {
         setState(() {
-          final index = _messages.indexWhere((m) => m.id == optimistic.id);
-          if (index >= 0) _messages[index] = sent;
+          final index = _messages.indexWhere((m) => m.id == item.sendId);
+          if (index >= 0) {
+            _messages[index] = sent;
+          }
+          _sendError = null;
           _working = _awaitingReply;
         });
       }
+      return true;
     } on ApiError catch (error) {
       if (mounted) {
         setState(() {
-          _messages.removeWhere((m) => m.id == optimistic.id);
           _sendError = error.message;
           _working = false;
         });
       }
+      return false;
+    }
+  }
+
+  Future<void> _flushOutbox() async {
+    if (_flushing) return;
+    _flushing = true;
+    try {
+      final pending = await _outbox.pending(widget.thread.threadId);
+      for (final item in pending) {
+        final ok = await _deliver(item);
+        if (!ok) break;
+      }
     } finally {
-      if (mounted) setState(() => _sending = false);
+      _flushing = false;
     }
   }
 
@@ -654,8 +745,11 @@ class _ThreadPageState extends State<ThreadPage> with WidgetsBindingObserver {
                 children: [
                   Expanded(child: Text(_sendError!)),
                   TextButton(
-                    onPressed: () => setState(() => _sendError = null),
-                    child: const Text('Dismiss'),
+                    onPressed: () {
+                      setState(() => _sendError = null);
+                      unawaited(_flushOutbox());
+                    },
+                    child: const Text('Retry'),
                   ),
                 ],
               ),
@@ -726,6 +820,11 @@ class _ThreadPageState extends State<ThreadPage> with WidgetsBindingObserver {
                   onTap: () => Navigator.of(sheet).pop('find'),
                 ),
                 ListTile(
+                  leading: const Icon(Icons.computer_outlined),
+                  title: const Text('Run on a computer'),
+                  onTap: () => Navigator.of(sheet).pop('machine'),
+                ),
+                ListTile(
                   leading: const Icon(Icons.ios_share_outlined),
                   title: const Text('Share as template'),
                   onTap: () => Navigator.of(sheet).pop('template'),
@@ -756,6 +855,18 @@ class _ThreadPageState extends State<ThreadPage> with WidgetsBindingObserver {
             ),
           ),
         );
+      case 'machine':
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => MachinesPage(
+              client: widget.client,
+              baseUrl: widget.baseUrl,
+              threadId: widget.thread.threadId,
+              botId: widget.bot.id,
+            ),
+          ),
+        );
+        if (mounted) await _load();
       case 'find':
         _dismissKeyboard();
         setState(() => _finding = true);

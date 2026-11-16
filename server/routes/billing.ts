@@ -23,6 +23,7 @@ import type { RationService } from "../billing/ration-service.ts";
 import { BillingStore } from "../billing/store.ts";
 import { billableFor, type PriceList } from "../prices.ts";
 import { readDelivery } from "../delivery-settings.ts";
+import { addHostedEntitlementSource } from "../enterprise.ts";
 import { ownerOrAdmin, type RequestAuth } from "../request-auth.ts";
 import { resolveProvider, type ProviderId } from "../switchboard.ts";
 import { PASS, type RouteHandler } from "./table.ts";
@@ -61,6 +62,7 @@ function headerText(req: IncomingMessage, name: string): string | null {
 export function createBillingRoutes(deps: BillingRouteDeps): RouteHandler {
   const env = deps.env ?? process.env;
   const store = deps.store ?? new BillingStore({ dataDir: deps.dataDir, plans: deps.plans, knownEntitlements: deps.knownEntitlements, now: deps.now });
+  addHostedEntitlementSource((id) => store.granted(rationWorkspace(env)).includes(id));
   const workspaceOf = deps.workspace ?? (() => {
     const id = env.MAXIMUS_ADMIN_WORKSPACE ?? "";
     return WORKSPACE.test(id) ? id : null;
@@ -147,7 +149,7 @@ export function createBillingRoutes(deps: BillingRouteDeps): RouteHandler {
           granted,
           allowanceUsd: record?.allowanceUsd ?? null,
           budget,
-          banner: record ? billingBanner(record) : null,
+          banner: record ? billingBanner(record, deps.now?.() ?? Date.now()) : null,
         },
       });
     }

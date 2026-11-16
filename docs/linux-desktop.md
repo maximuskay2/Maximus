@@ -14,19 +14,17 @@ a bot the same kind of Linux desktop on your own server instead of this machine,
 - External documentation and OAuth links in the default browser.
 - An explicit, view-only local screen preview on GNOME Xorg and GNOME Wayland. The Wayland path uses the
   native portal chooser and keeps the selected PipeWire stream open until the user stops sharing.
-- Explicit opt-in local computer control on GNOME Xorg using the bundled, pinned Cua Driver without its
-  decorative full-screen cursor overlay.
-- A fail-closed local-control state on GNOME Wayland while its separate real-seat input-safety gate in issue #345
-  is resolved.
+- Explicit opt-in local computer control on GNOME Xorg and GNOME Wayland using the bundled, pinned Cua Driver without its
+  decorative full-screen cursor overlay. GNOME Wayland also requires a passing Cua health report (WinRects + portal/libei).
+- A fail-closed local-control state on non-GNOME Wayland compositors.
 
 The local preview does **not** give the bot control of this computer by itself. On Xorg, local control requires both
 the global **Enable local control** choice and assigning a bot to **This computer**; every action still enters the
-approval flow. On Wayland, local control is disabled and legacy opt-ins are cleared automatically. Automatic Wayland
-helper installation, native on-device dictation, and ARM64 remain unavailable and fail closed; follow their
-progress in [issue #29](https://github.com/RELEASE_OWNER/Maximus/issues/29) and the safety hold in
-[issue #345](https://github.com/RELEASE_OWNER/Maximus/issues/345). Bundled
-CUA supply-chain work is tracked in [issue #113](https://github.com/RELEASE_OWNER/Maximus/issues/113). Xorg is tracked in
-[issue #79](https://github.com/RELEASE_OWNER/Maximus/issues/79), and guarded GNOME/Wayland support in
+approval flow. On GNOME Wayland the same opt-in starts the supervised driver after `health_report` is ok. Other
+Wayland desktops stay unavailable. Automatic Wayland helper installation, native on-device dictation, and ARM64 remain
+unavailable and fail closed; follow their progress in [issue #29](https://github.com/RELEASE_OWNER/Maximus/issues/29).
+Bundled CUA supply-chain work is tracked in [issue #113](https://github.com/RELEASE_OWNER/Maximus/issues/113). Xorg is
+tracked in [issue #79](https://github.com/RELEASE_OWNER/Maximus/issues/79), and GNOME/Wayland health in
 [issue #109](https://github.com/RELEASE_OWNER/Maximus/issues/109).
 
 ## Download packages
@@ -195,15 +193,16 @@ Cancelling or ending Wayland sharing returns to a calm **Try again** state and n
 automatically. Maximus does not capture screen audio, remember the selected monitor after restart, or
 offer an **Open Settings** action on Linux.
 
-Local computer control is independent from preview. It is available after explicit opt-in on Xorg and remains
-fail-closed on Wayland. XWayland's `DISPLAY` never bypasses the Wayland safety gate.
+Local computer control is independent from preview. It is available after explicit opt-in on GNOME Xorg and GNOME
+Wayland. XWayland's `DISPLAY` never disguises a Wayland session as Xorg.
 
 ## Enable local control
 
 Installed `.deb` and AppImage builds include the certified **Cua Driver 0.19.3** CLI and cursor-theme sidecar.
-On GNOME Xorg, open Settings, choose **Enable local control (Beta)**, wait for **Ready**, then explicitly assign a bot
+On GNOME Xorg or GNOME Wayland, open Settings, choose **Enable local control (Beta)**, wait for **Ready**, then explicitly assign a bot
 to **This computer**. No driver download, terminal command, `chmod`, or daemon setup is required. The owned daemon
-starts with `--no-overlay`, so Cua's decorative full-screen X11 cursor surface is never created. Maximus also
+starts with `--no-overlay`, so Cua's decorative full-screen X11 cursor surface is never created. GNOME Wayland
+sets `CUA_DRIVER_RS_ENABLE_WAYLAND=1` and refuses Ready until `health_report` is ok. Maximus also
 uses Electron software rendering when the NVIDIA driver is loaded, to avoid the reproduced NVIDIA/libGLES
 GPU-process failure that could leave an invisible focused app window receiving input. Other GPUs keep hardware
 acceleration, because software rendering costs about a CPU core while the window animates. Set `MAXIMUS_LINUX_GPU=off`
@@ -213,10 +212,8 @@ Cua actions use a private logical cursor. With the decorative overlay disabled, 
 user's physical pointer; approved click and typing actions still target the requested window, while the user's own
 mouse remains under their control.
 
-On GNOME Wayland, **This computer** remains unavailable and an older persisted opt-in is reset to off with private
-file permissions. Sign out and choose **Ubuntu on Xorg** from the login-screen session menu, or continue using Chat,
-preview-only capture, Cloud, or Local VM. Wayland re-enablement requires its own real-seat evidence and will not be
-controlled by an environment override.
+On a non-GNOME Wayland desktop, **This computer** stays unavailable. Use GNOME, or continue using Chat,
+preview-only capture, Cloud, or Local VM. Ready is never inferred from `WAYLAND_DISPLAY` or XWayland alone.
 
 The upstream release has no signature or GitHub artifact attestation and is not immutable, so the build uses an
 explicit reviewed digest as its trust anchor:
@@ -240,12 +237,12 @@ the pinned binaries into a private `0700` stage and verifies their hashes again.
 package-owned path to `root:root 0755` automatically.
 
 The packaged runtime remains outside ASAR for deterministic provenance and validation. In packaged builds neither a
-`CUA_DRIVER_PATH` value nor an ambient PATH candidate can replace it; on Wayland neither can bypass the safety gate.
+`CUA_DRIVER_PATH` value nor an ambient PATH candidate can replace it.
 
-The Xorg runtime uses private sockets, standard permission mode, per-action Maximus approvals,
-telemetry/update-check suppression, strict driver identity, overlay-free startup, and lifecycle cleanup tests. Those
-defenses remain necessary, but none substitutes for the real-seat acceptance evidence required to enable Wayland. Linux
-**Auto** never routes to the user's desktop, and no Cloud or Local VM approval can authorize it.
+The Linux runtime uses private sockets, standard permission mode, per-action Maximus approvals,
+telemetry/update-check suppression, strict driver identity, overlay-free startup, and lifecycle cleanup tests. GNOME
+Wayland also requires the exact Cua health-report contract. Linux **Auto** never routes to the user's desktop, and no
+Cloud or Local VM approval can authorize it.
 
 ## Validate a package change
 
@@ -264,9 +261,9 @@ The verifier checks `.deb` metadata, desktop identity, the exact dormant Cua res
 SquashFS/DEB directory modes, runtime path policy, and matching binary hashes across all artifacts. The local smoke
 launches the unpacked app and AppImage without `--no-sandbox`; CI first reproduces a `0.1.7` in-place DEB upgrade and
 then runs the same smoke against `/opt/Maximus/maximus`. These lanes prove the embedded server and UI are
-usable while an optional Composio broker stalls, verify that an old local-control opt-in is cleared, and assert that
-no Cua executable starts on Xorg or simulated Wayland. Low-level runtime tests retain the future private-daemon
-contract without activating it in a packaged app. Only a real-seat acceptance matrix can authorize re-enablement.
+usable while an optional Composio broker stalls, and run overlay-free CUA crash/retry on Xorg plus the GNOME Wayland
+supervised contract (health report, `CUA_DRIVER_RS_ENABLE_WAYLAND`). Low-level runtime tests keep the private-daemon
+handshake. A real GNOME seat is still required before claiming live input delivery.
 
 ## Troubleshooting
 
@@ -278,14 +275,14 @@ considered for automatic discovery.
 
 ### A bot needs computer tools
 
-Choose **Cloud** (Boat) and add a Boat token in App Settings, or use Local VM. Linux **This computer** remains disabled
-on Wayland. On Xorg, enable it from the **Local control** card first.
+Choose **Cloud** (Boat) and add a Boat token in App Settings, or use Local VM. On GNOME, enable **This computer** from
+the **Local control** card first. Other Wayland desktops cannot enable it.
 
 ### Local control is not ready
 
-On Xorg, press **Try again** and use the reason shown in the card. The bundled package requires no manual driver
-installation or `chmod`; an upgraded DEB repairs its exact package-owned directory modes automatically. On Wayland,
-the card directs you to Ubuntu on Xorg and intentionally offers no enable button.
+Press **Try again** and use the reason shown in the card. The bundled package requires no manual driver
+installation or `chmod`; an upgraded DEB repairs its exact package-owned directory modes automatically. On a
+non-GNOME Wayland session the card offers no enable button.
 
 ### Screen preview does not start
 

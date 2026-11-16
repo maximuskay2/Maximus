@@ -345,7 +345,7 @@ export function harnessHealth(options?: HarnessCallOptions): Promise<HarnessHeal
   return call<unknown>("/api/health", options ?? {}).then(toHarnessHealth);
 }
 
-export const KNOWN_ENTITLEMENTS: readonly string[] = ["whitelabel", "sso", "admin", "budgets", "billing", "gateway"];
+export const KNOWN_ENTITLEMENTS: readonly string[] = ["whitelabel", "sso", "admin", "budgets", "billing", "gateway", "agentOsMachines"];
 
 export interface AdminPlan {
   id: string;

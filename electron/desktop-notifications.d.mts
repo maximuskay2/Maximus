@@ -14,4 +14,6 @@ export interface DesktopNotificationsBridge {
   show(note: DesktopNotificationNote): Promise<boolean>;
   /** A click on one of them brought this page up: open that thread. */
   onOpen(cb: (target: { botId: string; threadId: string }) => void): () => void;
+  /** FCM registration token for this computer, or null when the receiver is not bundled. */
+  fcmToken?(senderId: string): Promise<string | null>;
 }

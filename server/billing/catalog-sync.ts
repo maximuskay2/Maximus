@@ -21,12 +21,12 @@ export function workerPlansFromRation(profile: RationProfile): WorkerPlanRow[] {
     allowance: plan.id === "free" ? null : cents(plan.allowanceUsd),
   }));
   if (plus) {
-    rows.push({ id: "team", entitlements: ["admin", "budgets", "billing", "gateway"], allowance: cents(plus.includedCostUsd) });
+    rows.push({ id: "team", entitlements: ["admin", "budgets", "billing", "gateway", "agentOsMachines"], allowance: cents(plus.includedCostUsd) });
   }
   if (pro) {
     rows.push({
       id: "business",
-      entitlements: ["whitelabel", "sso", "admin", "budgets", "billing", "gateway"],
+      entitlements: ["whitelabel", "sso", "admin", "budgets", "billing", "gateway", "agentOsMachines"],
       allowance: cents(pro.includedCostUsd),
     });
   }

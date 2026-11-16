@@ -6,6 +6,7 @@
 // silent downgrade.
 import type { IncomingMessage } from "node:http";
 
+import { addHostedEntitlementSource } from "../enterprise.ts";
 import type { EntitlementSync } from "../entitlement-sync.ts";
 import { MAXIMUS_CONTRACT_HEADER, MAXIMUS_CONTRACT_MISMATCH, MAXIMUS_CONTRACT_VERSION, maximusContractCompatible } from "../maximus-contract.ts";
 import { PROVIDER_IDS, resolveProvider } from "../switchboard.ts";
@@ -24,6 +25,7 @@ function contractRefusal(req: IncomingMessage): { status: 409; error: string; co
 }
 
 export function createHostedRoutes(deps: HostedRouteDeps): RouteHandler {
+  addHostedEntitlementSource((id) => deps.sync()?.view().granted.includes(id) === true);
   return async ({ req, res, path, method, auth, json }) => {
     if (method !== "GET" || (path !== "/api/hosted/entitlements" && path !== "/api/hosted/routing")) return PASS;
     const sync = deps.sync();

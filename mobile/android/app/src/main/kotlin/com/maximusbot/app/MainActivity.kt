@@ -1,7 +1,10 @@
 package com.maximusbot.app
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.AlarmClock
 import io.flutter.embedding.android.FlutterActivity
@@ -14,6 +17,11 @@ class MainActivity : FlutterActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     rewriteShareIntent(intent)
     super.onCreate(savedInstanceState)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      getSystemService(NotificationManager::class.java).createNotificationChannel(
+        NotificationChannel("maximus_push", "Maximus", NotificationManager.IMPORTANCE_HIGH),
+      )
+    }
   }
 
   override fun onNewIntent(intent: Intent) {

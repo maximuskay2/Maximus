@@ -140,7 +140,9 @@ pnpm control:maximus …     # drive an isolated fixture (see verification/)
 
 | Plan | Focus |
 | --- | --- |
-| [2026-11-14 Maximus v1 release](plans/2026-11-14-maximus-v1-release.md) | Freeze the current product and ship it. Later ERP / offline / Agent OS work is listed there and not scheduled |
+| [2026-11-15 Maximus roadmap](plans/2026-11-15-maximus-roadmap.md) | **The** sequence: v1 prove/cut, then v2 phone→Office Mac, then one app per plug-in family |
+| [2026-11-14 Maximus v1 release](plans/2026-11-14-maximus-v1-release.md) | Pointer to Ship 1 on the merged roadmap |
+| [2026-11-15 Agent OS](plans/2026-11-15-agent-os-working-product.md) | Pointer to Ship 2 on the merged roadmap |
 | [2026-11-11 VPS full product](plans/2026-11-11-vps-full-product-roadmap.md) | Coolify + accounts + meetnote domains (hosting phases done) |
 | [2026-11-12 Flutter chat parity](plans/2026-11-12-flutter-chat-parity-waves.md) | Mobile cards, share, phone apps, durability |
 | [2026-11-10 LLM ration / billing](plans/2026-11-10-llm-ration-billing-roadmap.md) | Muse gateway metering |

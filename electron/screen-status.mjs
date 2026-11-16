@@ -6,8 +6,8 @@ import { sharedCuaConnection } from "./shared-cua-connection.mjs";
 
 const { driverBlocked, localComputerReady } = capabilitiesModule;
 
-/** A Linux session computer control refuses to drive (Wayland, no desktop, a driver that failed its check). */
-const LINUX_UNSUPPORTED = new Set(["linux-wayland-seat-safety-blocked", "headless-session", "unsupported-platform", "bundled-driver-invalid"]);
+/** A Linux session computer control refuses to drive (wrong compositor, no desktop, a driver that failed its check). */
+const LINUX_UNSUPPORTED = new Set(["linux-wayland-seat-safety-blocked", "wayland-compositor-unsupported", "headless-session", "unsupported-platform", "bundled-driver-invalid"]);
 
 /**
  * `ready`: computer control works, so apps and screen are lent and used. `lent`: they are lent, which a Mac lacking only

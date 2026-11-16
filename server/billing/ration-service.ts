@@ -7,6 +7,7 @@ import { z } from "zod";
 import { writeFileAtomic } from "../atomic.ts";
 import { AccountPlans, type AccountChoice } from "./account-plan.ts";
 import type { PriceList } from "../prices.ts";
+import { canonicalGrantEmail, grantInstallId } from "./grant-identity.ts";
 import {
   debitUsd, DEFAULT_RATION, hostedTier, outputTokensFor, parseRationProfile, rateFor, rationPreview, rationProblems, rationProfileSchema, rationWorkspace,
   type FreeIdentity, type RationPreview, type RationProfile, type TokenUse,
@@ -31,7 +32,7 @@ type Wallet = z.infer<typeof walletSchema>;
 const claimSchema = z.object({
   kind: z.enum(["email", "install"]),
   value: z.string().min(1).max(320),
-  workspace: z.string().min(1).max(80),
+  workspace: z.string().min(1).max(400),
 });
 type Claim = z.infer<typeof claimSchema>;
 
@@ -126,6 +127,19 @@ function blankWallet(workspace: string, now: Date): Wallet {
   };
 }
 
+/** Free Muse is one wallet per signup email (or install when there is no email). Paid plans stay on the host workspace id. */
+function freeWalletId(identity?: FreeIdentity): string | null {
+  const email = identity?.email?.trim().toLowerCase() ?? "";
+  if (email) return `free:${email}`;
+  const install = identity?.installId?.trim() ?? "";
+  if (install) return `free:install:${install}`;
+  return null;
+}
+
+function walletId(workspace: string, identity?: FreeIdentity): string {
+  return freeWalletId(identity) ?? workspace;
+}
+
 export class RationService {
   private readonly profileFile: string;
   private readonly walletFile: string;
@@ -169,7 +183,7 @@ export class RationService {
 
   /**
    * Admin-only credit or plan for one email. Credit stacks. A different plan,
-   * or the same plan with renew, starts a fresh month. The shared wallet stays put.
+   * or the same plan with renew, starts a fresh month. Other accounts' free wallets stay put.
    */
   grantAccount(input: AccountGrantInput, now = new Date()): { ok: true; seat: AccountSeatView } | { ok: false; error: string } {
     const email = input.email.trim().toLowerCase();
@@ -248,22 +262,27 @@ export class RationService {
     return this.wallets.get(workspace) ?? blankWallet(workspace, now);
   }
 
-  /** One free grant per workspace, and one per verified email or install. A later paid period does not mint another. */
+  /**
+   * One free grant per signup email (or install id when there is no email).
+   * Host workspace wallets are only for paid / Your-model seats and anonymous gateway tests.
+   */
   ensureFree(workspace: string, now = new Date(), identity?: FreeIdentity): Wallet {
-    const current = this.wallets.get(workspace);
+    const id = walletId(workspace, identity);
+    const current = this.wallets.get(id);
     if (current?.freeUsed || (current && current.tier !== "free")) {
-      let dirty = this.noteIdentity(workspace, identity);
+      let dirty = this.noteIdentity(id, identity);
       if (current?.tier === "free" && this.profile.contributorFree && current.contributor === undefined) {
         current.contributor = true;
-        this.wallets.set(workspace, current);
+        this.wallets.set(id, current);
         dirty = true;
       }
       if (dirty) this.saveWallets();
-      return current ?? blankWallet(workspace, now);
+      return current ?? blankWallet(id, now);
     }
-    const taken = this.identityTaken(workspace, identity);
+    const taken = this.identityTaken(id, identity);
     const next: Wallet = {
-      ...(current ?? blankWallet(workspace, now)),
+      ...(current ?? blankWallet(id, now)),
+      workspace: id,
       tier: "free",
       grantedUsd: taken ? 0 : this.profile.freeGrantUsd,
       spentUsd: 0,
@@ -272,8 +291,8 @@ export class RationService {
       // Free Muse on the product path is Contributor Spark (cheaper; Meta may train).
       ...(this.profile.contributorFree ? { contributor: true } : {}),
     };
-    this.wallets.set(workspace, next);
-    this.noteIdentity(workspace, identity);
+    this.wallets.set(id, next);
+    this.noteIdentity(id, identity);
     this.saveWallets();
     return next;
   }
@@ -283,12 +302,12 @@ export class RationService {
     const wallet = this.ensureFree(workspace, now, identity);
     if (wallet.tier !== "free") return wallet;
     wallet.contributor = accept;
-    this.wallets.set(workspace, wallet);
+    this.wallets.set(wallet.workspace, wallet);
     this.saveWallets();
     return wallet;
   }
 
-  /** What Usage shows. A personal seat replaces the shared wallet. Extra credit sits on top of it. */
+  /** What Usage shows. A personal seat replaces the free wallet. Extra credit sits on top of it. */
   walletView(workspace: string, now = new Date(), identity?: FreeIdentity): WalletPublic {
     const personal = identity?.email ? this.seats.get(identity.email.trim().toLowerCase()) : undefined;
     if (personal?.plan) return this.seatWallet(personal);
@@ -417,7 +436,9 @@ export class RationService {
    * An email with no saved plan is not charged, so a local owner and a test send stay put.
    */
   chargeChat(workspace: string, email: string, text: string, now = new Date()): RationRefusal | null {
-    const seat = this.seats.get(email.trim().toLowerCase());
+    const who = email.trim().toLowerCase();
+    const identity: FreeIdentity = { email: who };
+    const seat = this.seats.get(who);
     if (seat?.plan === "byo") return null;
     if (seat?.plan === "starter" || seat?.plan === "plus" || seat?.plan === "pro") return this.chargeSeat(seat, text, now);
     if (seat && seat.creditUsd > seat.spentUsd) {
@@ -425,16 +446,16 @@ export class RationService {
       if (!fromCredit) return null;
       if (fromCredit.code !== "spend_cap") return fromCredit;
     }
-    if (!this.accountChoice(email)) return null;
-    const wallet = this.ensureFree(workspace, now);
+    if (!this.accountChoice(who)) return null;
+    const wallet = this.ensureFree(workspace, now, identity);
     if (wallet.tier === "byo") return null;
     const model = this.meterModel(wallet);
-    const refusal = this.preflight(workspace, model, text, now);
+    const refusal = this.preflight(workspace, model, text, now, identity);
     if (refusal) return personFacing(refusal);
     const inputTokens = Math.ceil(text.length / 4);
     const rate = rateFor(this.profile, model, inputTokens);
     if (!rate) return { status: 403, code: "model_locked", message: "This model is outside the current plan." };
-    const current = this.wallets.get(workspace);
+    const current = this.wallets.get(wallet.workspace);
     if (!current) return null;
     const left = Math.max(0, this.limit(current) - current.spentUsd);
     const inputCost = debitUsd({ freshInput: inputTokens, cachedInput: 0, output: 0 }, rate);
@@ -442,12 +463,12 @@ export class RationService {
     if (room <= 0) return personFacing(this.capRefusal(current));
     const affordableOut = Math.max(1, Math.floor((room / rate.outputPerMillion) * 1_000_000));
     const reserve = Math.min(this.profile.freeOutputReserve, affordableOut);
-    const charged = this.debit(workspace, model, { freshInput: inputTokens, cachedInput: 0, output: reserve }, now);
+    const charged = this.debit(workspace, model, { freshInput: inputTokens, cachedInput: 0, output: reserve }, now, identity);
     return charged ? personFacing(charged) : null;
   }
 
-  preflight(workspace: string, model: string, rawBody: string, now = new Date()): RationRefusal | null {
-    const wallet = this.ensureFree(workspace, now);
+  preflight(workspace: string, model: string, rawBody: string, now = new Date(), identity?: FreeIdentity): RationRefusal | null {
+    const wallet = this.ensureFree(workspace, now, identity);
     const allowed = this.allowedModel(wallet, model);
     if (!allowed) {
       return { status: 403, code: "model_locked", message: "This model is outside the current plan." };
@@ -473,8 +494,9 @@ export class RationService {
     return null;
   }
 
-  debit(workspace: string, model: string, use: TokenUse, now = new Date()): RationRefusal | null {
-    const wallet = this.wallets.get(workspace);
+  debit(workspace: string, model: string, use: TokenUse, now = new Date(), identity?: FreeIdentity): RationRefusal | null {
+    const id = walletId(workspace, identity);
+    const wallet = this.wallets.get(id) ?? (identity ? undefined : this.wallets.get(workspace));
     if (!wallet || wallet.tier === "byo") return null;
     const rate = rateFor(this.profile, model, use.freshInput + use.cachedInput);
     if (!rate) return { status: 403, code: "model_locked", message: "This model has no admin rate." };
@@ -484,7 +506,7 @@ export class RationService {
     wallet.spentUsd = Math.round((wallet.spentUsd + cost) * 1_000_000) / 1_000_000;
     wallet.dayCount = wallet.day === day ? wallet.dayCount + 1 : 1;
     wallet.day = day;
-    this.wallets.set(workspace, wallet);
+    this.wallets.set(wallet.workspace, wallet);
     this.saveWallets();
     return null;
   }
@@ -599,10 +621,11 @@ export class RationService {
 
   private capRefusal(wallet: Wallet): RationRefusal {
     const left = Math.max(0, this.limit(wallet) - wallet.spentUsd);
+    const whose = wallet.workspace.startsWith("free:") ? "account" : "workspace";
     return {
       status: 409,
       code: "spend_cap",
-      message: `this workspace has $${left.toFixed(4)} of Muse ration left — an admin can raise it under Rates`,
+      message: `this ${whose} has $${left.toFixed(4)} of Muse ration left — an admin can raise it under Rates`,
     };
   }
 
@@ -646,7 +669,8 @@ export class RationService {
   private identityTaken(workspace: string, identity?: FreeIdentity): boolean {
     const email = identity?.email?.trim().toLowerCase() ?? "";
     const install = identity?.installId?.trim() ?? "";
-    return this.claims.some((claim) => claim.workspace !== workspace && (
+    // Only a personal free:* wallet counts. Older host-scoped claims must not block a per-signup grant.
+    return this.claims.some((claim) => claim.workspace !== workspace && claim.workspace.startsWith("free:") && (
       (email !== "" && claim.kind === "email" && claim.value === email)
       || (install !== "" && claim.kind === "install" && claim.value === install)
     ));

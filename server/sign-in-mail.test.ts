@@ -27,8 +27,10 @@ describe("sign-in codes through the server's own mail server", () => {
     const mail = createSignInMail({ url: URL_, transport: box.transport });
     expect(await mail.send("her@example.test")).toBe("sent");
     expect(box.sent[0]).toMatchObject({ from: "signin@example.test", to: "her@example.test", subject: "Your Maximus sign-in code" });
+    expect(box.sent[0]!.html).toContain("Maximus");
     const code = box.code();
     expect(code).toMatch(/^\d{8}$/);
+    expect(box.sent[0]!.html).toContain(`${code.slice(0, 4)} ${code.slice(4)}`);
     expect(mail.check("other@example.test", code)).toBe("wrong");
     expect(mail.check("her@example.test", `${code.slice(0, 4)} ${code.slice(4)}`)).toBe("ok");
     expect(mail.check("her@example.test", code)).toBe("wrong");

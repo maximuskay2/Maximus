@@ -169,7 +169,7 @@ export function plansFromRation(profile: RationProfile): RationPlanSeed[] {
       display: {
         name: "Free",
         blurb: "A one-time Muse grant on our key.",
-        features: ["Web, desktop, and phone", "Spark", "Once per account"],
+        features: ["Web, desktop, and phone", "Spark", "Once per signup"],
       },
     },
     {
@@ -177,11 +177,11 @@ export function plansFromRation(profile: RationProfile): RationPlanSeed[] {
       baseUsd: profile.byoPriceUsd,
       allowanceUsd: 0,
       hardCapUsd: 0,
-      entitlements: ["billing"],
+      entitlements: ["billing", "agentOsMachines"],
       display: {
         name: "Your model",
-        blurb: "Bring your own LLM key. The monthly fee is for the app.",
-        features: ["Web, desktop, and phone", "Your provider bills the tokens"],
+        blurb: "Bring your own LLM key. The monthly fee is Agent OS on this computer.",
+        features: ["Web, desktop, and phone", "Agent OS on this computer", "Your provider bills the tokens", "Named computers on this plan"],
       },
     },
     ...profile.hosted.map((tier) => ({
@@ -189,11 +189,11 @@ export function plansFromRation(profile: RationProfile): RationPlanSeed[] {
       baseUsd: tier.priceUsd,
       allowanceUsd: tier.includedCostUsd,
       hardCapUsd: profile.overageEnabled ? tier.includedCostUsd * profile.overageCapMultiplier : tier.hardCapUsd,
-      entitlements: ["billing", "gateway"],
+      entitlements: ["billing", "gateway", "agentOsMachines"],
       display: {
         name: tier.id === "starter" ? "Starter" : tier.id === "plus" ? "Plus" : "Pro",
         blurb: `Includes $${tier.includedCostUsd} of Muse on our key.`,
-        features: ["Web, desktop, and phone", ...tier.models],
+        features: ["Web, desktop, and phone", "Named computers on this plan", ...tier.models],
       },
     })),
   ];

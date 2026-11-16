@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
 import 'api/client.dart';
@@ -30,7 +32,19 @@ import 'system/live_activities.dart';
 import 'theme/tokens.dart';
 import 'workspace/console_account.dart';
 
-void main() => runApp(const MaximusApp());
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+}
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  } catch (_) {}
+  runApp(const MaximusApp());
+}
 
 class MaximusApp extends StatefulWidget {
   const MaximusApp({super.key, this.auth, this.push});

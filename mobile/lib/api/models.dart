@@ -256,6 +256,8 @@ class ChatMessage {
     this.signIn,
     this.connector,
     this.widget,
+    this.app,
+    this.fromApp,
     this.publishedPage,
     this.replyToId,
   });
@@ -283,6 +285,12 @@ class ChatMessage {
   /// Bot-authored widget (`shared/widget.ts`) — draft Send/Discard and more.
   final ChatWidget? widget;
 
+  /// Bot HTML / MCP app row (`shared/app.ts`). Document is fetched separately.
+  final ChatAppPayload? app;
+
+  /// User row sent from an app's ui/message.
+  final ChatAppFrom? fromApp;
+
   /// Published page link (`shared/published-page.ts`).
   final PublishedPage? publishedPage;
 
@@ -298,6 +306,8 @@ class ChatMessage {
       signIn == null &&
       connector == null &&
       widget == null &&
+      app == null &&
+      fromApp == null &&
       publishedPage == null &&
       !hasCard;
 
@@ -313,11 +323,14 @@ class ChatMessage {
     SignInRequest? signIn,
     ConnectorRequest? connector,
     ChatWidget? widget,
+    ChatAppPayload? app,
+    ChatAppFrom? fromApp,
     PublishedPage? publishedPage,
     bool clearSecret = false,
     bool clearSignIn = false,
     bool clearConnector = false,
     bool clearWidget = false,
+    bool clearApp = false,
   }) {
     return ChatMessage(
       id: id,
@@ -332,6 +345,8 @@ class ChatMessage {
       signIn: clearSignIn ? null : (signIn ?? this.signIn),
       connector: clearConnector ? null : (connector ?? this.connector),
       widget: clearWidget ? null : (widget ?? this.widget),
+      app: clearApp ? null : (app ?? this.app),
+      fromApp: fromApp ?? this.fromApp,
       publishedPage: publishedPage ?? this.publishedPage,
       replyToId: replyToId,
     );
@@ -345,6 +360,8 @@ class ChatMessage {
     final rawSignIn = json['signIn'];
     final rawConnector = json['connector'];
     final rawWidget = json['widget'];
+    final rawApp = json['app'];
+    final rawFromApp = json['fromApp'];
     final rawPage = json['publishedPage'];
     return ChatMessage(
       id: json['id']! as String,
@@ -364,6 +381,7 @@ class ChatMessage {
           rawSignIn != null ||
           rawConnector != null ||
           rawWidget != null ||
+          rawApp != null ||
           rawPage != null,
       card: rawCard is Map<String, Object?>
           ? OptionCard.fromJson(rawCard)
@@ -379,6 +397,12 @@ class ChatMessage {
           : null,
       widget: rawWidget is Map
           ? ChatWidget.tryFrom(Map<String, Object?>.from(rawWidget))
+          : null,
+      app: rawApp is Map
+          ? ChatAppPayload.tryFrom(Map<String, Object?>.from(rawApp))
+          : null,
+      fromApp: rawFromApp is Map
+          ? ChatAppFrom.tryFrom(Map<String, Object?>.from(rawFromApp))
           : null,
       publishedPage: rawPage is Map
           ? PublishedPage.tryFrom(Map<String, Object?>.from(rawPage))
@@ -401,12 +425,15 @@ class ChatMessage {
         signIn == null &&
         connector == null &&
         widget == null &&
+        app == null &&
         publishedPage == null)
       'card': const {},
     if (secret != null) 'secret': secret!.toJson(),
     if (signIn != null) 'signIn': signIn!.toJson(),
     if (connector != null) 'connector': connector!.toJson(),
     if (widget != null) 'widget': widget!.toJson(),
+    if (app != null) 'app': app!.toJson(),
+    if (fromApp != null) 'fromApp': fromApp!.toJson(),
     if (publishedPage != null) 'publishedPage': publishedPage!.toJson(),
     'replyToId': replyToId,
   };
@@ -1062,6 +1089,121 @@ class ChatWidget {
 
     walk(node);
     return out.take(12).toList();
+  }
+}
+
+/// App row metadata (`shared/app.ts` AppPayload). HTML lives in ChatAppDocument.
+class ChatAppPayload {
+  const ChatAppPayload({
+    required this.source,
+    required this.title,
+    required this.doc,
+    required this.rev,
+    required this.bytes,
+    required this.border,
+    this.height,
+    this.blocked,
+  });
+
+  final String source;
+  final String title;
+  final String doc;
+  final int rev;
+  final int bytes;
+  final bool border;
+  final int? height;
+  final String? blocked;
+
+  int get frameHeight {
+    final given = height ?? 280;
+    if (given < 80) return 80;
+    if (given > 720) return 720;
+    return given;
+  }
+
+  Map<String, Object?> toJson() => {
+    'v': 1,
+    'source': source,
+    'title': title,
+    'doc': doc,
+    'rev': rev,
+    'bytes': bytes,
+    'border': border,
+    if (height != null) 'height': height,
+    if (blocked != null) 'blocked': blocked,
+  };
+
+  static ChatAppPayload? tryFrom(Map<String, Object?> json) {
+    final title = json['title'];
+    final source = json['source'];
+    final doc = json['doc'];
+    if (title is! String || title.isEmpty) return null;
+    if (source is! String || (source != 'html' && source != 'mcp')) return null;
+    if (doc is! String) return null;
+    return ChatAppPayload(
+      source: source,
+      title: title,
+      doc: doc,
+      rev: (json['rev'] as num?)?.toInt() ?? 0,
+      bytes: (json['bytes'] as num?)?.toInt() ?? 0,
+      border: json['border'] != false,
+      height: (json['height'] as num?)?.toInt(),
+      blocked: json['blocked'] as String?,
+    );
+  }
+}
+
+class ChatAppFrom {
+  const ChatAppFrom({required this.messageId, required this.title});
+
+  final String messageId;
+  final String title;
+
+  Map<String, Object?> toJson() => {'messageId': messageId, 'title': title};
+
+  static ChatAppFrom? tryFrom(Map<String, Object?> json) {
+    final messageId = json['messageId'];
+    final title = json['title'];
+    if (messageId is! String || messageId.isEmpty) return null;
+    if (title is! String || title.isEmpty) return null;
+    return ChatAppFrom(messageId: messageId, title: title);
+  }
+}
+
+class ChatAppDocument {
+  const ChatAppDocument({
+    required this.messageId,
+    required this.rev,
+    required this.srcdoc,
+    required this.csp,
+    required this.canMessage,
+    required this.canOpenLinks,
+  });
+
+  final String messageId;
+  final int rev;
+  final String srcdoc;
+  final String csp;
+  final bool canMessage;
+  final bool canOpenLinks;
+
+  static ChatAppDocument? tryFrom(Map<String, Object?> json) {
+    final messageId = json['messageId'];
+    final srcdoc = json['srcdoc'];
+    final csp = json['csp'];
+    if (messageId is! String || messageId.isEmpty) return null;
+    if (srcdoc is! String || srcdoc.isEmpty) return null;
+    if (csp is! String) return null;
+    final can = json['can'];
+    final canMap = can is Map ? Map<String, Object?>.from(can) : const <String, Object?>{};
+    return ChatAppDocument(
+      messageId: messageId,
+      rev: (json['rev'] as num?)?.toInt() ?? 0,
+      srcdoc: srcdoc,
+      csp: csp,
+      canMessage: canMap['message'] == true,
+      canOpenLinks: canMap['openLinks'] == true,
+    );
   }
 }
 
@@ -2604,6 +2746,91 @@ class BotMcpServer {
       enabled: json['enabled'] == true,
       on: json['on'] == true,
       offFor: json['offFor'] == true,
+    );
+  }
+}
+
+/// Named computer from `GET /api/agent-os/machines`.
+class AgentOsMachine {
+  const AgentOsMachine({
+    required this.id,
+    required this.name,
+    required this.kind,
+    required this.online,
+    this.capabilities = const [],
+  });
+
+  final String id;
+  final String name;
+  final String kind;
+  final bool online;
+  final List<String> capabilities;
+
+  static AgentOsMachine? tryFrom(Object? json) {
+    if (json is! Map<String, Object?>) return null;
+    final id = json['id'];
+    final name = json['name'];
+    final kind = json['kind'];
+    if (id is! String || name is! String || kind is! String) return null;
+    return AgentOsMachine(
+      id: id,
+      name: name,
+      kind: kind,
+      online: json['online'] == true,
+      capabilities: [
+        for (final row in json['capabilities'] as List? ?? const [])
+          if (row is String) row,
+      ],
+    );
+  }
+}
+
+class AgentOsPlugin {
+  const AgentOsPlugin({
+    required this.mode,
+    required this.app,
+    required this.actions,
+  });
+
+  final String mode;
+  final String app;
+  final List<String> actions;
+
+  static AgentOsPlugin? tryFrom(Object? json) {
+    if (json is! Map<String, Object?>) return null;
+    final mode = json['mode'];
+    final app = json['app'];
+    if (mode is! String || app is! String) return null;
+    return AgentOsPlugin(
+      mode: mode,
+      app: app,
+      actions: [
+        for (final row in json['actions'] as List? ?? const [])
+          if (row is String) row,
+      ],
+    );
+  }
+}
+
+class AgentOsMachinesPayload {
+  const AgentOsMachinesPayload({
+    required this.machines,
+    required this.multiMachine,
+    required this.selfId,
+  });
+
+  final List<AgentOsMachine> machines;
+  final bool multiMachine;
+  final String selfId;
+
+  static AgentOsMachinesPayload fromJson(Map<String, Object?> json) {
+    return AgentOsMachinesPayload(
+      machines: [
+        for (final row in json['machines'] as List? ?? const [])
+          ?AgentOsMachine.tryFrom(row),
+      ],
+      multiMachine: json['multiMachine'] == true,
+      selfId: (json['selfId'] as String?) ?? 'self',
     );
   }
 }

@@ -10,6 +10,7 @@ import 'account_page.dart';
 import 'bot_settings_page.dart';
 import 'computer_settings_page.dart';
 import 'devices_page.dart';
+import 'machines_page.dart';
 import 'preferences.dart';
 import 'usage_page.dart';
 import '../theme/chrome.dart';
@@ -137,6 +138,13 @@ class SettingsPage extends StatelessWidget {
                 title: 'Devices',
                 subtitle: 'Signed-in phones and browsers',
                 page: DevicesPage(client: _client, baseUrl: baseUrl),
+              ),
+              _row(
+                context,
+                icon: Icons.lan_outlined,
+                title: 'Named computers',
+                subtitle: 'Where work runs',
+                page: MachinesPage(client: _client, baseUrl: baseUrl),
               ),
               _computerOnly(
                 context,

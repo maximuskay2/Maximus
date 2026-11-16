@@ -43,6 +43,7 @@ Shipped day one (all gated in core from day one):
 - `budgets` — workspace monthly spend cap, refusing turns at the cap
 - `billing` — sell prices per model; billable column in Usage + CSV
 - `gateway` — LLM-included (bundled) routing through the managed gateway
+- `agentOsMachines` — named-machine routing beyond this computer and optional cloud home
 
 Invariants (kept from upstream): unknown entitlement ids grant nothing;
 keys may carry unshipped ids. Gate interface stays

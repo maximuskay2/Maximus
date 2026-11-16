@@ -195,7 +195,7 @@ describe("desktop capabilities", () => {
     expect(linuxSession("linux", {})).toBe("headless");
   });
 
-  it("re-enables local control only on X11 and keeps Wayland/headless fail-closed", () => {
+  it("offers local control on X11 and Wayland and keeps headless fail-closed", () => {
     expect(
       linuxLocalControlSupport("linux", { XDG_SESSION_TYPE: "x11", DISPLAY: ":0" }),
     ).toEqual({ available: true, session: "x11" });
@@ -205,11 +205,7 @@ describe("desktop capabilities", () => {
         WAYLAND_DISPLAY: "wayland-0",
         DISPLAY: ":0",
       }),
-    ).toMatchObject({
-      available: false,
-      session: "wayland",
-      reasonCode: "linux-wayland-seat-safety-blocked",
-    });
+    ).toEqual({ available: true, session: "wayland" });
     expect(linuxLocalControlSupport("linux", {})).toMatchObject({
       available: false,
       session: "headless",
@@ -259,7 +255,7 @@ describe("desktop capabilities", () => {
     expect(localComputerReady("linux", { ...connection, schemaVersion: 2 })).toBe(false);
   });
 
-  it("rejects even a forged ready Wayland contract until its real-seat gate is lifted", () => {
+  it("enables limited Linux control only for the complete supervised GNOME Wayland contract", () => {
     const connection = {
       schemaVersion: 1,
       mode: "linux-wayland-gnome-supervised",
@@ -269,7 +265,7 @@ describe("desktop capabilities", () => {
       enabled: true,
       status: "ready",
     };
-    expect(localComputerReady("linux", connection)).toBe(false);
+    expect(localComputerReady("linux", connection)).toBe(true);
     expect(localComputerReady("linux", { ...connection, compositor: undefined })).toBe(false);
     expect(localComputerReady("linux", { ...connection, session: "x11" })).toBe(false);
     expect(
@@ -279,8 +275,8 @@ describe("desktop capabilities", () => {
         localConnection: connection,
       }).localComputer,
     ).toMatchObject({
-      available: false,
-      support: "unsupported",
+      available: true,
+      support: "limited",
       session: "wayland",
       compositor: "gnome-mutter",
     });

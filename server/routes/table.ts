@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { json, readBody } from "../harness/http.ts";
 import type { RequestAuth } from "../request-auth.ts";
+import { agentOsRoutes } from "./agent-os.ts";
 import { cloudSyncRoutes } from "./cloud-sync.ts";
 import { createDeliveryRoutes } from "./delivery.ts";
 import { ownMcpHttpRoutes } from "./own-mcp-http.ts";
@@ -27,6 +28,7 @@ export type RouteHandler = (ctx: RouteContext) => Promise<typeof PASS | void>;
 
 /** Modules with no wiring from index.ts are listed here; index.ts pushes the rest. */
 export const ROUTES: RouteHandler[] = [
+  agentOsRoutes,
   cloudSyncRoutes,
   ownMcpHttpRoutes,
   webPanelRoutes,

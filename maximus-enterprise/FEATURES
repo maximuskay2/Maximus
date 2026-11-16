@@ -9,5 +9,6 @@ grant nothing. Keys may carry unshipped ids; they are ignored, never an error.
 - `budgets` — workspace monthly spend cap, refusing turns at the cap
 - `billing` — sell prices per model; billable column in Usage + CSV
 - `gateway` — LLM-included (bundled) routing through the managed gateway
+- `agentOsMachines` — route work to more than this computer and optional cloud home
 
 Frozen by `docs/plans/2026-11-06-maximus-contracts.md` section 2.

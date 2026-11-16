@@ -43,6 +43,7 @@ const ENTITLEMENT_NAMES: Readonly<Record<string, string>> = {
   budgets: "Spend caps",
   billing: "Billable usage",
   gateway: "Bundled models",
+  agentOsMachines: "Agent OS on this computer and named computers",
 };
 
 interface PlanDisplay {
@@ -65,7 +66,7 @@ const PLAN_DISPLAY: Readonly<Record<string, PlanDisplay>> = {
   team: {
     name: "Team",
     blurb: "Hosted workspaces with admin controls.",
-    features: ["Web, desktop, and phone", "Everything in Free", "Hosted workspaces with team invites", "Admin console, spend caps and billable usage"],
+    features: ["Web, desktop, and phone", "Everything in Free", "Named computers on this plan", "Hosted workspaces with team invites", "Admin console, spend caps and billable usage"],
   },
   business: {
     name: "Business",

@@ -8,6 +8,7 @@ import {
   useNotificationFeed,
   useNotificationSounds,
 } from "@/lib/notification-preferences";
+import { startFcmPush } from "@/lib/fcm-start";
 import { requestNotificationPermission } from "@/lib/notify";
 import { SettingRow, Switch } from "./SettingsPrimitives";
 
@@ -46,13 +47,16 @@ export function DeviceNotificationsRow({ simple = false }: { simple?: boolean })
     const next = await requestNotificationPermission();
     if (!next) return;
     setPermission(next);
-    if (next === "granted") setFinishedNotifications(true);
+    if (next === "granted") {
+      setFinishedNotifications(true);
+      void startFcmPush();
+    }
   };
 
   return (
     <SettingRow
       title={t("settings.deviceNotifications.title")}
-      subtitle={t(blocked ? "settings.deviceNotifications.blocked" : simple ? "settings.simple.deviceNotifications" : "settings.deviceNotifications.subtitle")}
+      subtitle={t(blocked ? "settings.deviceNotifications.blocked" : simple ? "settings.simple.deviceNotifications" : "settings.deviceNotifications.push")}
     >
       <Switch
         checked={permission === "granted" && enabled}

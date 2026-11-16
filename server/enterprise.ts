@@ -191,11 +191,24 @@ export function editionForMembers(status: EditionStatus): EditionStatus {
 
 /** The entitlement ids core understands (contracts section 2, maximus-enterprise/FEATURES). Keys may carry
  * unshipped ids; they are kept on the status and never granted. */
-export const KNOWN_ENTITLEMENTS: readonly string[] = ["whitelabel", "sso", "admin", "budgets", "billing", "gateway"];
+export const KNOWN_ENTITLEMENTS: readonly string[] = ["whitelabel", "sso", "admin", "budgets", "billing", "gateway", "agentOsMachines"];
+
+const hostedSources: Array<(feature: string) => boolean> = [];
+
+/** Hosted billing (same Maximus checkout) may grant ids the license file does not name. */
+export function setHostedEntitlementSource(source: ((feature: string) => boolean) | undefined): void {
+  hostedSources.splice(0, hostedSources.length, ...(source ? [source] : []));
+}
+
+export function addHostedEntitlementSource(source: (feature: string) => boolean): void {
+  hostedSources.push(source);
+}
 
 /** Core feature gates ask only this; unknown ids are never granted. */
 export function entitled(feature: string, now: number = Date.now()): boolean {
-  return !expired(now) && KNOWN_ENTITLEMENTS.includes(feature) && current.features.includes(feature);
+  if (!KNOWN_ENTITLEMENTS.includes(feature)) return false;
+  if (!expired(now) && current.features.includes(feature)) return true;
+  return hostedSources.some((read) => read(feature));
 }
 
 export function licenseWarning(status: EditionStatus): string | null {

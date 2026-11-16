@@ -54,10 +54,24 @@ test("a Mac lacking only macOS's permissions still lends them, so a bot's first 
   const linux = screenStatus({ platform: "linux", connection: { schemaVersion: 1, platform: "linux", mode: "unavailable", enabled: false, status: "disabled", reasonCode: "opt-in-required" } });
   assert.deepEqual({ lent: linux.lent, reason: linux.reason, fix: linux.fix }, { lent: false, reason: "off", fix: "start" });
   assert.equal(screenFixLabel(linux), "Turn on screen control");
-  const wayland = screenStatus({ platform: "linux", connection: { mode: "unavailable", status: "unavailable", reasonCode: "linux-wayland-seat-safety-blocked",
-    message: "Local control is not available on Wayland yet. Sign out and choose Ubuntu on Xorg to use This computer." } });
-  assert.deepEqual({ reason: wayland.reason, fix: wayland.fix }, { reason: "unsupported", fix: null });
-  assert.equal(screenFixLabel(wayland), null, "nothing here can fix a Wayland session");
+  const compositor = screenStatus({ platform: "linux", connection: { mode: "unavailable", status: "unavailable", reasonCode: "wayland-compositor-unsupported",
+    message: "Wayland local control is currently limited to GNOME." } });
+  assert.deepEqual({ reason: compositor.reason, fix: compositor.fix }, { reason: "unsupported", fix: null });
+  assert.equal(screenFixLabel(compositor), null, "nothing here can fix a non-GNOME Wayland session");
+  const waylandReady = screenStatus({
+    platform: "linux",
+    connection: {
+      schemaVersion: 1,
+      mode: "linux-wayland-gnome-supervised",
+      platform: "linux",
+      session: "wayland",
+      compositor: "gnome-mutter",
+      enabled: true,
+      status: "ready",
+      mcp: { command: "/usr/bin/cua-driver", args: ["mcp", "--embedded"] },
+    },
+  });
+  assert.deepEqual({ ready: waylandReady.ready, lent: waylandReady.lent, reason: waylandReady.reason }, { ready: true, lent: true, reason: null });
 });
 
 test("the icon's menu says plainly what the Clouds can't use, why, and offers the fix", () => {

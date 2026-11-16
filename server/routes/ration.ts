@@ -4,6 +4,7 @@
 import type { IncomingMessage } from "node:http";
 
 import { ownerOrAdmin, type RequestAuth } from "../request-auth.ts";
+import type { GrantMailer } from "../billing/grant-mail.ts";
 import { plansFromRation, rationWorkspace, type FreeIdentity, type RationProfile } from "../billing/ration.ts";
 import type { RationService } from "../billing/ration-service.ts";
 import { PASS, type RouteHandler } from "./table.ts";
@@ -12,6 +13,8 @@ export interface RationRouteDeps {
   ration: RationService;
   /** Writes the four ration plans into the live catalog after a successful save. */
   syncPlans?: (profile: RationProfile) => void;
+  /** Optional notice when an admin grants credit or a plan. Failures do not undo the grant. */
+  grantMail?: GrantMailer | null;
 }
 
 const BODY_LIMIT = 65_536;
@@ -77,15 +80,33 @@ export function createRationRoutes(deps: RationRouteDeps): RouteHandler {
       }
       const value = body && typeof body === "object" ? body as Record<string, unknown> : {};
       if (typeof value.email !== "string") return json(res, 400, { error: "Enter the person's email address." });
+      const creditUsd = typeof value.creditUsd === "number" ? value.creditUsd : undefined;
+      const tokens = typeof value.tokens === "number" ? value.tokens : undefined;
+      const plan = typeof value.plan === "string" ? value.plan : undefined;
+      const note = typeof value.note === "string" ? value.note : undefined;
       const granted = deps.ration.grantAccount({
         email: value.email,
-        ...(typeof value.plan === "string" ? { plan: value.plan } : {}),
-        ...(typeof value.creditUsd === "number" ? { creditUsd: value.creditUsd } : {}),
-        ...(typeof value.tokens === "number" ? { tokens: value.tokens } : {}),
-        ...(typeof value.note === "string" ? { note: value.note } : {}),
+        ...(plan !== undefined ? { plan } : {}),
+        ...(creditUsd !== undefined ? { creditUsd } : {}),
+        ...(tokens !== undefined ? { tokens } : {}),
+        ...(note !== undefined ? { note } : {}),
         ...(value.renew === true ? { renew: true } : {}),
       });
       if (!granted.ok) return json(res, 400, { error: granted.error });
+      if (deps.grantMail) {
+        try {
+          await deps.grantMail.send({
+            email: granted.seat.email,
+            creditUsd,
+            tokens,
+            plan: plan ?? granted.seat.plan,
+            leftUsd: granted.seat.leftUsd,
+            note,
+          });
+        } catch (error) {
+          console.warn(`grant mail not sent: ${error instanceof Error ? error.message : "mail failed"}`);
+        }
+      }
       return json(res, 200, { seat: granted.seat, grants: deps.ration.listGrants() });
     }
     if (method === "GET") {

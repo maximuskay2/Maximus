@@ -198,6 +198,7 @@ import { GroupUsageReader } from "./group-thread-usage.ts";
 import { ledgerCost } from "./model-prices.ts";
 import type { PriceList } from "./prices.ts";
 import type { RequestAuth } from "./request-auth.ts";
+import { isFcmPlatform } from "../shared/fcm.ts";
 import { adminAuditPlan, type AuditPlan } from "./admin-audit-plan.ts";
 import { onKeyRejectionChange } from "./key-rejections.ts";
 import { assertWithinBudget, noteSpend, spendAlertText, spendState, takeSpendAlert } from "./spend.ts";
@@ -657,6 +658,7 @@ import { createTodayRoutes } from "./routes/today.ts"; import { createInboxRoute
 import { createToolTimingRoute, createUsageRoutes } from "./routes/usage.ts";
 import { createMarginRoutes } from "./routes/margin.ts";
 import { createPlanRoutes } from "./routes/plans.ts";
+import { grantMailFromEnv } from "./billing/grant-mail.ts";
 import { createRationRoutes } from "./routes/ration.ts";
 import { billingOfferRoute, createPaymentRoutes } from "./routes/payments.ts";
 import { bindLiveRation, chatRationRefusal, liveRation, RationService } from "./billing/ration-service.ts";
@@ -5064,19 +5066,19 @@ const providerLabel = (provider: string): string => {
 const quietTurnThreads = new Set<string>(); const doneNotice = createDoneNotice({ awaitingTeammates: (threadId) => coordinator.awaitingTeammateThreads().has(threadId), queuedFollowUp: hasQueuedPersonMessage }); const personWaits = createPersonWaits({ store, notify, threadsWithCards: threadsWithCardsSince });
 const QUIET_TURN_NEWS: ReadonlySet<Notification["kind"]> = new Set(["done", "turn-failed", "incident"]);
 
-/** Mobile push: FCM sender when credentials are configured, desktop-preferred routing otherwise quiet. */
+/** Mobile push: FCM sender when credentials are configured. Live web/desktop SSE skips those tokens so the OS banner is not doubled. */
 const mobilePushSender = (() => {
   const credentials = credentialsFromEnv();
   return credentials ? createFcmSender({ credentials }) : null;
 })();
 const mobilePush = createPushFanout({
-  tokens: () => listPushTokens().filter((row) => row.platform === "ios" || row.platform === "android").map((row) => ({
+  tokens: () => listPushTokens().flatMap((row) => isFcmPlatform(row.platform) ? [{
     token: row.token,
-    platform: row.platform as "ios" | "android",
+    platform: row.platform,
     deviceName: row.deviceName,
     personKey: row.personKey,
     appVersion: row.appVersion,
-  })),
+  }] : []),
   removeToken: (token) => { removePushToken(token); },
   botMuted: (botId) => store.bot(botId)?.notifications === false,
   globalEnabled: () => getPushSetting(PUSH_ENABLED_KEY) !== "0",
@@ -12652,6 +12654,7 @@ syncRationPlans(ration.profileNow());
 ROUTES.push(createRationRoutes({
   ration,
   syncPlans: syncRationPlans,
+  grantMail: grantMailFromEnv(),
 }));
 const consolePublic = createConsolePublicRoutes({ plans: billingPlans, displays: planDisplays, settingsURL: controlPlaneSettingsURL });
 const endpointRoute = createEndpointRoute({

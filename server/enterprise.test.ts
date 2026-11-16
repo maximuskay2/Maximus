@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createWorkspaceAccess, describeEdition, editionForMembers, editionStatus, enterpriseLayerDirs, entitled, hostedWorkspaceConfiguration, hostedWorkspaceConfigured, licenseWarning, sharedWorkspaceFullAccessConfigured, loadEnterpriseLayer } from "./enterprise.ts";
+import { createWorkspaceAccess, describeEdition, editionForMembers, editionStatus, enterpriseLayerDirs, entitled, hostedWorkspaceConfiguration, hostedWorkspaceConfigured, licenseWarning, setHostedEntitlementSource, sharedWorkspaceFullAccessConfigured, loadEnterpriseLayer } from "./enterprise.ts";
 import { SessionRegistry } from "./sessions.ts";
 
 const dirs: string[] = [];
@@ -18,6 +18,7 @@ function fakeLayer(registerSource: string, file = "index.ts"): string {
 }
 
 afterEach(async () => {
+  setHostedEntitlementSource(undefined);
   await loadEnterpriseLayer({ dir: join(tmpdir(), "maximus-enterprise-absent"), licenseKey: undefined });
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
@@ -198,6 +199,21 @@ describe("enterprise hook point", () => {
     expect(entitled("teleport")).toBe(false);
     expect(entitled("sso")).toBe(false);
     expect(entitled("gateway")).toBe(false);
+    expect(entitled("agentOsMachines")).toBe(false);
+  });
+
+  it("grants agentOsMachines when the license names it", async () => {
+    const dir = fakeLayer(`export function register() { return { customer: "Acme", features: ["agentOsMachines"], expiresAt: null }; }`);
+    await loadEnterpriseLayer({ dir, licenseKey: "k" });
+    expect(entitled("agentOsMachines")).toBe(true);
+  });
+
+  it("grants agentOsMachines from the same Maximus billing checkout", async () => {
+    expect(entitled("agentOsMachines")).toBe(false);
+    setHostedEntitlementSource((id) => id === "agentOsMachines");
+    expect(entitled("agentOsMachines")).toBe(true);
+    expect(entitled("sso")).toBe(false);
+    expect(entitled("teleport")).toBe(false);
   });
 
   it("refuses a layer that does not honour the contract", async () => {

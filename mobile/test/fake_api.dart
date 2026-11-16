@@ -148,6 +148,7 @@ class FakeApi implements MaximusApi {
             },
           ],
         }),
+        ...extraMessages,
       ],
       hasMore: false,
     );
@@ -167,16 +168,26 @@ class FakeApi implements MaximusApi {
   Map<String, String> authedHeaders() => const {};
 
   @override
+  bool failNextSend = false;
+  List<ChatMessage> extraMessages = const [];
+
+  @override
   Future<ChatMessage> sendMessage(
     String baseUrl,
     String botId,
     String text, {
     List<Map<String, Object?>> attachments = const [],
     String? replyToId,
+    String? sendId,
   }) async {
     sent.add(text);
+    sendIds.add(sendId);
+    if (failNextSend) {
+      failNextSend = false;
+      throw const ApiError(503, 'offline');
+    }
     return ChatMessage(
-      id: 'm9',
+      id: sendId ?? 'm9',
       role: 'user',
       kind: 'text',
       text: text,
@@ -185,6 +196,7 @@ class FakeApi implements MaximusApi {
   }
 
   final List<String> sent = [];
+  final List<String?> sendIds = [];
   final List<String> interrupted = [];
 
   @override
@@ -193,8 +205,9 @@ class FakeApi implements MaximusApi {
     String groupId,
     String text, {
     List<Map<String, Object?>> attachments = const [],
+    String? sendId,
   }) async => ChatMessage(
-    id: 'm9',
+    id: sendId ?? 'm9',
     role: 'user',
     kind: 'text',
     text: text,
@@ -1124,6 +1137,107 @@ class FakeApi implements MaximusApi {
     desktopInputs.add(action);
   }
 
+  AgentOsMachinesPayload agentOsPayload = const AgentOsMachinesPayload(
+    machines: [
+      AgentOsMachine(
+        id: 'self',
+        name: 'Office Mac',
+        kind: 'this_desktop',
+        online: true,
+      ),
+    ],
+    multiMachine: false,
+    selfId: 'self',
+  );
+  String? assignedMachineId;
+  final routedMachines = <String>[];
+  List<AgentOsPlugin> agentOsPluginsPayload = const [
+    AgentOsPlugin(mode: 'browser', app: 'canva', actions: ['list', 'lookup', 'publish']),
+    AgentOsPlugin(mode: 'local', app: 'git', actions: ['lookup', 'post', 'push']),
+  ];
+  final invokedPlugins = <Map<String, Object?>>[];
+  Map<String, Object?> invokePluginResult = const {
+    'app': 'canva',
+    'executed': false,
+    'bound': true,
+    'preview': 'canva publish as you',
+  };
+  ApiError? invokePluginError;
+
+  @override
+  Future<AgentOsMachinesPayload> agentOsMachines(String baseUrl) async =>
+      agentOsPayload;
+
+  @override
+  Future<String?> agentOsAssignment(
+    String baseUrl, {
+    String? threadId,
+    String? botId,
+  }) async =>
+      assignedMachineId;
+
+  @override
+  Future<void> assignAgentOsMachine(
+    String baseUrl, {
+    required String machineId,
+    String? threadId,
+    String? botId,
+  }) async {
+    assignedMachineId = machineId;
+  }
+
+  @override
+  Future<Map<String, Object?>> routeAgentOs(
+    String baseUrl, {
+    required String machineId,
+    String capability = 'computer',
+    String? botId,
+  }) async {
+    routedMachines.add(machineId);
+    AgentOsMachine? machine;
+    for (final row in agentOsPayload.machines) {
+      if (row.id == machineId) machine = row;
+    }
+    if (machine == null) {
+      throw const ApiError(404, 'Unknown machine');
+    }
+    if (!machine.online) {
+      throw ApiError(503, '${machine.name} is asleep. Wake that computer, then try again.');
+    }
+    return {
+      'ok': true,
+      'target': machineId == agentOsPayload.selfId ? 'local' : 'remote',
+      'dispatch': machineId == agentOsPayload.selfId ? 'cua' : 'shared-computer',
+    };
+  }
+
+  @override
+  Future<List<AgentOsPlugin>> agentOsPlugins(String baseUrl) async =>
+      agentOsPluginsPayload;
+
+  @override
+  Future<Map<String, Object?>> invokeAgentOsPlugin(
+    String baseUrl, {
+    required String mode,
+    required String app,
+    required String action,
+    bool confirm = false,
+    String? threadId,
+    String? botId,
+  }) async {
+    invokedPlugins.add({
+      'mode': mode,
+      'app': app,
+      'action': action,
+      'confirm': confirm,
+      'threadId': threadId,
+      'botId': botId,
+    });
+    final error = invokePluginError;
+    if (error != null) throw error;
+    return invokePluginResult;
+  }
+
   List<EngineInstance> instancesPayload = const [];
   final List<Map<String, Object?>> configWrites = [];
   final List<Map<String, Object?>> openaiCompatWrites = [];
@@ -1404,6 +1518,37 @@ class FakeApi implements MaximusApi {
       'ref': ref,
       'rev': rev,
       ...?values,
+    });
+  }
+
+  ChatAppDocument? appDocument;
+  final List<Map<String, Object?>> appMessageWrites = [];
+
+  @override
+  Future<ChatAppDocument> fetchAppDocument(
+    String baseUrl,
+    String threadId,
+    String messageId, {
+    int? rev,
+  }) async {
+    final doc = appDocument;
+    if (doc == null) throw ApiError(404, 'no app document');
+    return doc;
+  }
+
+  @override
+  Future<void> sendAppMessage(
+    String baseUrl,
+    String botId, {
+    required String threadId,
+    required String messageId,
+    required String text,
+  }) async {
+    appMessageWrites.add({
+      'botId': botId,
+      'threadId': threadId,
+      'messageId': messageId,
+      'text': text,
     });
   }
 

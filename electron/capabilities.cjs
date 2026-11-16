@@ -34,21 +34,12 @@ function linuxLocalControlSupport(platform, env) {
     });
   }
   const session = linuxSession(platform, env);
-  if (session === "x11") return Object.freeze({ available: true, session });
-  if (session === "wayland") {
-    return Object.freeze({
-      available: false,
-      session,
-      reasonCode: "linux-wayland-seat-safety-blocked",
-      message:
-        "Local control is not available on Wayland yet. Sign out and choose Ubuntu on Xorg to use This computer.",
-    });
-  }
+  if (session === "x11" || session === "wayland") return Object.freeze({ available: true, session });
   return Object.freeze({
     available: false,
     session,
     reasonCode: "headless-session",
-    message: "Local control needs an active Ubuntu Xorg desktop session.",
+    message: "Local control needs an active Ubuntu GNOME desktop session.",
   });
 }
 
@@ -84,6 +75,9 @@ function localComputerReady(platform, connection) {
   }
   if (connection.mode === "linux-x11-supervised") {
     return connection.session === "x11";
+  }
+  if (connection.mode === "linux-wayland-gnome-supervised") {
+    return connection.session === "wayland" && connection.compositor === "gnome-mutter";
   }
   return false;
 }

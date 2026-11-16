@@ -85,6 +85,7 @@ const ENTITLEMENT_LABELS: Record<string, string> = {
   budgets: "Spend caps",
   billing: "Billable usage",
   gateway: "Bundled models",
+  agentOsMachines: "Agent OS on this computer and named computers",
 };
 
 export function PlanModal({ original, existing, busy, serverError, onClose, onSubmit }: {

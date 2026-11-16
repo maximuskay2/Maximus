@@ -324,6 +324,9 @@ export const CLIENT_ALLOW: ReadonlyArray<{ methods: readonly string[]; path: Reg
   { methods: ["GET"], path: /^\/api\/phones\/self\/jobs$/ },
   { methods: ["POST"], path: /^\/api\/phones\/self\/jobs\/[\w-]+\/(?:lease|result)$/ },
   { methods: ["GET"], path: /^\/api\/health$/ },
+  { methods: ["GET"], path: /^\/api\/agent-os\/(?:machines|assignment|plugins)$/ },
+  { methods: ["PUT"], path: /^\/api\/agent-os\/assignment$/ },
+  { methods: ["POST"], path: /^\/api\/agent-os\/(?:heartbeat|route|plugins\/invoke)$/ },
   // A signed-in person makes their own agent. The route still refuses admin-only settings.
   { methods: ["POST"], path: /^\/api\/bots$/ },
   // The same person deletes an agent they can see. The handler still refuses one they cannot edit, and the place's Max.

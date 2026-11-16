@@ -65,7 +65,20 @@ export function ActivitySection() {
     setError(null);
     try {
       const body = await api(`/api/admin-activity${query}`) as { entries: ActivityEntry[]; total: number; retentionDays: number };
-      setEntries(body.entries);
+      let entries = body.entries;
+      try {
+        const audit = await api("/api/agent-os/audit") as { rows?: Array<{ at: number; actor: string; tool: string; machineId?: string }> };
+        const extra: ActivityEntry[] = (audit.rows ?? []).map((row) => ({
+          type: "admin" as const,
+          at: new Date(row.at).toISOString(),
+          who: row.actor,
+          what: "config",
+          action: row.tool,
+          target: row.machineId ? { kind: "machine", id: row.machineId } : undefined,
+        }));
+        entries = [...extra, ...entries].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+      } catch {}
+      setEntries(entries);
       setTotal(body.total);
       setDays(body.retentionDays);
     } catch (cause) {

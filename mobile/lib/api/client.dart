@@ -52,12 +52,14 @@ abstract class MaximusApi {
     String text, {
     List<Map<String, Object?>> attachments,
     String? replyToId,
+    String? sendId,
   });
   Future<ChatMessage> sendGroupMessage(
     String baseUrl,
     String groupId,
     String text, {
     List<Map<String, Object?>> attachments,
+    String? sendId,
   });
   Future<UploadedAttachment> uploadAttachment(
     String baseUrl,
@@ -488,6 +490,46 @@ abstract class MaximusApi {
     Map<String, Object?> action,
   );
 
+  /// GET /api/agent-os/machines — named computers this person can pick.
+  Future<AgentOsMachinesPayload> agentOsMachines(String baseUrl);
+
+  /// GET /api/agent-os/assignment — which computer this thread or bot runs on.
+  Future<String?> agentOsAssignment(
+    String baseUrl, {
+    String? threadId,
+    String? botId,
+  });
+
+  /// PUT /api/agent-os/assignment — this thread or bot runs on that computer.
+  Future<void> assignAgentOsMachine(
+    String baseUrl, {
+    required String machineId,
+    String? threadId,
+    String? botId,
+  });
+
+  /// POST /api/agent-os/route — send an approved computer turn there.
+  Future<Map<String, Object?>> routeAgentOs(
+    String baseUrl, {
+    required String machineId,
+    String capability = 'computer',
+    String? botId,
+  });
+
+  /// GET /api/agent-os/plugins — Figma, Canva, git actions this person may approve.
+  Future<List<AgentOsPlugin>> agentOsPlugins(String baseUrl);
+
+  /// POST /api/agent-os/plugins/invoke — approve or run as this person. Never CUA.
+  Future<Map<String, Object?>> invokeAgentOsPlugin(
+    String baseUrl, {
+    required String mode,
+    required String app,
+    required String action,
+    bool confirm = false,
+    String? threadId,
+    String? botId,
+  });
+
   /// GET /api/instances — engines this server can run.
   Future<List<EngineInstance>> listInstances(String baseUrl, {bool fresh = false});
 
@@ -633,6 +675,23 @@ abstract class MaximusApi {
     required String ref,
     required int rev,
     Map<String, Object?>? values,
+  });
+
+  /// GET /api/threads/:threadId/messages/:messageId/app
+  Future<ChatAppDocument> fetchAppDocument(
+    String baseUrl,
+    String threadId,
+    String messageId, {
+    int? rev,
+  });
+
+  /// POST /api/bots/:id/messages with appMessage (ui/message from an app row).
+  Future<void> sendAppMessage(
+    String baseUrl,
+    String botId, {
+    required String threadId,
+    required String messageId,
+    required String text,
   });
 
   /// GET /api/needs-you — what only this person can unblock.
@@ -904,12 +963,14 @@ class MaximusClient implements MaximusApi {
     String text, {
     List<Map<String, Object?>> attachments = const [],
     String? replyToId,
+    String? sendId,
   }) async {
     final json = await _json('POST', _u(baseUrl, '/api/bots/$botId/messages'),
         body: {
           'text': text,
           if (attachments.isNotEmpty) 'attachments': attachments,
           'replyToId': ?replyToId,
+          'sendId': ?(sendId ?? _uuidV4()),
         });
     return _requireMessage(json);
   }
@@ -921,6 +982,7 @@ class MaximusClient implements MaximusApi {
     String groupId,
     String text, {
     List<Map<String, Object?>> attachments = const [],
+    String? sendId,
   }) async {
     final json = await _json(
       'POST',
@@ -928,6 +990,7 @@ class MaximusClient implements MaximusApi {
       body: {
         'text': text,
         if (attachments.isNotEmpty) 'attachments': attachments,
+        'sendId': ?(sendId ?? _uuidV4()),
       },
     );
     return _requireMessage(json);
@@ -2114,6 +2177,102 @@ class MaximusClient implements MaximusApi {
   }
 
   @override
+  Future<AgentOsMachinesPayload> agentOsMachines(String baseUrl) async {
+    final json = await _json('GET', _u(baseUrl, '/api/agent-os/machines'));
+    return AgentOsMachinesPayload.fromJson(json);
+  }
+
+  @override
+  Future<String?> agentOsAssignment(
+    String baseUrl, {
+    String? threadId,
+    String? botId,
+  }) async {
+    final json = await _json(
+      'GET',
+      _u(baseUrl, '/api/agent-os/assignment', {
+        'threadId': ?threadId,
+        'botId': ?botId,
+      }),
+    );
+    final assignment = json['assignment'];
+    if (assignment is Map<String, Object?>) {
+      final machineId = assignment['machineId'];
+      if (machineId is String && machineId.isNotEmpty) return machineId;
+    }
+    return null;
+  }
+
+  @override
+  Future<void> assignAgentOsMachine(
+    String baseUrl, {
+    required String machineId,
+    String? threadId,
+    String? botId,
+  }) async {
+    await _json(
+      'PUT',
+      _u(baseUrl, '/api/agent-os/assignment'),
+      body: {
+        'machineId': machineId,
+        'threadId': ?threadId,
+        'botId': ?botId,
+      },
+    );
+  }
+
+  @override
+  Future<Map<String, Object?>> routeAgentOs(
+    String baseUrl, {
+    required String machineId,
+    String capability = 'computer',
+    String? botId,
+  }) async {
+    return _json(
+      'POST',
+      _u(baseUrl, '/api/agent-os/route'),
+      body: {
+        'machineId': machineId,
+        'capability': capability,
+        'botId': ?botId,
+      },
+    );
+  }
+
+  @override
+  Future<List<AgentOsPlugin>> agentOsPlugins(String baseUrl) async {
+    final json = await _json('GET', _u(baseUrl, '/api/agent-os/plugins'));
+    return [
+      for (final row in json['plugins'] as List? ?? const [])
+        ?AgentOsPlugin.tryFrom(row),
+    ];
+  }
+
+  @override
+  Future<Map<String, Object?>> invokeAgentOsPlugin(
+    String baseUrl, {
+    required String mode,
+    required String app,
+    required String action,
+    bool confirm = false,
+    String? threadId,
+    String? botId,
+  }) {
+    return _json(
+      'POST',
+      _u(baseUrl, '/api/agent-os/plugins/invoke'),
+      body: {
+        'mode': mode,
+        'app': app,
+        'action': action,
+        'confirm': confirm,
+        'threadId': ?threadId,
+        'botId': ?botId,
+      },
+    );
+  }
+
+  @override
   Future<List<EngineInstance>> listInstances(
     String baseUrl, {
     bool fresh = false,
@@ -2393,6 +2552,45 @@ class MaximusClient implements MaximusApi {
           'rev': rev,
           if (values != null) 'values': values,
         },
+      },
+    );
+  }
+
+  @override
+  Future<ChatAppDocument> fetchAppDocument(
+    String baseUrl,
+    String threadId,
+    String messageId, {
+    int? rev,
+  }) async {
+    final origin = Uri.parse(baseUrl).origin;
+    final json = await _json(
+      'GET',
+      _u(baseUrl, '/api/threads/$threadId/messages/$messageId/app', {
+        'origin': origin,
+        if (rev != null) 'rev': '$rev',
+      }),
+    );
+    final doc = ChatAppDocument.tryFrom(json);
+    if (doc == null) throw ApiError(500, 'incomplete app document');
+    return doc;
+  }
+
+  @override
+  Future<void> sendAppMessage(
+    String baseUrl,
+    String botId, {
+    required String threadId,
+    required String messageId,
+    required String text,
+  }) async {
+    await _json(
+      'POST',
+      _u(baseUrl, '/api/bots/$botId/messages'),
+      body: {
+        'threadId': threadId,
+        'sendId': _uuidV4(),
+        'appMessage': {'messageId': messageId, 'text': text},
       },
     );
   }

@@ -61,6 +61,7 @@ import { botCycleStep, shouldOpenKeyboardShortcuts } from "@/lib/keyboard-shortc
 import { effectiveLanguage, useLanguageChoice, usePageLanguage } from "@/lib/language-preference";
 import { botUnreadCount, showBrowserUnread } from "@/lib/bot-unread";
 import { phonePairingSettingsAction, takePhonePairingRequest } from "@/lib/phone-pairing"; import { takeConnectRequest } from "@/lib/connect-link";
+import { startFcmPush } from "@/lib/fcm-start";
 import { useDesktopNotificationOpens, useExternalChatLinks } from "@/hooks/use-external-chat-links";
 import { useUsageSnapshot } from "@/hooks/use-usage-snapshot";
 import { useReadShownChatOnFocus } from "@/hooks/use-read-shown-chat";
@@ -131,6 +132,9 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
     dispatch("section" in request ? { type: "toggleAppSettings", open: true, section: request.section } : { type: "togglePlugins", open: true, surface: request.surface });
   }, [dispatch]);
   useExternalChatLinks(state, dispatch); useDesktopNotificationOpens(state, dispatch);
+  useEffect(() => {
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") void startFcmPush();
+  }, []);
   usePresence(state, dispatch);
   const [drawerOpen, setDrawerOpen] = useState(false);
   usePageLanguage(effectiveLanguage(useLanguageChoice(), state.config?.language), true);

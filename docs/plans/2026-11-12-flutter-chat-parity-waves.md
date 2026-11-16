@@ -31,8 +31,7 @@ Wave B: iOS reminders/HomeKit + alarms (iOS notifications / Android Clock).
 Wave C: durable turn park/interrupt on boot; handoff envelope; browser
 teach-session; meetings Join already in brief cards.
 
-The v1 release does not extend these waves. Phone work that is still open
-for that release (SSE reconnect with a cursor, a dropped-radio drill) is
-[2026-11-14 Maximus v1](2026-11-14-maximus-v1-release.md). Confirm/cancel
-cards stay the phone widget. Full widget trees and HTML mini-apps stay on
-web and desktop.
+Phone chat cards include connector, widget confirm/cancel, and `show_html`
+app rows (sandboxed document fetch + frame). Full ChatKit RPC on the phone
+is still open. SSE reconnect and the dropped-radio drill are
+[2026-11-15 Maximus roadmap](2026-11-15-maximus-roadmap.md) (v1 gates).

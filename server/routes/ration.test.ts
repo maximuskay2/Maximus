@@ -17,10 +17,10 @@ afterEach(async () => {
   for (const folder of folders.splice(0)) rmSync(folder, { recursive: true, force: true });
 });
 
-async function serve(scopes: string[], email?: string) {
+async function serve(scopes: string[], email?: string, grantMail?: { send: (input: { email: string }) => Promise<"sent"> }) {
   const folder = mkdtempSync(join(tmpdir(), "maximus-ration-route-"));
   folders.push(folder);
-  const routes = [createRationRoutes({ ration: new RationService({ dataDir: folder }) })];
+  const routes = [createRationRoutes({ ration: new RationService({ dataDir: folder }), grantMail })];
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
     const handled = await dispatchRoutes(routes, {
@@ -133,7 +133,13 @@ describe("/api/admin/ration", () => {
   });
 
   it("lets an admin grant credit or a plan and refuses a member", async () => {
-    const admin = await serve(["admin"]);
+    const notices: Array<{ email: string; creditUsd?: number; plan?: string }> = [];
+    const admin = await serve(["admin"], undefined, {
+      send: async (input) => {
+        notices.push(input as { email: string; creditUsd?: number; plan?: string });
+        return "sent";
+      },
+    });
     const member = await serve(["client"]);
     expect((await member("/api/admin/grants"))[0]).toBe(403);
     const refused = await member("/api/admin/grants", {
@@ -149,6 +155,7 @@ describe("/api/admin/ration", () => {
     }) as [number, { seat: { email: string; plan: string; allowanceUsd: number; creditUsd: number } }];
     expect(granted[0]).toBe(200);
     expect(granted[1].seat).toMatchObject({ email: "ada@example.com", plan: "plus", creditUsd: 2, allowanceUsd: 24 });
+    expect(notices).toEqual([expect.objectContaining({ email: "ada@example.com", creditUsd: 2, plan: "plus" })]);
     const listed = await admin("/api/admin/grants") as [number, { grants: Array<{ email: string }> }];
     expect(listed[0]).toBe(200);
     expect(listed[1].grants.map((row) => row.email)).toEqual(["ada@example.com"]);

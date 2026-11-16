@@ -1,3 +1,5 @@
+import { installDesktopFcm } from "./desktop-fcm.mjs";
+
 // A bot's notification on the desktop app, shown by main. A page's own `new Notification` dies with the page: Electron 43
 // hands its click to the page that made it, so a banner clicked after a reload, an update or a move to another place does
 // nothing, and `window.focus()` from a page never raises a window (shell/browser/api/electron_api_browser_window.cc,
@@ -22,11 +24,12 @@ const originOf = (url) => { try { return new URL(url).origin; } catch { return n
  *   mayNotify: (contents: unknown, url: string) => boolean,
  *   reveal: () => void,
  *   openPlace: (origin: string) => unknown,
+ *   userData?: () => string,
  *   now?: () => number }} deps
  * `window`: the main window, if any. `mayNotify`: the same rule that lets its page use `new Notification`. `reveal`: raises
  * the window. `openPlace`: main's own switch to the place at an origin.
  */
-export function installDesktopNotifications({ ipcMain, Notification, nativeImage, fetch, window, mayNotify, reveal, openPlace, now = Date.now }) {
+export function installDesktopNotifications({ ipcMain, Notification, nativeImage, fetch, window, mayNotify, reveal, openPlace, userData, now = Date.now }) {
   // Electron drops a notification's handlers once nothing holds it, so each is held until it is replaced or dismissed.
   const live = new Map();
   let waiting = null;
@@ -78,7 +81,34 @@ export function installDesktopNotifications({ ipcMain, Notification, nativeImage
     return true;
   });
 
+  const incoming = (note) => {
+    if (!Notification.isSupported() || !note || typeof note !== "object") return false;
+    const { title, body, botId, threadId } = note;
+    if (!text(title) || !ID.test(String(botId)) || !ID.test(String(threadId))) return false;
+    const origin = shownOrigin();
+    const key = `${origin ?? "fcm"}\n${threadId}`;
+    const shown = new Notification({ title: text(title), body: text(body) });
+    const replaced = live.get(key);
+    live.set(key, shown);
+    replaced?.close();
+    shown.on("close", () => { if (live.get(key) === shown) live.delete(key); });
+    shown.on("click", () => {
+      if (live.get(key) === shown) live.delete(key);
+      if (origin) bring(origin, { botId, threadId });
+      else {
+        reveal();
+        open({ botId, threadId });
+      }
+    });
+    shown.show();
+    return true;
+  };
+  if (typeof userData === "function") {
+    installDesktopFcm({ ipcMain, userData: userData(), onMessage: incoming });
+  }
+
   return {
+    incoming,
     /** The window finished loading a page: a click that was waiting for this place lands now. */
     arrived() {
       if (!waiting) return;

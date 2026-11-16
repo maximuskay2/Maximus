@@ -127,6 +127,7 @@ export class BillingStore {
   granted(workspace: string): string[] {
     const record = this.record(workspace);
     if (!record || record.status === "suspended") return [];
-    return [...new Set(record.carried.filter((id) => this.known.includes(id)))].sort();
+    const fromPlan = this.plans.get(record.plan)?.entitlements ?? [];
+    return [...new Set([...record.carried, ...fromPlan].filter((id) => this.known.includes(id)))].sort();
   }
 }

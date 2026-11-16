@@ -4,7 +4,7 @@
 // instantly and moves cancelled/failed workspaces into grace. Grace expiry
 // degrades to the free tier without destroying user data. Unknown entitlement
 // ids are carried, never granted.
-export const KNOWN_ENTITLEMENTS: readonly string[] = ["whitelabel", "sso", "admin", "budgets", "billing", "gateway"];
+export const KNOWN_ENTITLEMENTS: readonly string[] = ["whitelabel", "sso", "admin", "budgets", "billing", "gateway", "agentOsMachines"];
 
 /** Grace after cancel/failure before the free tier takes over (7 days). */
 export const ENTITLEMENT_GRACE_MS = 7 * 24 * 60 * 60_000;
@@ -21,12 +21,12 @@ export interface PlanDef {
  * An admin save replaces a row through `plan_catalog`. */
 export const PLAN_CATALOG: Readonly<Record<string, PlanDef>> = {
   free: { entitlements: [], allowance: null },
-  byo: { entitlements: ["billing"], allowance: 0 },
-  starter: { entitlements: ["billing", "gateway"], allowance: 8_00 },
-  plus: { entitlements: ["billing", "gateway"], allowance: 22_00 },
-  pro: { entitlements: ["billing", "gateway"], allowance: 40_00 },
-  team: { entitlements: ["admin", "budgets", "billing", "gateway"], allowance: 22_00 },
-  business: { entitlements: ["whitelabel", "sso", "admin", "budgets", "billing", "gateway"], allowance: 40_00 },
+  byo: { entitlements: ["billing", "agentOsMachines"], allowance: 0 },
+  starter: { entitlements: ["billing", "gateway", "agentOsMachines"], allowance: 8_00 },
+  plus: { entitlements: ["billing", "gateway", "agentOsMachines"], allowance: 22_00 },
+  pro: { entitlements: ["billing", "gateway", "agentOsMachines"], allowance: 40_00 },
+  team: { entitlements: ["admin", "budgets", "billing", "gateway", "agentOsMachines"], allowance: 22_00 },
+  business: { entitlements: ["whitelabel", "sso", "admin", "budgets", "billing", "gateway", "agentOsMachines"], allowance: 40_00 },
 };
 
 export type BillingEventType =
@@ -131,8 +131,13 @@ export function degradeExpiredGrace(
   return { status: "suspended", entitlements: [...free.entitlements], allowance: free.allowance, degraded: true };
 }
 
+export function grantedForState(state: WorkspaceEntitlementState): string[] {
+  if (state.status === "suspended") return grantedEntitlements(state.entitlements);
+  return grantedEntitlements([...state.entitlements, ...planFor(state.plan).entitlements]);
+}
+
 export function entitlementView(state: WorkspaceEntitlementState, now = Date.now()): EntitlementView {
-  const granted = grantedEntitlements(state.entitlements);
+  const granted = grantedForState(state);
   if (state.status === "suspended") {
     return {
       ...state,

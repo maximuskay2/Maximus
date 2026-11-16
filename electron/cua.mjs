@@ -14,6 +14,7 @@ import { pathToFileURL } from "node:url";
 import localOriginModule from "./local-origin.cjs";
 import { createLocalComputerGrant } from "./local-computer-grant.mjs";
 import { driverFailure } from "./cua-failure.mjs";
+import { startAgentOsHeartbeat, stopAgentOsHeartbeat } from "./agent-os-heartbeat.mjs";
 
 const { localOnly } = localOriginModule;
 
@@ -360,6 +361,7 @@ export async function cuaPermissionsStatus() {
 }
 
 export async function stopCua() {
+  stopAgentOsHeartbeat();
   clearTimeout(retryTimer);
   retryTimer = null;
   lifecycleGeneration++;
@@ -432,6 +434,7 @@ export async function requestComputerUse() {
 }
 
 export function registerCuaIpc() {
+  startAgentOsHeartbeat();
   ipcMain.handle("cua:connection", localOnly("cua:connection", () => connectionStore.get()));
   ipcMain.handle("cua:permissions", localOnly("cua:permissions", () => cuaPermissionsStatus()));
   ipcMain.handle("cua:linux-status", localOnly("cua:linux-status", () =>

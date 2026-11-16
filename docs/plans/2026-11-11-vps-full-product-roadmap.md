@@ -2,7 +2,7 @@
 
 Date: 2026-11-11. **Hosting phases 0–5 are done.** The release that freezes
 this product and lists the remaining client and driver work is
-[2026-11-14 Maximus v1](2026-11-14-maximus-v1-release.md).
+[2026-11-15 Maximus roadmap](2026-11-15-maximus-roadmap.md) (Ship 1).
 
 
 

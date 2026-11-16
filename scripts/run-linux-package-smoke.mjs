@@ -122,7 +122,7 @@ if (process.exitCode === undefined) {
 
 if (process.exitCode === undefined) for (const lane of [
   { name: "x11-overlay-free-crash-retry", wayland: false, blocked: false },
-  { name: "wayland-safety-block", wayland: true, blocked: true },
+  { name: "wayland-gnome-supervised", wayland: true, blocked: false },
 ]) {
   const runtimeDirectory = mkdtempSync(path.join(tmpdir(), prefixName));
   if (

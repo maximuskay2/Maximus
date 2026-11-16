@@ -19,6 +19,7 @@ import { computerAskWords } from "@/lib/computer-ask";
 import { mcpRequestActionLabel } from "@/lib/mcp-request-label";
 import { TriggerCard } from "./TriggerCard";
 import { CardHint } from "./CardHint";
+import { AgentOsWhere } from "./AgentOsWhere";
 
 interface ToolLabels {
   [tool: string]: LocaleKey;
@@ -354,6 +355,7 @@ function CompactApprovalRow({
   byVoice,
   waiting,
   answeredBelow,
+  where,
 }: {
   header: string;
   summary?: string;
@@ -365,6 +367,7 @@ function CompactApprovalRow({
   byVoice: ReactNode;
   waiting: boolean;
   answeredBelow: boolean;
+  where?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const toggle = () => setOpen((value) => !value);
@@ -405,6 +408,7 @@ function CompactApprovalRow({
           </span>
         )}
         <span className="shrink-0" aria-live="polite">· {outcome ?? t("approval.status.waitingAnswer")}</span>
+        {where}
         {byVoice}
         {detail && !showDetailInline && (
           <button
@@ -450,6 +454,7 @@ export function ApprovalCard({
   const expired = card.expired === true || staleRoutineCard(card);
   const via = card.answeredBy?.via;
   const byVoice = via ? <span className="text-ink-tertiary">· {t(via === "call" ? "approval.status.byVoice" : "approval.status.byReaction")}</span> : null;
+  const where = <AgentOsWhere threadId={threadId} answeredBy={card.answeredBy} />;
   const isRoutineRequest = Boolean(card.routineRequest);
   const isSkillRequest = Boolean(card.skillRequest);
   const isProfileRequest = Boolean(card.profileRequest);
@@ -482,7 +487,7 @@ export function ApprovalCard({
     return (
       <div data-computer-ask={state} className="w-full">
         <CompactApprovalRow header={turnOn.line} summary={waiting ? turnOn.reason : undefined} detail="" showDetailInline={false} outcome={turnOn.outcome}
-          allowed={state === "on" || state === "turning-on"} byVoice={byVoice} waiting={waiting} answeredBelow={waiting && !card.dismissed} />
+          allowed={state === "on" || state === "turning-on"} byVoice={byVoice} where={where} waiting={waiting} answeredBelow={waiting && !card.dismissed} />
       </div>
     );
   }
@@ -504,6 +509,7 @@ export function ApprovalCard({
         allowed={settled === "allow" && !expired}
         expired={expired}
         byVoice={byVoice}
+        where={where}
         waiting={waiting}
         answeredBelow={Boolean(card.requestId && card.tool && !card.dismissed)}
       />
@@ -561,6 +567,7 @@ export function ApprovalCard({
         {outcome ? (
           <>
             {settled === "allow" && !expired ? <Check size={14} className="text-success" /> : <X size={14} />} {outcome}
+            {where}
             {byVoice}
           </>
         ) : (

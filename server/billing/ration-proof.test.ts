@@ -139,7 +139,9 @@ describe("ration proof on an isolated workspace", () => {
     const wallet = fix.ration.ensureFree("acme", new Date(NOW), { email: "ada@example.com", installId: "install-1" });
     expect(wallet.grantedUsd).toBe(fix.ration.profileNow().freeGrantUsd);
     expect(wallet.grantedUsd).toBe(0.012);
-    expect(fix.ration.walletView("acme", new Date(NOW)).leftUsd).toBe(0.012);
+    expect(wallet.workspace).toBe("free:ada@example.com");
+    expect(fix.ration.walletView("acme", new Date(NOW), { email: "ada@example.com" }).leftUsd).toBe(0.012);
+    expect(fix.ration.ensureFree("acme", new Date(NOW), { email: "bob@example.com" }).grantedUsd).toBe(0.012);
   });
 
   it("debits one bundled turn by the input, cache, and output formula", async () => {

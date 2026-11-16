@@ -25,7 +25,9 @@ export function LinuxLocalControl() {
   if (capabilities.host.platform !== "linux") return null;
   const busy = pending !== null || local.status === "checking" || local.status === "starting";
   const ready = local.available;
+  const compositorBlocked = local.reasonCode === "wayland-compositor-unsupported";
   const waylandSafetyBlocked = local.reasonCode === "linux-wayland-seat-safety-blocked";
+  const sessionBlocked = compositorBlocked || waylandSafetyBlocked;
   const wayland = capabilities.host.session === "wayland";
   const bundledDriver = local.driverSource === "bundled";
 
@@ -66,7 +68,7 @@ export function LinuxLocalControl() {
             "shrink-0 rounded-full px-2 py-1 text-[10px] font-medium",
             ready
               ? "bg-success/10 text-success"
-              : waylandSafetyBlocked
+              : sessionBlocked
                 ? "bg-danger/10 text-danger"
                 : local.enabled
                   ? "bg-warning/10 text-warning"
@@ -75,7 +77,7 @@ export function LinuxLocalControl() {
         >
           {ready
             ? t("computer.linux.ready")
-            : waylandSafetyBlocked
+            : sessionBlocked
               ? t("computer.linux.waylandBadge")
               : local.enabled
                 ? t("vm.state.attention")
@@ -83,14 +85,18 @@ export function LinuxLocalControl() {
         </span>
       </div>
 
-      {waylandSafetyBlocked ? (
+      {sessionBlocked ? (
         <div className="mt-3 rounded-lg border border-danger/20 bg-danger/5 p-3">
           <div className="flex gap-2 text-[12px] leading-relaxed text-ink-secondary">
             <AlertTriangle size={15} className="mt-0.5 shrink-0 text-danger" />
             <span>
-              {t("computer.linux.waylandBefore")}{" "}
-              <strong className="font-medium text-ink">{t("computer.linux.waylandXorg")}</strong>
-              {" "}{t("computer.linux.waylandAfter")}
+              {compositorBlocked
+                ? t("computer.problem.localWaylandDesktop")
+                : <>
+                    {t("computer.linux.waylandBefore")}{" "}
+                    <strong className="font-medium text-ink">{t("computer.linux.waylandXorg")}</strong>
+                    {" "}{t("computer.linux.waylandAfter")}
+                  </>}
             </span>
           </div>
         </div>
@@ -133,7 +139,7 @@ export function LinuxLocalControl() {
 
       {error && <div className="mt-2 text-[12px] text-danger">{typeof error === "string" ? error : t(error.key)}</div>}
 
-      {!waylandSafetyBlocked && <div className="mt-3 flex gap-2">
+      {!sessionBlocked && <div className="mt-3 flex gap-2">
         {!local.enabled ? (
           <button
             type="button"

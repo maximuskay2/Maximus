@@ -12,6 +12,7 @@ import { placeFacts, placeViewFor, usePlaceSeat } from "@/lib/place-view";
 import { shortPath } from "@/lib/short-path";
 import { isOwnThreadFolder } from "../../../shared/thread-folder";
 import { useDesktopCapabilities } from "../DesktopCapabilities";
+import { AgentOsRunOn } from "../AgentOsRunOn";
 import { CloudBackendPicker } from "../CloudBackendPicker";
 import { Switch } from "../SettingsPrimitives";
 import { PhoneAppsCard } from "./PhoneAppsCard";
@@ -675,6 +676,7 @@ export function AccessSection({
 
   return (
     <div className="flex flex-col gap-4">
+      {shows("worksOn") && <AgentOsRunOn botId={bot.id} threadId={bot.threadId} />}
       {shows("worksOn") && <div className="rounded-xl bg-card p-4" data-testid="access-works-on">
         <div className="text-[15px] font-medium text-ink">{t("access.worksOn", { name: bot.name, short: worksOn.short })}</div>
         <ProposalStatus bot={bot} kind="owner" />

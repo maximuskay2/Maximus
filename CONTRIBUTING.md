@@ -56,7 +56,7 @@ For Ubuntu installation and real desktop checks, see [`docs/linux-desktop.md`](d
 Ubuntu release packages must come from the manual **Package Ubuntu** workflow on an exact release commit or tag,
 not from a developer workstation. The Ubuntu 24.04 runner builds and verifies both formats, launches the unpacked
 app and AppImage, routes `click` and `type_text` through the overlay-free bundled Cua runtime on Xorg, runs the
-fail-closed Wayland CUA smoke,
+GNOME/Wayland CUA smoke,
 and produces one release artifact containing:
 
 - the versioned `.deb` and AppImage;
@@ -204,12 +204,12 @@ with everything.
   independent capabilities.
 - Test Ubuntu platform claims on a real GNOME session. Xvfb proves packaging and fake-driver orchestration, not
   Wayland portal behavior or real CUA inspection/input delivery.
-- Linux local control is enabled only on GNOME/Xorg after explicit opt-in. The owned daemon must start with
+- Linux local control is enabled only on GNOME/Xorg and GNOME/Wayland after explicit opt-in. The owned daemon must start with
   `--no-overlay`: the decorative full-screen Cua cursor surface is not part of the product contract and must never
-  sit between the person and their desktop. GNOME/Wayland must clear a legacy durable opt-in, report
-  `linux-wayland-seat-safety-blocked`, and never start Cua until it independently passes the real-seat matrix in
-  #345. Xvfb proves the overlay-free arguments, lifecycle, and input routing; it does not waive real-seat evidence.
-  An unrelated app must remain clickable/typeable before any approved action. Global opt-in plus per-bot
+  sit between the person and their desktop. GNOME/Wayland uses mode `linux-wayland-gnome-supervised` and must pass
+  Cua `health_report` (WinRects + portal/libei) before it is ready; a non-GNOME compositor stays
+  `wayland-compositor-unsupported`. Xvfb proves the overlay-free arguments, lifecycle, and input routing; it does not
+  replace a real GNOME seat. An unrelated app must remain clickable/typeable before any approved action. Global opt-in plus per-bot
   **This computer** remains mandatory; Linux Auto, full-auto/bypass modes, remembered grants, and cloud approvals
   must never authorize the user's desktop.
 - Keep CUA discovery shell-free and pin accepted archive, inner-file, manifest, and driver contracts. Packaged Linux

@@ -21,7 +21,7 @@ interface Harness {
 }
 
 function harness(options: {
-  tokens?: Array<{ token: string; personKey?: string | null }>;
+  tokens?: Array<{ token: string; personKey?: string | null; platform?: "ios" | "android" | "web" | "desktop" }>;
   sender?: FcmSender | null;
 } = {}): Harness {
   const sent: FcmMessage[] = [];
@@ -35,7 +35,7 @@ function harness(options: {
     : options.sender;
   const fanout = createPushFanout({
     tokens: () => (options.tokens ?? [{ token: "tok1" }]).map((t) => ({
-      token: t.token, platform: "ios" as const, deviceName: null,
+      token: t.token, platform: t.platform ?? "ios", deviceName: null,
       personKey: t.personKey ?? null, appVersion: null,
     })),
     removeToken: (token) => { removed.push(token); },
@@ -82,11 +82,13 @@ describe("mobile push fanout", () => {
     expect(h.sent[0]).toMatchObject({ highPriority: true });
   });
 
-  it("desktop-preferred: a live desktop eats FYI, urgent still pushes", async () => {
-    const h = harness();
+  it("a live desktop still FYI-fans the phone, not web/desktop tokens", async () => {
+    const h = harness({ tokens: [{ token: "phone", platform: "ios" }, { token: "desk", platform: "desktop" }, { token: "browser", platform: "web" }] });
     h.desktop.live = true;
-    expect(await h.fanout.fanout(entry())).toMatchObject({ delivered: 0, skipped: "desktop live" });
+    expect(await h.fanout.fanout(entry())).toMatchObject({ delivered: 1 });
+    expect(h.sent.map((message) => message.token)).toEqual(["phone"]);
     expect(await h.fanout.fanout(entry({ kind: "question" }))).toMatchObject({ delivered: 1 });
+    expect(h.sent.map((message) => message.token)).toEqual(["phone", "phone"]);
   });
 
   it("a muted bot silences FYI only", async () => {

@@ -90,7 +90,7 @@ describe("mobile push routes", () => {
   it("rejects bad registrations", async () => {
     const { base } = await serve();
     expect((await post(base, "/v1/installations/self/push/register", { token: "", platform: "ios" })).status).toBe(400);
-    expect((await post(base, "/v1/installations/self/push/register", { token: "t", platform: "web" })).status).toBe(400);
+    expect((await post(base, "/v1/installations/self/push/register", { token: "t", platform: "macos" })).status).toBe(400);
   });
 
   it("unregisters by token", async () => {
@@ -109,6 +109,8 @@ describe("mobile push routes", () => {
     const client = { kind: "session", session: { id: "s1" }, via: "bearer", scopes: ["client"] } as unknown as RequestAuth;
     const { base } = await serve({ auth: client });
     // ...but a chat-only phone can still register itself.
+    expect((await post(base, "/v1/installations/self/push/register", { token: "t", platform: "web" })).status).toBe(200);
+    expect((await post(base, "/v1/installations/self/push/register", { token: "d", platform: "desktop" })).status).toBe(200);
     expect((await post(base, "/v1/installations/self/push/register", { token: "t", platform: "android" })).status).toBe(200);
     expect((await fetch(`${base}/v1/installations/self/push`)).status).toBe(403);
     expect((await fetch(`${base}/v1/installations/self/push/settings`, {

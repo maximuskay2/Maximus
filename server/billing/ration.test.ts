@@ -87,13 +87,22 @@ describe("ration wallet", () => {
     expect(refusal?.code).toBe("spend_cap");
   });
 
-  it("gives the free grant once per email and once per install", () => {
+  it("gives each signup email its own free grant, once", () => {
     const ration = service();
     const now = new Date("2026-11-10T12:00:00Z");
-    expect(ration.ensureFree("one", now, { email: "Ada@example.com", installId: "phone-1" }).grantedUsd).toBe(0.012);
-    expect(ration.ensureFree("two", now, { email: "ada@example.com" }).grantedUsd).toBe(0);
-    expect(ration.ensureFree("three", now, { installId: "phone-1" }).grantedUsd).toBe(0);
-    expect(ration.ensureFree("one", now).grantedUsd).toBe(0.012);
+    const ada = ration.ensureFree("local", now, { email: "Ada@example.com", installId: "phone-1" });
+    expect(ada.grantedUsd).toBe(0.012);
+    expect(ada.workspace).toBe("free:ada@example.com");
+    expect(ration.ensureFree("local", now, { email: "ada@example.com" }).grantedUsd).toBe(0.012);
+    expect(ration.ensureFree("local", now, { email: "ada@example.com" }).spentUsd).toBe(0);
+    expect(ration.ensureFree("other-host", now, { installId: "phone-1" }).grantedUsd).toBe(0);
+    const bob = ration.ensureFree("local", now, { email: "bob@example.com" });
+    expect(bob.grantedUsd).toBe(0.012);
+    expect(bob.workspace).toBe("free:bob@example.com");
+    expect(ration.debit("local", "muse-spark-1.3-contributor", { freshInput: 100, cachedInput: 0, output: 40 }, now, { email: "ada@example.com" })).toBeNull();
+    expect(ration.wallet("free:ada@example.com").spentUsd).toBeGreaterThan(0);
+    expect(ration.wallet("free:bob@example.com").spentUsd).toBe(0);
+    expect(ration.wallet("local").spentUsd).toBe(0);
   });
 
   it("opts free wallets into Contributor Spark when the profile allows it", () => {
@@ -112,9 +121,11 @@ describe("ration wallet", () => {
     const now = new Date("2026-11-10T12:00:00Z");
     expect(ration.chargeChat("local", "ada@example.com", "hello", now)).toBeNull();
     expect(ration.wallet("local").spentUsd).toBe(0);
+    expect(ration.wallet("free:ada@example.com").spentUsd).toBe(0);
     ration.chooseAccount("ada@example.com", "free");
     expect(ration.chargeChat("local", "ada@example.com", "hello", now)).toBeNull();
-    expect(ration.wallet("local").spentUsd).toBeGreaterThan(0);
+    expect(ration.wallet("local").spentUsd).toBe(0);
+    expect(ration.wallet("free:ada@example.com").spentUsd).toBeGreaterThan(0);
     for (let i = 0; i < 18; i += 1) expect(ration.chargeChat("local", "ada@example.com", "hello", now)).toBeNull();
     expect(ration.chargeChat("local", "ada@example.com", "hello", now)).toBeNull();
     expect(ration.chargeChat("local", "ada@example.com", "hello", now)?.code).toBe("rate_limit");
@@ -175,9 +186,9 @@ describe("ration wallet", () => {
     expect(plansFromRation(DEFAULT_RATION).find((plan) => plan.id === "byo")?.display.features).toContain("Web, desktop, and phone");
     expect(workerPlansFromRation(DEFAULT_RATION)).toEqual(expect.arrayContaining([
       { id: "free", entitlements: ["gateway"], allowance: null },
-      { id: "starter", entitlements: ["billing", "gateway"], allowance: 800 },
-      { id: "team", entitlements: ["admin", "budgets", "billing", "gateway"], allowance: 2200 },
-      { id: "business", entitlements: ["whitelabel", "sso", "admin", "budgets", "billing", "gateway"], allowance: 4000 },
+      { id: "starter", entitlements: ["billing", "gateway", "agentOsMachines"], allowance: 800 },
+      { id: "team", entitlements: ["admin", "budgets", "billing", "gateway", "agentOsMachines"], allowance: 2200 },
+      { id: "business", entitlements: ["whitelabel", "sso", "admin", "budgets", "billing", "gateway", "agentOsMachines"], allowance: 4000 },
     ]));
     const fetchImpl = vi.fn(async () => new Response("{}", { status: 200 }));
     await expect(pushWorkerPlanCatalog(DEFAULT_RATION, {
@@ -228,20 +239,22 @@ describe("ration wallet", () => {
     expect(ration.profileNow().hosted[0]!.includedCostUsd).toBe(8);
   });
 
-  it("spends admin credit for that email only and leaves the shared wallet", () => {
+  it("spends admin credit for that email only and leaves other free wallets alone", () => {
     const ration = service();
     const now = new Date("2026-11-10T12:00:00Z");
     const granted = ration.grantAccount({ email: "Ada@example.com", creditUsd: 1, note: "paid cash" }, now);
     expect(granted.ok).toBe(true);
     expect(ration.chargeChat("local", "ada@example.com", "hello", now)).toBeNull();
     expect(ration.wallet("local").spentUsd).toBe(0);
+    expect(ration.wallet("free:ada@example.com").spentUsd).toBe(0);
     const ada = ration.listGrants()[0]!;
     expect(ada.email).toBe("ada@example.com");
     expect(ada.spentUsd).toBeGreaterThan(0);
     expect(ada.note).toBe("paid cash");
     ration.chooseAccount("other@example.com", "free");
     expect(ration.chargeChat("local", "other@example.com", "hello", now)).toBeNull();
-    expect(ration.wallet("local").spentUsd).toBeGreaterThan(0);
+    expect(ration.wallet("local").spentUsd).toBe(0);
+    expect(ration.wallet("free:other@example.com").spentUsd).toBeGreaterThan(0);
     expect(ration.listGrants()[0]!.spentUsd).toBe(ada.spentUsd);
     const again = ration.grantAccount({ email: "ada@example.com", tokens: 1_000_000 }, now);
     expect(again.ok && again.seat.creditUsd).toBeCloseTo(5.25, 6);

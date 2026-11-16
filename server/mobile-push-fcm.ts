@@ -131,6 +131,19 @@ export function createFcmSender(deps: Deps): FcmSender {
               priority: message.highPriority ? "HIGH" : "NORMAL",
               collapse_key: message.collapseKey,
             },
+            webpush: {
+              headers: {
+                Urgency: message.highPriority ? "high" : "normal",
+                TTL: "86400",
+              },
+              notification: {
+                title: message.title,
+                body: message.body,
+                icon: "/app-icon-192.png",
+                tag: message.collapseKey,
+              },
+              data: message.data,
+            },
             apns: {
               headers: {
                 "apns-priority": message.highPriority ? "10" : "5",

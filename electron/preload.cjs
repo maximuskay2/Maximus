@@ -645,6 +645,7 @@ const bridge = {
   // A bot's notification, shown by main so its click outlives this page; older apps have no such key and the page shows its own.
   desktopNotifications: {
     show: (note) => ipcRenderer.invoke("desktop-notifications:show", note),
+    fcmToken: (senderId) => ipcRenderer.invoke("desktop-fcm:token", String(senderId ?? "")),
     onOpen: (cb) => {
       notificationOpenListeners.add(cb);
       if (pendingNotificationOpen) {
