@@ -132,6 +132,41 @@ describe("/api/admin/ration", () => {
     expect(downgrade[1].choice).toBe("muse");
   });
 
+  it("refuses a second free grant on the same device and still accepts Your model", async () => {
+    const folder = mkdtempSync(join(tmpdir(), "maximus-ration-route-"));
+    folders.push(folder);
+    const ration = new RationService({ dataDir: folder });
+    const routes = [createRationRoutes({ ration })];
+    const server = createServer(async (req, res) => {
+      const url = new URL(req.url ?? "/", "http://localhost");
+      const email = req.url?.includes("bob") ? "bob@example.com" : "ada@example.com";
+      const handled = await dispatchRoutes(routes, {
+        req, res, url, path: url.pathname, method: req.method ?? "GET",
+        auth: { kind: "session", scopes: ["client"], session: { email } } as never, json, readBody,
+      });
+      if (!handled) json(res, 404, { error: "missing" });
+    });
+    servers.push(server);
+    await new Promise<void>((ready) => server.listen(0, "127.0.0.1", ready));
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const headers = { "content-type": "application/json", "x-maximus-install": "desk-aaaa" };
+    const ada = await fetch(`${base}/api/account/plan`, { method: "POST", headers, body: JSON.stringify({ choice: "free" }) });
+    expect(ada.status).toBe(200);
+    expect(await ada.json()).toMatchObject({ choice: "free" });
+    const peek = await fetch(`${base}/api/account/plan?who=bob`, { headers });
+    expect(await peek.json()).toEqual({ choice: null, freeAvailable: false });
+    const blocked = await fetch(`${base}/api/account/plan?who=bob`, {
+      method: "POST", headers, body: JSON.stringify({ choice: "free" }),
+    });
+    expect(blocked.status).toBe(409);
+    expect(await blocked.json()).toMatchObject({ code: "free_used", freeAvailable: false });
+    const paid = await fetch(`${base}/api/account/plan?who=bob`, {
+      method: "POST", headers, body: JSON.stringify({ choice: "byo" }),
+    });
+    expect(paid.status).toBe(200);
+    expect(await paid.json()).toMatchObject({ choice: "byo" });
+  });
+
   it("lets an admin grant credit or a plan and refuses a member", async () => {
     const notices: Array<{ email: string; creditUsd?: number; plan?: string }> = [];
     const admin = await serve(["admin"], undefined, {

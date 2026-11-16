@@ -2,6 +2,7 @@
 // the harness proxy (/api/console/*). The account token comes from email OTP
 // and lives in session storage: it dies with the tab and is revocable
 // server-side. Amounts arrive from operator configuration, never code.
+import { applyGrantInstallHeader } from "../lib/install-id";
 export class ConsoleError extends Error {
   readonly status: number;
   readonly code: string;
@@ -23,6 +24,7 @@ export interface ConsoleCallOptions {
 async function call<T>(path: string, options: ConsoleCallOptions & { method?: string; token?: string; body?: unknown }): Promise<T> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const headers: Record<string, string> = { "content-type": "application/json" };
+  applyGrantInstallHeader(headers);
   if (options.token) headers.authorization = `Bearer ${options.token}`;
   const res = await fetchImpl(path, {
     method: options.method ?? "GET",

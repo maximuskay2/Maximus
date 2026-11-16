@@ -1,6 +1,7 @@
 // The renderer's JSON request helper. A Cloud home that went to sleep is never woken by a background poll
 // (src/lib/cloud-power.ts), and a page out of sight sends none at all.
 import { asleepAnswer, BACKGROUND_HEADER, cloudAsleep, markCloudAsleep, markCloudAwake, pageHidden, pageShown } from "../lib/cloud-power";
+import { applyGrantInstallHeader } from "../lib/install-id";
 import { lacksAdminScope } from "../lib/admin-scope";
 import { isBotLimitRefusal, showBotLimit } from "../lib/bot-limit";
 import { noteRefusedRequest } from "../lib/session-ended";
@@ -33,6 +34,7 @@ export async function api<T = any>(path: string, init?: ApiInit): Promise<T> {
     markCloudAwake();
   }
   const sent = new Headers(headers ?? { "content-type": "application/json" });
+  applyGrantInstallHeader(sent);
   if (background) sent.set(BACKGROUND_HEADER, "1");
   const res = await fetch(path, {
     ...rest,
