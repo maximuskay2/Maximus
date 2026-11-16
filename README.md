@@ -42,7 +42,11 @@ Talk to the bots like contacts. Watch them work. Approve what matters.
 <br>
 <br>
 
-<img src="docs/screenshots/hero.png" alt="Maximus — a Telegram-style chat app where every chat is a real AI agent" width="900">
+<img src="docs/screenshots/social-bull.png" alt="Maximus — the bull" width="900">
+
+<br>
+
+<img src="public/bull-avatar.png" alt="Maximus bull mark" width="280">
 
 </div>
 
@@ -59,8 +63,8 @@ Maximus keeps each coworker in its own conversation: its own personality, its me
 - **Yours to run.** A self-hosted server keeps transcripts, keys, and events in `~/.maximus`.
 - **Agents with hands.** Each bot can use a cloud Linux desktop, an isolated Local VM, or—where the platform
   safety boundary is currently certified—your own computer, plus 500+ apps through Composio. Host control is
-  available on macOS and Ubuntu Xorg after explicit opt-in. Ubuntu Wayland host control remains disabled while
-  issue #345 is resolved.
+  available on macOS and Ubuntu GNOME (Xorg and Wayland) after explicit opt-in. Non-GNOME Wayland sessions stay
+  unavailable.
 
 ## The open-source alternative to Grok Bot, Muse, dots and Cue
 
@@ -272,7 +276,7 @@ flowchart LR
 | API | `server/index.ts` | Bots, turns, approvals, model catalog, computer lifecycle, connectors, config — HTTP + SSE. |
 | Voice | `server/tts/` | ElevenLabs, Fish Audio, Grok (xAI), built-in Mac voices, or local Chatterbox. Cloud keys stay on the harness; markdown is rewritten into something worth hearing before it is spoken. |
 | App | `src/` | The chat shell. Server-backed store, one reducer, zero client-side transports. |
-| Desktop | `electron/` | macOS, Windows, and Ubuntu shells with an embedded harness and platform capabilities; Apple speech stays macOS-only, Ubuntu Xorg has opt-in local control, and Wayland remains fail-closed. |
+| Desktop | `electron/` | macOS, Windows, and Ubuntu shells with an embedded harness and platform capabilities; Apple speech stays macOS-only, Ubuntu GNOME Xorg and Wayland have opt-in local control, and other Wayland compositors stay unavailable. |
 
 ### Orchestrate Maximus over MCP
 
@@ -355,14 +359,14 @@ pnpm package:linux    # Ubuntu x64: .deb + AppImage + verified CUA runtime
 | Packaged app, embedded harness, local agent CLIs | Supported | Supported | Beta | Beta |
 | Composio and Boat/cloud computers | Supported | Supported | Beta | Beta |
 | Explicit preview-only local screen capture | Supported | Supported | Beta | Beta |
-| Bot control of this computer | Supported, explicit opt-in | Not offered | Beta, explicit opt-in | Disabled: Wayland safety gate |
+| Bot control of this computer | Supported, explicit opt-in | Not offered | Beta, explicit opt-in | Beta, GNOME only, explicit opt-in |
 | Native on-device dictation | Supported | Not offered, Fish Audio instead | Planned | Planned |
 | Dictation and Take turns calls through Fish Audio (needs a Fish Audio key) | Not used, on-device instead | Supported | Supported | Supported |
 
-The Linux preview is user-initiated and never enables local bot control or Auto routing. On Xorg, the reviewed Cua
-Driver 0.19.3 runtime starts only after explicit opt-in and without its full-screen cursor overlay. On Wayland the
-app never starts it and clears legacy opt-ins while that real-seat safety gate remains unresolved. Chat, preview,
-Cloud, and Local VM remain available on both sessions. See the [Ubuntu Desktop guide](docs/linux-desktop.md).
+The Linux preview is user-initiated and never enables local bot control or Auto routing. The reviewed Cua
+Driver 0.19.3 runtime starts only after explicit opt-in and without its full-screen cursor overlay. On GNOME
+Wayland it also requires a passing Cua health report. Chat, preview, Cloud, and Local VM remain available on
+both sessions. See the [Ubuntu Desktop guide](docs/linux-desktop.md).
 
 The Linux packager downloads only the tag-pinned upstream archive during the build, verifies its size, SHA-256,
 complete member allowlist, and inner executable hashes, then packages only the CLI and cursor-theme sidecar. The
