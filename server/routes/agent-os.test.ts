@@ -125,8 +125,10 @@ describe("Agent OS HTTP", () => {
       json: ((_res, status, response) => { sent.push({ status, body: response }); }) as RouteContext["json"],
       readBody: async () => ({ machineId: "orphan", capability: "computer" }),
     });
-    expect(sent[0]?.status).toBe(403);
-    expect(String((sent[0]?.body as { error: string }).error)).toMatch(/live shared desktop/i);
+    expect(sent).toHaveLength(1);
+    const blocked = sent[0]!;
+    expect(blocked.status).toBe(403);
+    expect(String((blocked.body as { error: string }).error)).toMatch(/live shared desktop/i);
   });
 });
 
@@ -162,7 +164,8 @@ describe("Agent OS overlay HTTP", () => {
       json: ((_res, status, response) => { sent.push({ status, body: response }); }) as RouteContext["json"],
       readBody: async () => ({}),
     });
-    const ids = ((sent[0]?.body as { machines: Array<{ id: string }> }).machines ?? []).map((row) => row.id);
+    expect(sent).toHaveLength(1);
+    const ids = ((sent[0]!.body as { machines: Array<{ id: string }> }).machines ?? []).map((row) => row.id);
     expect(ids).toEqual(expect.arrayContaining(["self", "11111111-1111-4111-8111-111111111111"]));
   });
 
@@ -199,11 +202,13 @@ describe("Agent OS overlay HTTP", () => {
       json: ((_res, status, response) => { sent.push({ status, body: response }); }) as RouteContext["json"],
       readBody: async () => ({ machineId: "office", capability: "computer" }),
     });
-    expect(sent[0]?.status).toBe(503);
-    expect(sent[0]?.body).toEqual(expect.objectContaining({
+    expect(sent).toHaveLength(1);
+    const asleep = sent[0]!;
+    expect(asleep.status).toBe(503);
+    expect(asleep.body).toEqual(expect.objectContaining({
       outcome: "offline",
       wait: { machineId: "office", name: "Office Mac" },
     }));
-    expect(String((sent[0]?.body as { error: string }).error)).toMatch(/asleep/i);
+    expect(String((asleep.body as { error: string }).error)).toMatch(/asleep/i);
   });
 });
