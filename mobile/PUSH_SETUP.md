@@ -9,8 +9,8 @@ project and a server service account. Until then the app reports push
 1. Create a project at <https://console.firebase.google.com> (e.g.
    `maximus-push`).
 2. Add an iOS app, bundle id `com.maximusbot.app`; download
-   `GoogleService-Info.plist` into `mobile/ios/Runner/` and add it to the
-   Runner target in Xcode (File → Add Files).
+   `GoogleService-Info.plist` into `mobile/ios/Runner/` (gitignored). Do
+   not add it in Xcode: the Runner build copies it when the file is there.
 3. Add an Android app, application id `com.maximusbot.app`; download
    `google-services.json` into `mobile/android/app/` and apply the plugin:
    - `mobile/android/settings.gradle.kts`: add

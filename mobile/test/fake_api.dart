@@ -1309,14 +1309,18 @@ class FakeApi implements MaximusApi {
     configured: true,
     cards: [],
   );
+  ApiError? connectorCatalogError;
   Map<String, ConnectorLink> connectorConnectionsAnswer = const {};
   String connectorAuthorizeUrl = 'https://connect.example/auth';
   final List<Map<String, Object?>> connectorWrites = [];
   Map<String, List<BotMcpServer>> botMcpServersById = const {};
 
   @override
-  Future<ConnectorCatalog> connectorCatalog(String baseUrl) async =>
-      connectorCatalogAnswer;
+  Future<ConnectorCatalog> connectorCatalog(String baseUrl) async {
+    final refused = connectorCatalogError;
+    if (refused != null) throw refused;
+    return connectorCatalogAnswer;
+  }
 
   @override
   Future<Map<String, ConnectorLink>> connectorConnections(String baseUrl) async =>

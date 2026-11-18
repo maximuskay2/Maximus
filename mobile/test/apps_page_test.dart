@@ -111,6 +111,50 @@ void main() {
     );
   });
 
+  testWidgets('Apps page does not show a raw admin 403', (tester) async {
+    final api = FakeApi()
+      ..sessionInfoPayload = const AuthSessionInfo(
+        kind: 'session',
+        scopes: ['client'],
+        id: 'sess-client',
+        label: 'Phone',
+        email: 'member@example.test',
+      )
+      ..connectorCatalogError = const ApiError(
+        403,
+        'forbidden: this session lacks the admin scope',
+      );
+    final store = MemorySessionStore();
+    await store.saveServer(
+      const ServerRef(
+        id: 'h',
+        name: 'Home',
+        baseUrl: 'http://127.0.0.1:8799',
+        companionToken: 'tok',
+      ),
+    );
+    final auth = AuthState(store: store, client: api);
+    await auth.load();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AppsPage(
+          auth: auth,
+          baseUrl: 'http://127.0.0.1:8799',
+          bots: const [],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('admin scope'), findsNothing);
+    expect(find.textContaining('ApiError'), findsNothing);
+    expect(
+      find.textContaining('Connect an app on your computer or web app'),
+      findsOneWidget,
+    );
+  });
+
   test('catalog and link parsers tolerate partial JSON', () {
     final catalog = ConnectorCatalog.fromJson({
       'configured': true,

@@ -429,6 +429,8 @@ export const CLIENT_ALLOW: ReadonlyArray<{ methods: readonly string[]; path: Reg
   { methods: ["POST"], path: /^\/api\/routines\/[\w-]+\/run$/ },
   { methods: ["POST"], path: /^\/api\/routine-runs\/[\w-]+\/(?:cancel|seen)$/ },
   { methods: ["POST"], path: /^\/api\/routine-runs\/seen-all$/ },
+  // App names and blurbs only. Who is signed in, and Connect, stay an admin's (or a Team Cloud member's own /api/team/my-connections).
+  { methods: ["GET"], path: /^\/api\/connectors\/catalog$/ },
   // webhook list is secret-free; creating or rotating one is not
   { methods: ["GET"], path: /^\/api\/webhooks$/ },
   // app-event automations: the list carries no credential; creating or changing one is the owner's

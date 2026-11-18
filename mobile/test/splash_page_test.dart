@@ -10,9 +10,10 @@ void main() {
     );
     await tester.pump();
     expect(find.text('Maximus'), findsOneWidget);
-    expect(find.text('Your proactive AI teammate'), findsOneWidget);
     expect(find.byType(Image), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 1500));
+    expect(find.text('Your proactive AI teammate'), findsNothing);
+    expect(find.text('MaximusBot'), findsNothing);
+    await tester.pump(const Duration(milliseconds: 300));
   });
 
   testWidgets('SplashGate holds then reveals child', (tester) async {

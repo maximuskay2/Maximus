@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -13,7 +12,7 @@ class SplashGate extends StatefulWidget {
     super.key,
     required this.ready,
     required this.child,
-    this.minDuration = const Duration(milliseconds: 1100),
+    this.minDuration = const Duration(milliseconds: 900),
   });
 
   final bool ready;
@@ -77,20 +76,20 @@ class SplashPage extends StatefulWidget {
 
 class _SplashPageState extends State<SplashPage>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _motion;
+  late final AnimationController _fade;
 
   @override
   void initState() {
     super.initState();
-    _motion = AnimationController(
+    _fade = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
+      duration: MaxTokens.motionMedium,
     )..forward();
   }
 
   @override
   void dispose() {
-    _motion.dispose();
+    _fade.dispose();
     super.dispose();
   }
 
@@ -100,139 +99,43 @@ class _SplashPageState extends State<SplashPage>
     final reduce = MediaQuery.disableAnimationsOf(context);
     final paper = dark ? MaxTokens.darkSurface : MaxTokens.paper;
     final ink = dark ? MaxTokens.darkInkText : MaxTokens.ink;
+    final mark = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox.square(
+          dimension: 96,
+          child: Image(
+            image: AssetImage('assets/brand/bull-avatar.png'),
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+          ),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          'Maximus',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 28,
+            height: 1.1,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.6,
+            color: ink,
+          ),
+        ),
+      ],
+    );
 
     return Scaffold(
       backgroundColor: paper,
-      body: AnimatedBuilder(
-        animation: _motion,
-        builder: (context, _) {
-          final t = reduce ? 1.0 : Curves.easeOutCubic.transform(_motion.value);
-          final glow = reduce
-              ? 0.22
-              : (0.12 + 0.18 * math.sin(_motion.value * math.pi));
-          final markScale = reduce ? 1.0 : (0.86 + 0.14 * t);
-          final markOpacity = reduce ? 1.0 : t.clamp(0.0, 1.0);
-          final copyOpacity = reduce
-              ? 1.0
-              : Curves.easeOut.transform(((_motion.value - 0.28) / 0.55).clamp(0.0, 1.0));
-          final copyLift = reduce ? 0.0 : (14 * (1 - copyOpacity));
-
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: const Alignment(0, -0.18),
-                    radius: 1.05,
-                    colors: [
-                      MaxTokens.ember.withValues(alpha: glow),
-                      paper,
-                    ],
-                    stops: const [0.0, 0.72],
-                  ),
+      body: Semantics(
+        label: 'Maximus',
+        child: Center(
+          child: reduce
+              ? mark
+              : FadeTransition(
+                  opacity: CurvedAnimation(parent: _fade, curve: Curves.easeOut),
+                  child: mark,
                 ),
-              ),
-              SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
-                  child: Column(
-                    children: [
-                      const Spacer(flex: 5),
-                      Opacity(
-                        opacity: markOpacity,
-                        child: Transform.scale(
-                          scale: markScale,
-                          child: const _SplashMark(size: 148),
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-                      Opacity(
-                        opacity: copyOpacity,
-                        child: Transform.translate(
-                          offset: Offset(0, copyLift),
-                          child: Column(
-                            children: [
-                              Text(
-                                'Maximus',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 42,
-                                  height: 1.05,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: -1.2,
-                                  color: ink,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                'Your proactive AI teammate',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  height: 1.35,
-                                  fontWeight: FontWeight.w500,
-                                  letterSpacing: 0.1,
-                                  color: dark
-                                      ? MaxTokens.darkMutedText
-                                      : MaxTokens.lightMutedText,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const Spacer(flex: 6),
-                      Opacity(
-                        opacity: copyOpacity * 0.55,
-                        child: Text(
-                          'MaximusBot',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.6,
-                            color: dark
-                                ? MaxTokens.darkMutedText
-                                : MaxTokens.lightMutedText,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _SplashMark extends StatelessWidget {
-  const _SplashMark({required this.size});
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox.square(
-      dimension: size,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: MaxTokens.ember.withValues(alpha: 0.28),
-              blurRadius: 36,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: Image.asset(
-          'assets/brand/bull-avatar.png',
-          fit: BoxFit.contain,
-          filterQuality: FilterQuality.high,
         ),
       ),
     );

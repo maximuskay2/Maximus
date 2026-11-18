@@ -41,6 +41,10 @@ class _AppsPageState extends State<AppsPage> {
   bool _mcpLoading = false;
   String? _mcpError;
   MaximusApi get _client => widget.auth.client;
+  bool get _canConnect => !widget.auth.isChatOnly;
+
+  static bool _adminRefusal(Object error) =>
+      error is ApiError && error.forbidden;
 
   List<BotSummary> get _visibleBots => [
         for (final bot in widget.bots)
@@ -63,20 +67,32 @@ class _AppsPageState extends State<AppsPage> {
     });
     try {
       final catalog = await _client.connectorCatalog(widget.baseUrl);
-      final links = catalog.configured
-          ? await _client.connectorConnections(widget.baseUrl)
-          : const <String, ConnectorLink>{};
+      var links = const <String, ConnectorLink>{};
+      String? error;
+      if (catalog.configured && _canConnect) {
+        try {
+          links = await _client.connectorConnections(widget.baseUrl);
+        } catch (cause) {
+          if (!_adminRefusal(cause)) rethrow;
+        }
+      } else if (catalog.configured && !_canConnect) {
+        error =
+            'Connect an app on your computer or web app, or sign in as the owner of this server.';
+      }
       if (!mounted) return;
       setState(() {
         _catalog = catalog;
         _links = links;
+        _error = error;
         _loading = false;
       });
-      if (_mcpBotId != null) unawaited(_loadMcp(_mcpBotId!));
+      if (_mcpBotId != null && _canConnect) unawaited(_loadMcp(_mcpBotId!));
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _error = '$error';
+        _error = _adminRefusal(error)
+            ? 'Connect an app on your computer or web app, or sign in as the owner of this server.'
+            : '$error';
         _loading = false;
       });
     }
@@ -99,7 +115,7 @@ class _AppsPageState extends State<AppsPage> {
       if (!mounted) return;
       setState(() {
         _mcpServers = const [];
-        _mcpError = '$error';
+        _mcpError = _adminRefusal(error) ? null : '$error';
         _mcpLoading = false;
       });
     }
@@ -245,7 +261,10 @@ class _AppsPageState extends State<AppsPage> {
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
-                    _Notice(tone: _NoticeTone.error, text: _error!),
+                    _Notice(
+                      tone: _canConnect ? _NoticeTone.error : _NoticeTone.info,
+                      text: _error!,
+                    ),
                   ],
                   if (setupNeeded) ...[
                     const SizedBox(height: 12),
@@ -305,7 +324,7 @@ class _AppsPageState extends State<AppsPage> {
                         card: card,
                         link: _links[card.slug],
                         busy: _busySlug == card.slug,
-                        enabled: catalog?.configured == true,
+                        enabled: catalog?.configured == true && _canConnect,
                         onConnect: () {
                           unawaited(_connect(card));
                         },
@@ -325,7 +344,7 @@ class _AppsPageState extends State<AppsPage> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Add and sign in to MCP servers in Apps on your computer or web app. Connect for Gmail and other apps works here; MCP add/sign-in stays on the computer.',
+                    'Add and sign in to MCP servers in Apps on your computer or web app. Connecting Gmail and other apps also stays with the owner of this server.',
                     style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                   ),
                   const SizedBox(height: 12),
@@ -537,15 +556,17 @@ class _AppTile extends StatelessWidget {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               )
+            else if (!enabled)
+              const SizedBox.shrink()
             else if (connected)
               IconButton(
                 tooltip: 'Disconnect',
-                onPressed: enabled ? onDisconnect : null,
+                onPressed: onDisconnect,
                 icon: const Icon(Icons.more_horiz),
               )
             else
               TextButton(
-                onPressed: enabled ? onConnect : null,
+                onPressed: onConnect,
                 child: const Text('Connect'),
               ),
           ],
